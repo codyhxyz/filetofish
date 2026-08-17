@@ -2,7 +2,7 @@
 
 **https://filetofish.codyh.xyz**
 
-My friend misspelled "Filet O' Fish". Now we have file-to-fish: Drop in any file. It comes back as a fish. 
+My friend misspelled "Filet O' Fish". Now we have file-to-fish: Drop in any file, it comes back as a fish. 
 
 Same file, same fish, every time.
 
