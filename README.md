@@ -14,6 +14,8 @@ The `source` link in the bottom-left corner of the site points here. The whole t
 is one self-contained HTML file, so view-source on the deployed page is also the
 whole program.
 
+How it's built is in [DESIGN.md](DESIGN.md); the file viewer prototype is in [OCEAN.md](OCEAN.md).
+
 
 ## The fish are generated, not modelled
 
@@ -28,10 +30,6 @@ coarse grid so they block up with the facets. No textures.
 
 Traits are pure functions of (name, size, MIME, hash), so a shared fish could be a
 URL rather than a database row.
-
-## Weather
-
-Seven skies — `dawn`, `sunrise`, `day`, `dusk`, `night`, `fog`, `rain` 
 
 ## What happens to a catch
 
@@ -49,25 +47,4 @@ fish away has to cost something or sharing is just a copy button.
 
 Dropping a folder skips all of this — a haul is logged wholesale, so those two
 buttons hide and only sending is left.
-
-## The dex
-
-The hash makes infinite individuals, so the collectible unit is the **species**:
-archetype x noun, 38 of them, plus the zero-byte Ghost Minnow. That is the finite
-set you can actually finish.
-
-Dropping more than one file switches to **haul mode**: no cast animation, every
-file is hashed straight into the dex, the rarest becomes the on-screen specimen,
-and the dex opens on its own showing what is new. Drop a folder; a few hundred
-files is roughly a full set (coupon-collector over unequal archetype weights).
-
-Only a better rarity overwrites an existing entry, so the dex keeps your best of
-each species.
-
-## Sharing
-
-A fish is a pure function of `(name, size, MIME, hash)`, so a link needs no server:
-those four values are packed as base64url into `#f=...` and reconstructed exactly on
-open. Opening someone's link puts their fish in your hands with the same three
-choices you get for your own — collecting it is how it becomes yours.
 
