@@ -2,7 +2,7 @@ import { sfx, isOn, setOn, audio } from "./sfx.js";
 import {
   Scene, PerspectiveCamera, OrthographicCamera, WebGLRenderer, Mesh, Group,
   BufferGeometry, BufferAttribute, ShaderMaterial, SphereGeometry, ConeGeometry, PlaneGeometry,
-  WebGLRenderTarget, NearestFilter, Color, Vector2, Vector3, Box3, DoubleSide,
+  WebGLRenderTarget, NearestFilter, Color, Vector2, Vector3, Box3, DoubleSide, Points,
 } from "three";
 
 const TAU = Math.PI * 2;
@@ -437,6 +437,72 @@ function FishStage(canvas) {
   let fish = null, W = 0, H = 0, spin = 0, dragV = 0, drag = null;
   let look = RARE_LOOK.Common, sizeK = 1;
 
+  /* droplets and sparks live in the same scene, so they ride the same dither +
+     silhouette-ink pass and look native rather than pasted on */
+  const MAXP = 110, parts = [];
+  const pPos = new Float32Array(MAXP * 3), pCol = new Float32Array(MAXP * 3), pOn = new Float32Array(MAXP);
+  const pGeo = new BufferGeometry();
+  pGeo.setAttribute("position", new BufferAttribute(pPos, 3));
+  pGeo.setAttribute("c", new BufferAttribute(pCol, 3));
+  pGeo.setAttribute("on", new BufferAttribute(pOn, 1));
+  const pMat = new ShaderMaterial({
+    vertexShader: `
+      attribute vec3 c; attribute float on;
+      varying vec3 vC; varying float vOn;
+      uniform float uSize, uH;
+      void main(){
+        vC = c; vOn = on;
+        vec4 mv = modelViewMatrix * vec4(position, 1.0);
+        gl_Position = projectionMatrix * mv;
+        gl_PointSize = max(1.0, uSize * uH / max(0.25, -mv.z));
+      }`,
+    fragmentShader: `
+      precision mediump float;
+      varying vec3 vC; varying float vOn;
+      void main(){ if (vOn < 0.5) discard; gl_FragColor = vec4(vC, 1.0); }`,
+    uniforms: { uSize: { value: 0.055 }, uH: { value: 300 } },
+  });
+  const pts = new Points(pGeo, pMat);
+  pts.frustumCulled = false;
+  scene.add(pts);
+
+  const toWorld = (nx, ny) => {
+    const hh = Math.tan(34 * Math.PI / 360) * 3.35, ww = hh * (W / Math.max(H, 1));
+    return [(nx * 2 - 1) * ww, (1 - ny * 2) * hh];
+  };
+  function emit(x, y, n, o) {
+    for (let i = 0; i < n && parts.length < MAXP; i++) {
+      const a = o.dir == null ? Math.random() * TAU : o.dir + (Math.random() - 0.5) * o.spread;
+      const sp = o.speed * (0.45 + Math.random() * 0.9);
+      parts.push({
+        x: x + (Math.random() - 0.5) * o.jitter, y: y + (Math.random() - 0.5) * o.jitter,
+        z: (Math.random() - 0.5) * 0.4,
+        vx: Math.cos(a) * sp, vy: Math.sin(a) * sp + (o.lift || 0),
+        t: 0, life: o.life * (0.6 + Math.random() * 0.7), g: o.grav, col: o.col,
+      });
+    }
+  }
+  function stepParts(dt) {
+    for (let i = parts.length - 1; i >= 0; i--) {
+      const p = parts[i];
+      p.t += dt;
+      if (p.t >= p.life) { parts.splice(i, 1); continue; }
+      p.vy -= p.g * dt; p.x += p.vx * dt; p.y += p.vy * dt;
+    }
+    for (let i = 0; i < MAXP; i++) {
+      const p = parts[i];
+      if (p) {
+        pPos[i * 3] = p.x; pPos[i * 3 + 1] = p.y; pPos[i * 3 + 2] = p.z;
+        pCol[i * 3] = p.col[0]; pCol[i * 3 + 1] = p.col[1]; pCol[i * 3 + 2] = p.col[2];
+        pOn[i] = 1;
+      } else pOn[i] = 0;
+    }
+    pGeo.attributes.position.needsUpdate = true;
+    pGeo.attributes.c.needsUpdate = true;
+    pGeo.attributes.on.needsUpdate = true;
+  }
+  const DROP = [0.88, 0.96, 1.0];
+
   addEventListener("pointerdown", e => { if (fish) drag = e.clientX; });
   addEventListener("pointermove", e => {
     if (drag === null) return;
@@ -460,6 +526,7 @@ function FishStage(canvas) {
       const tmp = buildFish(f);
       const wasVisible = fish ? fish.group.visible : false;
       if (fish) fish.group.visible = false;
+      pts.visible = false;                       // icons show the fish alone
       scene.add(tmp.group);
       const hh = Math.tan(34 * Math.PI / 360) * 3.35, ww = hh * (w / h);
       const reach = Math.max(tmp.size.x, tmp.size.z);
@@ -477,6 +544,7 @@ function FishStage(canvas) {
       renderer.readRenderTargetPixels(sprB, 0, 0, w, h, buf);
       renderer.setRenderTarget(null);
       scene.remove(tmp.group); tmp.dispose();
+      pts.visible = true;
       if (fish) fish.group.visible = wasVisible;
       const cv = document.createElement("canvas"); cv.width = w; cv.height = h;
       const cx = cv.getContext("2d");
@@ -489,6 +557,21 @@ function FishStage(canvas) {
     snapshot(f) {
       try { return this.snapshotCanvas(f).toDataURL("image/png"); } catch (e) { return null; }
     },
+    /* fish breaking the surface */
+    splash(nx, ny) {
+      const [x, y] = toWorld(nx, ny);
+      emit(x, y, 22, { speed: 1.5, lift: 1.0, jitter: 0.18, life: 0.70, grav: 7.2, col: DROP });
+    },
+    /* it is still wet while you hold it up */
+    drip(nx, ny) {
+      const [x, y] = toWorld(nx, ny);
+      emit(x, y, 1, { dir: -Math.PI / 2, spread: 0.6, speed: 0.25, jitter: 0.6, life: 1.1, grav: 3.2, col: DROP });
+    },
+    burst(nx, ny, css) {
+      const c = new Color(css), [x, y] = toWorld(nx, ny);
+      emit(x, y, 28, { speed: 2.2, lift: 0.3, jitter: 0.08, life: 0.70, grav: 1.4, col: [c.r, c.g, c.b] });
+    },
+    clearParts() { parts.length = 0; },
     /* nx/ny in viewport fractions; s is 0..1 of the fitted size */
     place(nx, ny, s, tilt, visible) {
       if (!fish) return;
@@ -509,11 +592,13 @@ function FishStage(canvas) {
         renderer.setPixelRatio(dpr); renderer.setSize(w, h, false);
         camera.aspect = w / h; camera.updateProjectionMatrix();
       }
-      if (!fish || !fish.group.visible) { renderer.setRenderTarget(null); renderer.clear(); return; }
+      stepParts(dt);
+      if ((!fish || !fish.group.visible) && !parts.length) { renderer.setRenderTarget(null); renderer.clear(); return; }
       if (!REDUCED) spin += dt * 0.42 + dragV;
       dragV *= 0.86;
       const PX = Math.max(3, Math.ceil(W * dpr / 460));   // chunky at any screen size
       const rw = Math.max(2, Math.round(W * dpr / PX)), rh = Math.max(2, Math.round(H * dpr / PX));
+      pMat.uniforms.uH.value = rh;
       rt.setSize(rw, rh);
       postMat.uniforms.tMap.value = rt.texture;
       postMat.uniforms.uRT.value.set(rw, rh);
@@ -701,6 +786,7 @@ rig.innerHTML =
    <path id="cline" fill="none" stroke="rgba(255,255,255,.85)" stroke-width="1.6"/>
    <g id="cbob"><circle r="9" fill="#fff" stroke="#22333A" stroke-width="2.2"/><path d="M -9 0 A 9 9 0 0 1 9 0 Z" fill="#E1552F" stroke="#22333A" stroke-width="2.2"/></g>
    <g id="cbang" opacity="0"><circle r="15" fill="#fff" stroke="#22333A" stroke-width="2.5"/><text x="0" y="6.5" text-anchor="middle" font-family="Futura, Avenir Next, sans-serif" font-size="20" font-weight="700" fill="#E1552F">!</text></g>`;
+const world = $("#world");
 const nBody = $("#rodBody"), nSpine = $("#rodSpine"), nGrip = $("#rodGrip"),
   nReel = $("#rodReel"), nGuides = [...$("#rodGuides").children],
   nLine = $("#cline"), nBob = $("#cbob"), nBang = $("#cbang");
@@ -779,8 +865,12 @@ function enter(s, now) {
   state = s; t0 = now;
   if (s === "cast") { from = { x: tip().x - 26, y: tip().y + 20 }; say("casting"); sfx("cast"); }
   if (s === "wait") { say(hex32(fish.hash)); splash(1.35, now); sfx("plop"); }
-  if (s === "bite") { say("something's biting"); splash(0.9, now); sfx("bite"); }
-  if (s === "reel") { splash(1.6, now); say("reeling in"); sfx("splash"); sfx("reel", 1.0); }
+  if (s === "bite") { say("something's biting"); splash(0.9, now); sfx("bite"); shake = 3.5; }
+  if (s === "reel") {
+    splash(1.6, now); say("reeling in"); sfx("splash"); sfx("reel", 1.0);
+    stage.splash(bob.x / Math.max(W, 1), bob.y / Math.max(H, 1));
+    shake = 5;
+  }
   if (s === "caught") {
     document.body.classList.add("has-catch");
     $("#p-rar").textContent = fish.rarity;
@@ -790,6 +880,15 @@ function enter(s, now) {
     $("#copy").textContent = "copy link";
     history.replaceState(null, "", "#f=" + packFish(fish));
     if (fish.shared) { sfx("land", false); say("someone else's catch · drop your own"); return; }
+    const look = RARE_LOOK[fish.rarity] || RARE_LOOK.Common;
+    if (RANK[fish.rarity] >= 3) {                 // rarity should be a moment, not just a colour
+      stage.burst(0.5, 0.40, look.css);
+      document.body.style.setProperty("--rar", look.css);
+      document.body.classList.remove("rar-flash");
+      void document.body.offsetWidth;             // restart the animation
+      document.body.classList.add("rar-flash");
+    }
+    shake = 6;
     const fresh = record(fish);
     sfx("land", RANK[fish.rarity] >= 3);
     if (fresh) setTimeout(() => sfx("sparkle"), 380);
@@ -935,6 +1034,7 @@ dexEl.addEventListener("click", e => { if (e.target === dexEl) closeDex(); });
 addEventListener("keydown", e => { if (e.key === "Escape" && !dexEl.hidden) closeDex(); });
 syncDexButton();
 
+let shake = 0, nextIdle = 3, nextDrip = 0;
 let last = performance.now();
 function frame(nowMs) {
   requestAnimationFrame(frame);
@@ -953,6 +1053,17 @@ function frame(nowMs) {
   else if (state === "reel") bt = lerp(185, 60, ease(clamp(age / 1.05, 0, 1))) + Math.sin(now * 17) * 9;
   else bt = 18 + Math.sin(now * 0.9) * 4;
   rodFrame(dt, bt);
+
+  /* something jumps out of frame now and then, so the empty screen is a place */
+  if (!REDUCED && (state === "idle" || state === "caught") && now > nextIdle && sea) {
+    const p = sea.screenToWorld(W * (0.08 + Math.random() * 0.84), H * (0.56 + Math.random() * 0.30));
+    if (p) sea.ripple(p[0], p[1], 0.42 + Math.random() * 0.3, now);
+    nextIdle = now + 3.5 + Math.random() * 5.5;
+  }
+  if (state === "caught" && !REDUCED && now > nextDrip) {
+    stage.drip(0.5 + (Math.random() - 0.5) * 0.10, 0.44);
+    nextDrip = now + 0.28 + Math.random() * 0.5;
+  }
 
   const T = tip();
   if (state === "idle") { bob.x = T.x - 22; bob.y = T.y + 44 + Math.sin(now * 1.6) * 3; }
@@ -989,6 +1100,13 @@ function frame(nowMs) {
   if (state === "bite") nBang.setAttribute("transform", `translate(${bob.x.toFixed(1)} ${(bob.y - 42).toFixed(1)})`);
 
   stage.place(bob.x / Math.max(W, 1), bob.y / Math.max(H, 1), sc, tilt, vis);
+
+  if (shake > 0.04 && !REDUCED) {                 // short impact judder, UI stays put
+    shake = Math.max(0, shake - dt * 26);
+    world.style.transform =
+      `translate(${((Math.random() * 2 - 1) * shake).toFixed(2)}px,${((Math.random() * 2 - 1) * shake).toFixed(2)}px)`;
+  } else if (world.style.transform) { shake = 0; world.style.transform = ""; }
+
   if (sea) sea.render(now);
   stage.render(dt);
 }
@@ -997,7 +1115,8 @@ requestAnimationFrame(frame);
 function accept(meta) {
   const now = performance.now() / 1000;
   fish = makeFish(meta);
-  document.body.classList.remove("has-catch");
+  document.body.classList.remove("has-catch", "rar-flash");
+  stage.clearParts();
   layout();
   stage.set(fish);
   target = { x: W * (0.26 + fish.wobble * 0.26), y: H * (0.62 + fish.wobble * 0.13) };

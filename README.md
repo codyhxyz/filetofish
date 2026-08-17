@@ -180,6 +180,26 @@ stroke, plus a cork grip, a reel that rides the curve, and three line guides. Th
 is read back off the curve, so the line and bobber follow the flex instead of hanging
 off a fixed point.
 
+## Flourishes
+
+Droplets and sparks are `Points` living **inside the three.js scene**, so they pass
+through the same dither + silhouette-ink pass as the fish and come out looking
+native -- white beads with a chunky black rim -- rather than pasted on. One draw
+call, 110-particle pool, simulated on the CPU. `gl_PointSize` is scaled by the
+render-target height, not the canvas, or droplets come out `PX` times too big.
+
+- **splash** on the fish breaking the surface
+- **drip** every ~0.4s while you hold it up, so the catch reads as wet
+- **burst** in the rarity colour on Rare and above, plus a one-shot vignette flash
+  driven by a `--rar` custom property. Rarity was a state; now it is a moment.
+- **idle ripples** pushed into the sea shader every few seconds so the empty screen
+  is a place rather than a still
+- **screen shake** on the bite and the landing: a decaying random offset on `#world`,
+  which wraps only the sea, rod and fish, so the UI never judders
+
+All of it is skipped under `prefers-reduced-motion`, and particles are hidden during
+icon capture so dex sprites show the fish alone.
+
 ## Gotchas hit along the way
 
 - Cones point +Y; aim them along a surface normal with `rotation.x = π/2 − θ`.
@@ -196,5 +216,7 @@ off a fixed point.
   stays suspended. Test audio unlock with real CDP `Input.dispatchMouseEvent`.
 - `Runtime.evaluate` runs in global scope, so re-declaring `const x` across two
   calls throws SyntaxError and silently kills the step.
+- `readMeta` slices the first 64 KB *before* sampling, so any offline model of the
+  hash must cap at 65536 or it will not reproduce the app's fish.
 - Rarity now drives the ink colour of the silhouette pass, so it reads in the dex
   grid at a glance; Legendary and Mythic also get a sweeping sheen.

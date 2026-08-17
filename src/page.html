@@ -17,6 +17,7 @@ canvas{display:block;}
 button{font:inherit; color:inherit; background:none; border:0; cursor:pointer; padding:0;}
 :focus-visible{outline:2px solid #FFD9A8; outline-offset:4px;}
 
+#world{position:fixed; inset:0; z-index:0; will-change:transform;}
 #sea,#fish{position:fixed; inset:0; width:100%; height:100%;}
 #sea{z-index:0;}
 #rig{position:fixed; inset:0; width:100%; height:100%; z-index:1; pointer-events:none;}
@@ -29,6 +30,12 @@ button{font:inherit; color:inherit; background:none; border:0; cursor:pointer; p
   background:radial-gradient(ellipse at 50% 44%, rgba(5,26,33,.30) 0%, rgba(4,20,26,.64) 68%);
 }
 body.has-catch #veil{opacity:1;}
+#flash{
+  position:fixed; inset:0; z-index:1; pointer-events:none; opacity:0;
+  background:radial-gradient(ellipse at 50% 40%, var(--rar,#fff) 0%, transparent 60%);
+}
+body.rar-flash #flash{animation:rarflash .8s ease-out;}
+@keyframes rarflash{0%{opacity:0}14%{opacity:.40}100%{opacity:0}}
 #rig{transition:opacity .5s ease;}
 body.has-catch #rig{opacity:.22;}
 
@@ -180,10 +187,13 @@ body.has-catch #plate{opacity:1; transform:translate(-50%,0);}
 @media (prefers-reduced-motion:reduce){*{transition-duration:.001ms !important; animation:none !important;}}
 </style>
 
-<canvas id="sea"></canvas>
-<svg id="rig"></svg>
-<div id="veil"></div>
-<canvas id="fish"></canvas>
+<div id="world">
+  <canvas id="sea"></canvas>
+  <svg id="rig"></svg>
+  <div id="veil"></div>
+  <div id="flash"></div>
+  <canvas id="fish"></canvas>
+</div>
 <div id="hit" title="pick a file"></div>
 
 <div class="mark">file<i>to</i>fish</div>
