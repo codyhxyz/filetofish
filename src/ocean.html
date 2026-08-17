@@ -1,0 +1,213 @@
+<title>filetofish / ocean</title>
+
+<style>
+:root{
+  --f-display:Futura,"Futura PT","Avenir Next","Century Gothic",system-ui,sans-serif;
+  --f-mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,"Roboto Mono",monospace;
+  --ink:#EAF6F8;
+}
+*{box-sizing:border-box;}
+html,body{height:100%;}
+body{
+  margin:0; overflow:hidden; background:#04121A; color:var(--ink);
+  font-family:var(--f-display); -webkit-font-smoothing:antialiased;
+  -webkit-tap-highlight-color:transparent; cursor:crosshair;
+}
+canvas{display:block;}
+button{font:inherit; color:inherit; background:none; border:0; cursor:pointer; padding:0;}
+#gl{position:fixed; inset:0; width:100%; height:100%; z-index:0;}
+
+/* vignette + a cold cast, so the screen itself feels like it is underwater */
+#tint{
+  position:fixed; inset:0; z-index:1; pointer-events:none;
+  background:radial-gradient(ellipse at 50% 46%, rgba(0,0,0,0) 34%, rgba(2,10,18,.72) 100%);
+}
+
+.hud{
+  position:fixed; z-index:3; font-family:var(--f-mono); pointer-events:none;
+  text-shadow:0 1px 12px rgba(0,10,16,.95);
+}
+#depth{
+  left:clamp(1rem,3vw,2rem); top:50%; transform:translateY(-50%);
+  width:3.4rem; height:min(58vh,26rem);
+}
+/* the depth gauge is the main instrument: it is a calendar drawn vertically */
+#gauge{position:absolute; left:1.15rem; top:0; bottom:0; width:2px; background:rgba(190,230,240,.16);}
+#gauge .tick{position:absolute; left:-1.15rem; width:3rem; height:1px; background:rgba(190,230,240,.22);}
+#gauge .tick b{
+  position:absolute; left:0; top:-.52rem; font-weight:400; font-size:.54rem; letter-spacing:.1em;
+  color:rgba(214,238,244,.42);
+}
+#you{
+  position:absolute; left:0; width:2.4rem; height:1px; background:#FFC49A;
+  transition:none;
+}
+#you i{
+  position:absolute; left:2.7rem; top:-.62rem; font-style:normal; white-space:nowrap;
+  font-size:.72rem; letter-spacing:.08em; color:#FFC49A;
+}
+#you s{
+  position:absolute; left:2.7rem; top:.34rem; text-decoration:none; white-space:nowrap;
+  font-size:.5rem; letter-spacing:.16em; color:rgba(214,238,244,.4); text-transform:uppercase;
+}
+
+#place{
+  left:50%; transform:translateX(-50%); top:clamp(1rem,3vh,2rem); text-align:center;
+  max-width:80vw;
+}
+#place b{
+  display:block; font-family:var(--f-display); font-weight:400;
+  font-size:clamp(1.1rem,2.4vw,1.6rem); letter-spacing:-.01em; color:rgba(238,250,252,.94);
+}
+#place s{
+  display:block; text-decoration:none; margin-top:.3rem;
+  font-size:.58rem; letter-spacing:.22em; text-transform:uppercase; color:rgba(214,238,244,.5);
+}
+
+#legend{
+  right:clamp(1rem,3vw,2rem); top:clamp(1rem,3vh,2rem); text-align:right;
+  font-size:.56rem; letter-spacing:.14em; text-transform:uppercase; line-height:1.9;
+  color:rgba(214,238,244,.55);
+}
+#legend i{
+  display:inline-block; width:.5rem; height:.5rem; margin-left:.5rem; border-radius:50%;
+  vertical-align:middle;
+}
+#legend .lod{margin-top:.7rem; color:rgba(214,238,244,.3); letter-spacing:.1em;}
+
+#stats{
+  left:clamp(1rem,3vw,2rem); bottom:clamp(1rem,3vh,2rem);
+  font-size:.56rem; letter-spacing:.14em; text-transform:uppercase; line-height:1.9;
+  color:rgba(214,238,244,.45);
+}
+#stats b{font-weight:400; color:rgba(238,250,252,.85);}
+
+#keys{
+  right:clamp(1rem,3vw,2rem); bottom:clamp(1rem,3vh,2rem); text-align:right;
+  font-size:.54rem; letter-spacing:.13em; text-transform:uppercase; line-height:2;
+  color:rgba(214,238,244,.34);
+}
+#keys kbd{
+  font:inherit; border:1px solid rgba(214,238,244,.24); padding:.05rem .3rem; margin-left:.25rem;
+}
+
+/* the crosshair only sharpens when something is actually under it */
+#cross{
+  left:50%; top:50%; transform:translate(-50%,-50%); width:16px; height:16px; opacity:.24;
+}
+#cross::before,#cross::after{
+  content:""; position:absolute; background:#EAF6F8;
+}
+#cross::before{left:50%; top:0; width:1px; height:100%; transform:translateX(-50%);}
+#cross::after{top:50%; left:0; height:1px; width:100%; transform:translateY(-50%);}
+body.aimed #cross{opacity:.9;}
+
+/* the near tier: one file, named, the way the main app names them */
+#card{
+  left:50%; top:calc(50% + 2.2rem); transform:translateX(-50%);
+  min-width:16rem; max-width:min(90vw,26rem); text-align:center;
+  opacity:0; transition:opacity .14s ease;
+}
+body.aimed #card{opacity:1;}
+#card .nm{
+  font-family:var(--f-display); font-size:1.15rem; letter-spacing:-.01em;
+  color:#fff; line-height:1.2;
+}
+#card .fn{
+  font-size:.62rem; letter-spacing:.08em; margin-top:.34rem; color:rgba(226,242,248,.8);
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+#card .pa{
+  font-size:.52rem; letter-spacing:.14em; margin-top:.22rem; color:rgba(214,238,244,.42);
+  text-transform:uppercase; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+
+#intro{
+  position:fixed; inset:0; z-index:6; display:grid; place-items:center; text-align:center;
+  background:radial-gradient(ellipse at 50% 45%, rgba(6,26,38,.72) 0%, rgba(2,10,16,.94) 70%);
+  cursor:pointer; transition:opacity .5s ease;
+}
+#intro.gone{opacity:0; pointer-events:none;}
+#intro h1{
+  margin:0; font-weight:400; font-size:clamp(1.8rem,5vw,3rem); letter-spacing:-.02em;
+}
+#intro h1 i{font-style:normal; color:#FFC49A;}
+#intro p{
+  margin:.9rem auto 0; max-width:34rem; font-family:var(--f-mono); font-size:.68rem;
+  letter-spacing:.1em; line-height:2; color:rgba(214,238,244,.62);
+}
+#intro .go{
+  margin-top:1.6rem; font-family:var(--f-mono); font-size:.6rem; letter-spacing:.24em;
+  text-transform:uppercase; color:#0B1E24; background:#EAF7FA; padding:.6rem 1.2rem;
+  display:inline-block;
+}
+#intro .sub{font-size:.54rem; letter-spacing:.16em; color:rgba(214,238,244,.32); margin-top:1.1rem;}
+
+#loading{
+  position:fixed; inset:0; z-index:7; display:grid; place-items:center; background:#04121A;
+  font-family:var(--f-mono); font-size:.62rem; letter-spacing:.24em; text-transform:uppercase;
+  color:rgba(214,238,244,.5);
+}
+#loading[hidden]{display:none;}
+@media (max-width:700px){
+  #legend,#keys{display:none;}
+  #depth{width:2.6rem;}
+}
+</style>
+
+<canvas id="gl"></canvas>
+<div id="tint"></div>
+
+<div class="hud" id="depth">
+  <div id="gauge">
+    <div id="you"><i>today</i><s>surface</s></div>
+  </div>
+</div>
+
+<div class="hud" id="place"><b id="place-n">the ocean</b><s id="place-s"></s></div>
+
+<div class="hud" id="legend">
+  <div>images <i style="background:#E08B4A"></i></div>
+  <div>video <i style="background:#8B7BE0"></i></div>
+  <div>audio <i style="background:#D66BA8"></i></div>
+  <div>code <i style="background:#5FBF77"></i></div>
+  <div>documents <i style="background:#D9B04A"></i></div>
+  <div>archives <i style="background:#4FA8C4"></i></div>
+  <div class="lod" id="lodline">tier &#183; haze</div>
+</div>
+
+<div class="hud" id="stats">
+  <div><b id="s-files">0</b> files</div>
+  <div><b id="s-size">0</b> on disk</div>
+  <div><b id="s-places">0</b> places</div>
+</div>
+
+<div class="hud" id="keys">
+  <div>look<kbd>drag</kbd></div>
+  <div>drift<kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></div>
+  <div>descend<kbd>scroll</kbd></div>
+  <div>faster<kbd>shift</kbd></div>
+  <div>surface<kbd>F</kbd></div>
+</div>
+
+<div class="hud" id="cross"></div>
+<div class="hud" id="card">
+  <div class="nm" id="c-nm"></div>
+  <div class="fn" id="c-fn"></div>
+  <div class="pa" id="c-pa"></div>
+</div>
+
+<div id="intro">
+  <div>
+    <h1>your drive, as an <i>ocean</i></h1>
+    <p>
+      every file is a fish &#183; how deep it swims is how old it is<br>
+      folders are places in the water &#183; the same file is always the same fish
+    </p>
+    <div class="go">dive</div>
+    <div class="sub">mockup &#183; synthetic drive &#183; ~40,000 files</div>
+  </div>
+</div>
+<div id="loading">sounding the bottom</div>
+
+<!--APP_BUNDLE-->

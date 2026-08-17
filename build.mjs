@@ -99,4 +99,24 @@ ${aud.doc.replace(/<title>[\s\S]*?<\/title>\s*/i, "")}
 </body>
 </html>`);
 
-console.log(`site ${(doc.length/1024).toFixed(0)} KB | audition ${(aud.doc.length/1024).toFixed(0)} KB`);
+// 4) the ocean mockup -- the file-viewer prototype, deployed at /ocean
+const oc = await page("src/ocean.js", "src/ocean.html");
+const ocTitle = (oc.doc.match(/<title>([\s\S]*?)<\/title>/i) || [, "ocean"])[1];
+fs.mkdirSync("dist/ocean", {recursive: true});
+fs.writeFileSync("dist/ocean/index.html", `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>${ocTitle}</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#04121A">
+<link rel="icon" href="${FAVICON}">
+</head>
+<body>
+${oc.doc.replace(/<title>[\s\S]*?<\/title>\s*/i, "")}
+</body>
+</html>`);
+
+console.log(`site ${(doc.length/1024).toFixed(0)} KB | audition ${(aud.doc.length/1024).toFixed(0)} KB`
+          + ` | ocean ${(oc.doc.length/1024).toFixed(0)} KB`);

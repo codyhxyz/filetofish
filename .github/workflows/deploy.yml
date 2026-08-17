@@ -43,6 +43,7 @@ jobs:
           test "$bytes" -gt 300000                  # the inlined three.js bundle alone clears this
           grep -q '<canvas id="sea">' dist/index.html
           test -s dist/og.png
+          test -s dist/ocean/index.html
 
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@v4
