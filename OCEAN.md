@@ -2,9 +2,27 @@
 
 **https://filetofish.codyh.xyz/ocean**
 
-A mockup. It runs on a synthetic drive of ~52,000 files, because the point is
-to feel the experience before committing to reading a real one. Everything
-below is a decision, not an accident, and every one has a knob.
+Point it at a folder and it reads it — in your browser, on your machine,
+nothing uploaded. There's a synthetic 52,000-file drive to explore if you'd
+rather not open anything. Everything below is a decision, not an accident, and
+every one has a knob.
+
+**Reading a folder.** Two ways in. Chromium's `showDirectoryPicker` hands back
+live handles, which is the only way a browser can ever *delete* anything, so
+that's the preferred path; `getFile()` is the expensive call and there's no
+metadata-only API, so it goes out in batches of 64. Everywhere else falls back
+to `<input webkitdirectory>`, which is much faster because the browser does the
+walk natively, but is read-only. Either way only name, size and mtime are read
+— never contents. Capped at 250,000 files, past which the layout stops being
+comprehensible anyway.
+
+**The net, and deleting.** Aim at a fish and click (or `E`) to net it. The net
+bar totals what you've gathered and can copy the paths, let them go, or delete
+them permanently. Deletion is gathered-then-confirmed rather than
+one-click-per-file, because there is no undo and no trash — the gate has to be
+before the act. The confirmation prints the exact count, the bytes, and the
+full path list. Only files netted by hand are ever touched, via the exact
+parent handle captured during the scan.
 
 Knobs live in the `TUNE` block at the top of `src/ocean.js`. The page also
 exposes `window.ocean = { TUNE, cam, files, places, ARCH }`, so most of it can
@@ -25,14 +43,23 @@ one direction that already felt like descending; it explains why the deep is
 dark without inventing a reason; it gives a dive somewhere to go; and it
 retires "rarity," which in the main app is pure hash noise and means nothing.
 
-The mapping is `-depth * (age / maxAge) ^ ageCurve`, with `ageCurve: 0.52`.
-Below 1.0 that curve gives recent files a lot of room and compresses the past —
-which matches how you actually think about your files. Last week is a place.
-2014 is a smear. Set it to `1.0` for a linear calendar if you'd rather the
-years be evenly spaced; the gauge on the left re-spaces itself to match.
+The mapping is `-depth * ((age - lo) / (hi - lo)) ^ ageCurve`, with
+`ageCurve: 0.52`. Below 1.0 that curve gives recent files a lot of room and
+compresses the past — which matches how you actually think about your files.
+Last week is a place. 2014 is a smear. Set it to `1.0` for a linear calendar;
+the gauge on the left re-spaces itself to match.
 
-`years: 12` sets where the bottom is. `depth: 900` is how far you swim to get
-there.
+**How far back the abyss reaches is not a knob.** `lo` and `hi` are the folder's
+own p01 and p99 ages, so the water column always fits the data: a repo cloned
+this morning spans minutes, a photo library spans fifteen years, and both fill
+the frame. Percentiles rather than min/max, or one stray file from 1998
+flattens everything else into the surface. This is why the gauge is labelled in
+relative dates ("6 hours ago", "3 years ago") rather than calendar years.
+
+The whole ocean is also **scaled uniformly to the size of the drive** — a
+thousand-file folder is a small sea rather than a few specks lost in a big one.
+Physical size carries no meaning; only the ratios do. `lateral: 760` and
+`depth: 900` are the dimensions at the reference size of ~52,000 files.
 
 ### Lateral position is folder. Folders are places, not schools.
 
@@ -158,22 +185,29 @@ metres are the fiction and the date is the truth.
 
 ---
 
-## What this mockup is not doing yet
+## Fish identity at scale
 
-- **Reading a real drive.** `showDirectoryPicker()` walks a real tree in
-  Chromium and is the obvious next step. The important trick: you don't need
-  file *bytes* to draw the ocean — name, size and mtime are enough, so a
-  metadata-only pass can paint the whole thing in seconds and bytes get read
-  only for the fish you actually swim up to. A fish that sharpens into its true
-  form when you approach is a better interaction than one that was always
-  correct.
-- **Deleting.** The obvious loop close: aim at a fish, and *put it back* means
-  delete. The chore nobody enjoys, attached to the one gesture in this app that
-  already feels good.
-- **Real fish identity.** Every fish here is one of 7 archetypes with a tinted
-  colour. The main app's full genome is per-file geometry, which is
-  catastrophic at 50k — all the individuality has to move into per-instance
-  attributes and the shader before this can use the real thing.
+The main app builds a `BufferGeometry` per fish. At 50,000 files that is not a
+thing you can do, so the individuality moved off the vertices: 7 archetype
+meshes are instanced, and each file's genome drives a **non-uniform scale**
+(stretch, depth, girth from its hash) plus a per-instance **colour nudge**
+around its family hue. A school of thumbnails shimmers with variation instead
+of being a flat block of one green, at no cost.
+
+## What it is still not doing
+
+- **Reading contents.** Only name, size and mtime. The main app's real genome
+  hashes the first 64 KB, so a fish here is a pure function of
+  `path + name + size` instead — touching a file doesn't change its fish, but
+  two identical files in different folders are different fish. Reading bytes
+  lazily for the fish you actually swim up to, so it sharpens into its true
+  form as you approach, is the better version and isn't built.
+- **Remembering.** Every visit rescans. The scan result would fit in IndexedDB
+  comfortably.
 - **Occlusion / ordering.** Transparent points and additive haze don't sort.
-  At these densities it reads as volume, which is a happy accident, but it
-  would need real work before it's a tool.
+  At these densities it reads as volume, which is a happy accident rather than
+  a plan.
+- **The dither and ink pass.** The fish here are flat-shaded with the same
+  4-step lamp as the main app, but none of the post-processing that actually
+  makes that look — the 8x8 Bayer dither and the silhouette ink pass — is
+  wired up in the ocean yet.

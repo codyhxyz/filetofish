@@ -15,9 +15,9 @@ body{
 }
 canvas{display:block;}
 button{font:inherit; color:inherit; background:none; border:0; cursor:pointer; padding:0;}
+:focus-visible{outline:2px solid #FFD9A8; outline-offset:3px;}
 #gl{position:fixed; inset:0; width:100%; height:100%; z-index:0;}
 
-/* vignette + a cold cast, so the screen itself feels like it is underwater */
 #tint{
   position:fixed; inset:0; z-index:1; pointer-events:none;
   background:radial-gradient(ellipse at 50% 46%, rgba(0,0,0,0) 34%, rgba(2,10,18,.72) 100%);
@@ -31,17 +31,13 @@ button{font:inherit; color:inherit; background:none; border:0; cursor:pointer; p
   left:clamp(1rem,3vw,2rem); top:50%; transform:translateY(-50%);
   width:3.4rem; height:min(58vh,26rem);
 }
-/* the depth gauge is the main instrument: it is a calendar drawn vertically */
 #gauge{position:absolute; left:1.15rem; top:0; bottom:0; width:2px; background:rgba(190,230,240,.16);}
 #gauge .tick{position:absolute; left:-1.15rem; width:3rem; height:1px; background:rgba(190,230,240,.22);}
 #gauge .tick b{
   position:absolute; left:0; top:-.52rem; font-weight:400; font-size:.54rem; letter-spacing:.1em;
   color:rgba(214,238,244,.42);
 }
-#you{
-  position:absolute; left:0; width:2.4rem; height:1px; background:#FFC49A;
-  transition:none;
-}
+#you{position:absolute; left:0; width:2.4rem; height:1px; background:#FFC49A;}
 #you i{
   position:absolute; left:2.7rem; top:-.62rem; font-style:normal; white-space:nowrap;
   font-size:.72rem; letter-spacing:.08em; color:#FFC49A;
@@ -51,10 +47,7 @@ button{font:inherit; color:inherit; background:none; border:0; cursor:pointer; p
   font-size:.5rem; letter-spacing:.16em; color:rgba(214,238,244,.4); text-transform:uppercase;
 }
 
-#place{
-  left:50%; transform:translateX(-50%); top:clamp(1rem,3vh,2rem); text-align:center;
-  max-width:80vw;
-}
+#place{left:50%; transform:translateX(-50%); top:clamp(1rem,3vh,2rem); text-align:center; max-width:80vw;}
 #place b{
   display:block; font-family:var(--f-display); font-weight:400;
   font-size:clamp(1.1rem,2.4vw,1.6rem); letter-spacing:-.01em; color:rgba(238,250,252,.94);
@@ -69,11 +62,7 @@ button{font:inherit; color:inherit; background:none; border:0; cursor:pointer; p
   font-size:.56rem; letter-spacing:.14em; text-transform:uppercase; line-height:1.9;
   color:rgba(214,238,244,.55);
 }
-#legend i{
-  display:inline-block; width:.5rem; height:.5rem; margin-left:.5rem; border-radius:50%;
-  vertical-align:middle;
-}
-#legend .lod{margin-top:.7rem; color:rgba(214,238,244,.3); letter-spacing:.1em;}
+#legend i{display:inline-block; width:.5rem; height:.5rem; margin-left:.5rem; border-radius:50%; vertical-align:middle;}
 
 #stats{
   left:clamp(1rem,3vw,2rem); bottom:clamp(1rem,3vh,2rem);
@@ -81,77 +70,126 @@ button{font:inherit; color:inherit; background:none; border:0; cursor:pointer; p
   color:rgba(214,238,244,.45);
 }
 #stats b{font-weight:400; color:rgba(238,250,252,.85);}
+#stats .src{color:rgba(255,196,154,.75); max-width:22rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
 
 #keys{
   right:clamp(1rem,3vw,2rem); bottom:clamp(1rem,3vh,2rem); text-align:right;
   font-size:.54rem; letter-spacing:.13em; text-transform:uppercase; line-height:2;
   color:rgba(214,238,244,.34);
 }
-#keys kbd{
-  font:inherit; border:1px solid rgba(214,238,244,.24); padding:.05rem .3rem; margin-left:.25rem;
-}
+#keys kbd{font:inherit; border:1px solid rgba(214,238,244,.24); padding:.05rem .3rem; margin-left:.25rem;}
 
-/* the crosshair only sharpens when something is actually under it */
-#cross{
-  left:50%; top:50%; transform:translate(-50%,-50%); width:16px; height:16px; opacity:.24;
-}
-#cross::before,#cross::after{
-  content:""; position:absolute; background:#EAF6F8;
-}
+#cross{left:50%; top:50%; transform:translate(-50%,-50%); width:16px; height:16px; opacity:.24;}
+#cross::before,#cross::after{content:""; position:absolute; background:#EAF6F8;}
 #cross::before{left:50%; top:0; width:1px; height:100%; transform:translateX(-50%);}
 #cross::after{top:50%; left:0; height:1px; width:100%; transform:translateY(-50%);}
 body.aimed #cross{opacity:.9;}
 
-/* the near tier: one file, named, the way the main app names them */
 #card{
   left:50%; top:calc(50% + 2.2rem); transform:translateX(-50%);
-  min-width:16rem; max-width:min(90vw,26rem); text-align:center;
+  min-width:16rem; max-width:min(90vw,30rem); text-align:center;
   opacity:0; transition:opacity .14s ease;
 }
 body.aimed #card{opacity:1;}
-#card .nm{
-  font-family:var(--f-display); font-size:1.15rem; letter-spacing:-.01em;
-  color:#fff; line-height:1.2;
-}
+#card .nm{font-family:var(--f-display); font-size:1.15rem; letter-spacing:-.01em; color:#fff; line-height:1.2;}
 #card .fn{
-  font-size:.62rem; letter-spacing:.08em; margin-top:.34rem; color:rgba(226,242,248,.8);
+  font-size:.62rem; letter-spacing:.08em; margin-top:.34rem; color:rgba(226,242,248,.85);
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
 }
 #card .pa{
   font-size:.52rem; letter-spacing:.14em; margin-top:.22rem; color:rgba(214,238,244,.42);
   text-transform:uppercase; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
 }
+#card .act{
+  margin-top:.5rem; font-size:.5rem; letter-spacing:.2em; text-transform:uppercase;
+  color:rgba(255,196,154,.85);
+}
+#card.netted .act{color:#8FE0C0;}
 
-#intro{
-  position:fixed; inset:0; z-index:6; display:grid; place-items:center; text-align:center;
-  background:radial-gradient(ellipse at 50% 45%, rgba(6,26,38,.72) 0%, rgba(2,10,16,.94) 70%);
-  cursor:pointer; transition:opacity .5s ease;
+/* ---------------------------------------------------------------- the net */
+#net{
+  position:fixed; z-index:5; left:50%; transform:translateX(-50%);
+  bottom:clamp(1rem,3vh,2rem); font-family:var(--f-mono);
+  display:flex; align-items:center; gap:1rem; padding:.6rem .9rem;
+  background:rgba(4,20,28,.82); border:1px solid rgba(190,230,240,.2);
+  backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
+  opacity:0; pointer-events:none; transition:opacity .2s ease, transform .2s ease;
 }
-#intro.gone{opacity:0; pointer-events:none;}
-#intro h1{
-  margin:0; font-weight:400; font-size:clamp(1.8rem,5vw,3rem); letter-spacing:-.02em;
+body.hasnet #net{opacity:1; pointer-events:auto;}
+#net .n{font-size:.72rem; letter-spacing:.1em; color:#fff; white-space:nowrap;}
+#net .n s{text-decoration:none; color:rgba(214,238,244,.5); margin-left:.5rem; font-size:.6rem;}
+#net button{
+  font-size:.54rem; letter-spacing:.16em; text-transform:uppercase; padding:.42rem .7rem;
+  border:1px solid rgba(214,238,244,.3); color:rgba(226,242,248,.8);
+  transition:background .15s, color .15s, border-color .15s;
 }
-#intro h1 i{font-style:normal; color:#FFC49A;}
-#intro p{
-  margin:.9rem auto 0; max-width:34rem; font-family:var(--f-mono); font-size:.68rem;
-  letter-spacing:.1em; line-height:2; color:rgba(214,238,244,.62);
-}
-#intro .go{
-  margin-top:1.6rem; font-family:var(--f-mono); font-size:.6rem; letter-spacing:.24em;
-  text-transform:uppercase; color:#0B1E24; background:#EAF7FA; padding:.6rem 1.2rem;
-  display:inline-block;
-}
-#intro .sub{font-size:.54rem; letter-spacing:.16em; color:rgba(214,238,244,.32); margin-top:1.1rem;}
+#net button:hover{background:#EAF7FA; color:#08181E; border-color:#EAF7FA;}
+#net button.danger{border-color:rgba(255,138,110,.5); color:#FFAE96;}
+#net button.danger:hover{background:#FF7A5C; border-color:#FF7A5C; color:#150604;}
 
-#loading{
-  position:fixed; inset:0; z-index:7; display:grid; place-items:center; background:#04121A;
-  font-family:var(--f-mono); font-size:.62rem; letter-spacing:.24em; text-transform:uppercase;
-  color:rgba(214,238,244,.5);
+/* ------------------------------------------------------------- overlays */
+.sheet{
+  position:fixed; inset:0; z-index:8; display:grid; place-items:center; text-align:center;
+  background:radial-gradient(ellipse at 50% 45%, rgba(6,26,38,.78) 0%, rgba(2,10,16,.96) 70%);
 }
-#loading[hidden]{display:none;}
-@media (max-width:700px){
+.sheet[hidden]{display:none;}
+.sheet h1{margin:0; font-weight:400; font-size:clamp(1.7rem,4.6vw,2.9rem); letter-spacing:-.02em;}
+.sheet h1 i{font-style:normal; color:#FFC49A;}
+.sheet p{
+  margin:.9rem auto 0; max-width:36rem; font-family:var(--f-mono); font-size:.66rem;
+  letter-spacing:.09em; line-height:2; color:rgba(214,238,244,.62);
+}
+.sheet .row{display:flex; gap:.7rem; justify-content:center; margin-top:1.7rem; flex-wrap:wrap;}
+.sheet .go{
+  font-family:var(--f-mono); font-size:.6rem; letter-spacing:.22em; text-transform:uppercase;
+  color:#0B1E24; background:#EAF7FA; padding:.72rem 1.3rem; border:1px solid #EAF7FA;
+  transition:transform .15s cubic-bezier(.2,.9,.3,1.4);
+}
+.sheet .go:hover{transform:translateY(-2px);}
+.sheet .ghost{
+  font-family:var(--f-mono); font-size:.6rem; letter-spacing:.22em; text-transform:uppercase;
+  color:rgba(226,242,248,.75); background:none; border:1px solid rgba(214,238,244,.32);
+  padding:.72rem 1.3rem; transition:border-color .15s, color .15s;
+}
+.sheet .ghost:hover{color:#fff; border-color:#fff;}
+.sheet .fine{
+  margin-top:1.2rem; font-family:var(--f-mono); font-size:.52rem; letter-spacing:.14em;
+  color:rgba(214,238,244,.34); line-height:2;
+}
+.sheet .fine b{color:rgba(255,196,154,.7); font-weight:400;}
+
+#scan .bar{
+  width:min(70vw,26rem); height:2px; background:rgba(190,230,240,.16); margin:1.6rem auto 0;
+}
+#scan .bar i{display:block; height:100%; width:0; background:#FFC49A; transition:width .2s linear;}
+#scan .cnt{
+  margin-top:.9rem; font-family:var(--f-mono); font-size:.62rem; letter-spacing:.16em;
+  color:rgba(226,242,248,.8);
+}
+#scan .cnt b{color:#FFC49A; font-weight:400;}
+#scan .now{
+  margin-top:.4rem; font-family:var(--f-mono); font-size:.5rem; letter-spacing:.1em;
+  color:rgba(214,238,244,.3); max-width:min(80vw,40rem); overflow:hidden;
+  text-overflow:ellipsis; white-space:nowrap;
+}
+
+/* the delete confirmation has to be the least playful thing on the page */
+#confirm .list{
+  margin:1.2rem auto 0; max-width:min(86vw,40rem); text-align:left; font-family:var(--f-mono);
+  font-size:.54rem; letter-spacing:.06em; line-height:1.9; color:rgba(214,238,244,.55);
+  max-height:32vh; overflow-y:auto; border:1px solid rgba(190,230,240,.14); padding:.7rem .9rem;
+  background:rgba(2,10,16,.6);
+}
+#confirm .big{
+  font-family:var(--f-display); font-size:clamp(1.4rem,3.4vw,2.1rem); letter-spacing:-.01em;
+  color:#FFAE96; margin-top:.4rem;
+}
+#confirm .warn{color:rgba(255,174,150,.85);}
+
+@media (max-width:760px){
   #legend,#keys{display:none;}
   #depth{width:2.6rem;}
+  #net{flex-wrap:wrap; max-width:94vw; justify-content:center;}
 }
 </style>
 
@@ -159,27 +197,18 @@ body.aimed #card{opacity:1;}
 <div id="tint"></div>
 
 <div class="hud" id="depth">
-  <div id="gauge">
-    <div id="you"><i>today</i><s>surface</s></div>
-  </div>
+  <div id="gauge"><div id="you"><i>today</i><s>surface</s></div></div>
 </div>
 
 <div class="hud" id="place"><b id="place-n">the ocean</b><s id="place-s"></s></div>
 
-<div class="hud" id="legend">
-  <div>images <i style="background:#E08B4A"></i></div>
-  <div>video <i style="background:#8B7BE0"></i></div>
-  <div>audio <i style="background:#D66BA8"></i></div>
-  <div>code <i style="background:#5FBF77"></i></div>
-  <div>documents <i style="background:#D9B04A"></i></div>
-  <div>archives <i style="background:#4FA8C4"></i></div>
-  <div class="lod" id="lodline">tier &#183; haze</div>
-</div>
+<div class="hud" id="legend"></div>
 
 <div class="hud" id="stats">
   <div><b id="s-files">0</b> files</div>
   <div><b id="s-size">0</b> on disk</div>
   <div><b id="s-places">0</b> places</div>
+  <div class="src" id="s-src">demo drive</div>
 </div>
 
 <div class="hud" id="keys">
@@ -187,6 +216,7 @@ body.aimed #card{opacity:1;}
   <div>drift<kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></div>
   <div>descend<kbd>scroll</kbd></div>
   <div>faster<kbd>shift</kbd></div>
+  <div>net a fish<kbd>E</kbd></div>
   <div>surface<kbd>F</kbd></div>
 </div>
 
@@ -195,19 +225,59 @@ body.aimed #card{opacity:1;}
   <div class="nm" id="c-nm"></div>
   <div class="fn" id="c-fn"></div>
   <div class="pa" id="c-pa"></div>
+  <div class="act" id="c-act"></div>
 </div>
 
-<div id="intro">
+<div id="net">
+  <div class="n"><b id="net-n">0</b> in the net<s id="net-b"></s></div>
+  <button id="net-copy">copy paths</button>
+  <button id="net-clear">let them go</button>
+  <button id="net-del" class="danger">delete for good</button>
+</div>
+
+<div class="sheet" id="intro">
   <div>
     <h1>your drive, as an <i>ocean</i></h1>
     <p>
       every file is a fish &#183; how deep it swims is how old it is<br>
       folders are places in the water &#183; the same file is always the same fish
     </p>
-    <div class="go">dive</div>
-    <div class="sub">mockup &#183; synthetic drive &#183; ~40,000 files</div>
+    <div class="row">
+      <button class="go" id="open-real">open a folder</button>
+      <button class="ghost" id="open-demo">explore a demo drive</button>
+    </div>
+    <div class="fine" id="intro-fine">
+      nothing is uploaded &#183; the folder is read in your browser and never leaves it<br>
+      <b id="cap-note"></b>
+    </div>
   </div>
 </div>
-<div id="loading">sounding the bottom</div>
+
+<div class="sheet" id="scan" hidden>
+  <div>
+    <h1>sounding the bottom</h1>
+    <div class="bar"><i id="scan-fill"></i></div>
+    <div class="cnt"><b id="scan-n">0</b> files</div>
+    <div class="now" id="scan-now"></div>
+    <div class="fine">this happens entirely on your machine</div>
+  </div>
+</div>
+
+<div class="sheet" id="confirm" hidden>
+  <div>
+    <h1 class="warn">delete these for good?</h1>
+    <div class="big" id="conf-sum"></div>
+    <p>
+      this is permanent &#183; there is no trash, no undo, no copy anywhere<br>
+      the files below will be removed from your disk
+    </p>
+    <div class="list" id="conf-list"></div>
+    <div class="row">
+      <button class="ghost" id="conf-no">keep them</button>
+      <button class="go" id="conf-yes" style="background:#FF7A5C;border-color:#FF7A5C;color:#150604">delete permanently</button>
+    </div>
+    <div class="fine" id="conf-err"></div>
+  </div>
+</div>
 
 <!--APP_BUNDLE-->
