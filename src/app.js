@@ -1,4 +1,5 @@
 import { sfx, isOn, setOn, audio } from "./sfx.js";
+import { Sea, WEATHERS, weatherForDate } from "./sea.js";
 import {
   Scene, PerspectiveCamera, OrthographicCamera, WebGLRenderer, Mesh, Group,
   BufferGeometry, BufferAttribute, ShaderMaterial, SphereGeometry, ConeGeometry, PlaneGeometry,
@@ -380,6 +381,7 @@ const POST_FRAG = `
 precision highp float;
 uniform sampler2D tMap; uniform vec2 uRT; uniform float uLevels;
 uniform vec3 uInk; uniform float uSheen, uTime;
+uniform vec3 uLight; uniform float uAmb;      /* the sky's light, so the catch sits in it */
 varying vec2 vUv;
 float b2(vec2 a){ a = floor(a); return fract(a.x / 2.0 + a.y * a.y * 0.75); }
 float b8(vec2 a){ return b2(0.25*a)*0.0625 + b2(0.5*a)*0.25 + b2(a); }
@@ -391,10 +393,10 @@ void main(){
     float n = max(max(texture2D(tMap, vUv + vec2(px.x, 0.0)).a, texture2D(tMap, vUv - vec2(px.x, 0.0)).a),
                   max(texture2D(tMap, vUv + vec2(0.0, px.y)).a, texture2D(tMap, vUv - vec2(0.0, px.y)).a));
     if (n < 0.5) discard;
-    gl_FragColor = vec4(uInk, 1.0);
+    gl_FragColor = vec4(uInk * mix(vec3(1.0), uLight * uAmb, 0.5), 1.0);
     return;
   }
-  vec3 c = s.rgb;
+  vec3 c = s.rgb * uLight * uAmb;
   if (uSheen > 0.001){
     float band = sin((vUv.x * 1.4 + vUv.y) * 7.0 - uTime * 1.8);
     c += uSheen * pow(max(band, 0.0), 7.0) * 0.85;
@@ -419,6 +421,7 @@ function FishStage(canvas) {
     uniforms: {
       tMap: { value: null }, uRT: { value: new Vector2(1, 1) }, uLevels: { value: 5 },
       uInk: { value: new Color(0x0B1012) }, uSheen: { value: 0 }, uTime: { value: 0 },
+      uLight: { value: new Vector3(1, 1, 1) }, uAmb: { value: 1 },
     },
   });
   post.add(new Mesh(new PlaneGeometry(2, 2), postMat));
@@ -436,6 +439,7 @@ function FishStage(canvas) {
 
   let fish = null, W = 0, H = 0, spin = 0, dragV = 0, drag = null;
   let look = RARE_LOOK.Common, sizeK = 1;
+  const lightRGB = [1, 1, 1]; let lightAmb = 1;
 
   /* droplets and sparks live in the same scene, so they ride the same dither +
      silhouette-ink pass and look native rather than pasted on */
@@ -511,6 +515,8 @@ function FishStage(canvas) {
   addEventListener("pointerup", () => { drag = null; });
 
   return {
+    /* the sea tells us what the light is doing; the catch is graded to match */
+    setLight(rgb, amb) { lightRGB[0] = rgb[0]; lightRGB[1] = rgb[1]; lightRGB[2] = rgb[2]; lightAmb = amb; },
     set(f) {
       if (fish) { scene.remove(fish.group); fish.dispose(); }
       fish = buildFish(f); scene.add(fish.group); fish.group.visible = false;
@@ -540,6 +546,8 @@ function FishStage(canvas) {
       postMat.uniforms.uRT.value.set(w, h);
       postMat.uniforms.uInk.value.setRGB(lk.ink[0], lk.ink[1], lk.ink[2]);
       postMat.uniforms.uSheen.value = 0;                   // a still icon should not strobe
+      postMat.uniforms.uLight.value.set(1, 1, 1);          // dex icons are lit by daylight, not tonight
+      postMat.uniforms.uAmb.value = 1;
       renderer.setRenderTarget(sprB); renderer.clear(); renderer.render(post, postCam);
       renderer.readRenderTargetPixels(sprB, 0, 0, w, h, buf);
       renderer.setRenderTarget(null);
@@ -563,9 +571,9 @@ function FishStage(canvas) {
       emit(x, y, 22, { speed: 1.5, lift: 1.0, jitter: 0.18, life: 0.70, grav: 7.2, col: DROP });
     },
     /* it is still wet while you hold it up */
-    drip(nx, ny) {
+    drip(nx, ny, n) {
       const [x, y] = toWorld(nx, ny);
-      emit(x, y, 1, { dir: -Math.PI / 2, spread: 0.6, speed: 0.25, jitter: 0.6, life: 1.1, grav: 3.2, col: DROP });
+      emit(x, y, n || 1, { dir: -Math.PI / 2, spread: 0.6, speed: 0.25, jitter: 0.6, life: 1.1, grav: 3.2, col: DROP });
     },
     burst(nx, ny, css) {
       const c = new Color(css), [x, y] = toWorld(nx, ny);
@@ -604,6 +612,8 @@ function FishStage(canvas) {
       postMat.uniforms.uRT.value.set(rw, rh);
       postMat.uniforms.uInk.value.setRGB(look.ink[0], look.ink[1], look.ink[2]);
       postMat.uniforms.uSheen.value = look.sheen;
+      postMat.uniforms.uLight.value.set(lightRGB[0], lightRGB[1], lightRGB[2]);
+      postMat.uniforms.uAmb.value = lightAmb;
       postMat.uniforms.uTime.value += dt;
       renderer.setRenderTarget(rt); renderer.clear(); renderer.render(scene, camera);
       renderer.setRenderTarget(null); renderer.clear(); renderer.render(post, postCam);
@@ -611,128 +621,11 @@ function FishStage(canvas) {
   };
 }
 
-/* ============================================================ cel sea */
-const SEA_VS = "attribute vec2 a;void main(){gl_Position=vec4(a,0.,1.);}";
-const SEA_FS = `
-precision highp float;
-uniform vec2 uRes; uniform float uTime; uniform vec4 uRip[6];
-uniform vec3 cDeep, cShal, cFoam, cSky, cSky2;
-float hash21(vec2 p){ p=fract(p*vec2(123.34,456.21)); p+=dot(p,p+45.32); return fract(p.x*p.y); }
-float vnoise(vec2 p){
-  vec2 i=floor(p), f=fract(p); vec2 u=f*f*(3.0-2.0*f);
-  return mix(mix(hash21(i),hash21(i+vec2(1.,0.)),u.x), mix(hash21(i+vec2(0.,1.)),hash21(i+vec2(1.,1.)),u.x), u.y);
-}
-float fbm(vec2 p){ float s=0.,a=.5; for(int i=0;i<4;i++){ s+=a*vnoise(p); p*=2.03; a*=.5; } return s; }
-float hgt(vec2 p, float t){
-  float h = sin(p.x*0.62 + t*0.95)*0.30 + sin(p.y*0.49 - t*0.70)*0.26
-          + sin((p.x*1.05 + p.y*0.82) + t*1.30)*0.17;
-  return h + (fbm(p*0.80 + vec2(t*0.12,-t*0.08)) - 0.5)*0.80;
-}
-vec2 ripples(vec2 p, float t){
-  vec2 o = vec2(0.);
-  for(int i=0;i<6;i++){
-    vec4 r = uRip[i]; float age = t - r.z;
-    if(r.w > 0.001 && age > 0.0 && age < 4.0){
-      float d = length(p - r.xy), rad = age*5.2;
-      float env = exp(-abs(d-rad)*0.85) * exp(-age*0.8) * r.w;
-      o.x += sin((rad-d)*3.1)*env*1.15; o.y += env;
-    }
-  }
-  return o;
-}
-vec3 sky(vec3 rd, float t){
-  vec3 s = mix(cSky, cSky2, pow(clamp(rd.y*3.0,0.0,1.0), 0.72));
-  float c = fbm(rd.xz/max(rd.y,0.030)*0.15 + vec2(t*0.010, 0.0));
-  s = mix(s, vec3(0.99,0.995,1.0), smoothstep(0.505,0.545,c)*0.92);
-  s = mix(s, vec3(0.86,0.89,0.94), smoothstep(0.585,0.615,c)*0.55);
-  return mix(s, mix(cSky, cShal, 0.42), 1.0 - smoothstep(0.0, 0.085, rd.y));
-}
-void main(){
-  vec2 uv = (gl_FragCoord.xy - 0.5*uRes)/uRes.y;
-  vec3 ro = vec3(0.0, 2.5, 0.0);
-  vec3 rd = normalize(vec3(uv.x, uv.y - 0.115, -1.0));
-  float t = uTime; vec3 col;
-  if (rd.y > -0.0022) col = sky(rd, t);
-  else {
-    float dist = -ro.y/rd.y;
-    vec2 p = (ro + rd*dist).xz;
-    float fade = 1.0 - smoothstep(14.0, 68.0, dist);
-    float h = hgt(p,t);
-    vec2 rp = ripples(p,t); h += rp.x;
-    float e = 0.34;
-    float hx = hgt(p+vec2(e,0.0),t), hz = hgt(p+vec2(0.0,e),t);
-    vec3 n = normalize(vec3(-(hx-h)/e, 1.0, -(hz-h)/e));
-    vec3 L = normalize(vec3(-0.42, 0.74, 0.52));
-    float lit = clamp(dot(n,L),0.0,1.0)*0.72 + (h*0.5+0.5)*0.46;
-    float g = fbm(p*0.42 + vec2(t*0.050, t*0.030))*2.6 + h*0.50;
-    float w = FW(g);
-    float d = abs(fract(g) - 0.5);
-    float thick = clamp(max(0.042, w*1.15), 0.0, 0.20);
-    float foam = 1.0 - smoothstep(thick - w*1.05, thick + w*1.05, d);
-    foam *= fade * (1.0 - smoothstep(0.11, 0.28, w));
-    foam *= 0.55 + 0.45*smoothstep(-0.65, 0.50, h);
-    foam = max(foam, smoothstep(0.30, 0.95, rp.y)*fade*0.9);
-    float q = floor(clamp(lit,0.0,0.999)*3.0)/2.0;
-    col = mix(cDeep, cShal, 0.40 + q*0.60);
-    col = mix(col, mix(cSky,cShal,0.42), smoothstep(18.0,84.0,dist));
-    col = mix(col, vec3(1.0), step(0.34, pow(max(dot(reflect(rd,n),L),0.0),46.0))*fade*0.85);
-    col = mix(col, cFoam, foam);
-  }
-  gl_FragColor = vec4(col, 1.0);
-}`;
-
-function Sea(canvas) {
-  const gl = canvas.getContext("webgl", { antialias: false, alpha: false });
-  if (!gl) return null;
-  const ext = gl.getExtension("OES_standard_derivatives");
-  const src = (ext ? "#extension GL_OES_standard_derivatives : enable\n#define FW(x) fwidth(x)\n"
-    : "#define FW(x) 0.018\n") + SEA_FS;
-  const sh = (ty, s) => { const o = gl.createShader(ty); gl.shaderSource(o, s); gl.compileShader(o); return o; };
-  const prog = gl.createProgram();
-  gl.attachShader(prog, sh(gl.VERTEX_SHADER, SEA_VS));
-  gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, src));
-  gl.bindAttribLocation(prog, 0, "a");
-  gl.linkProgram(prog); gl.useProgram(prog);
-  const buf = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
-  gl.enableVertexAttribArray(0);
-  gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
-  const U = n => gl.getUniformLocation(prog, n);
-  const u = { res: U("uRes"), time: U("uTime"), rip: U("uRip[0]") };
-  gl.uniform3fv(U("cDeep"), [0.07, 0.36, 0.62]); gl.uniform3fv(U("cShal"), [0.42, 0.80, 0.90]);
-  gl.uniform3fv(U("cFoam"), [1, 1, 1]);
-  gl.uniform3fv(U("cSky"), [0.83, 0.94, 0.97]); gl.uniform3fv(U("cSky2"), [0.29, 0.63, 0.87]);
-  const rip = new Float32Array(24); let slot = 0, W = 0, H = 0;
-  return {
-    ripple(x, z, s, now) { rip.set([x, z, now, s], slot * 4); slot = (slot + 1) % 6; },
-    screenToWorld(cx, cy) {
-      const w = canvas.clientWidth, h = canvas.clientHeight;
-      const ux = (cx - w / 2) / h, uy = (h / 2 - cy) / h;
-      const dy = uy - 0.115, len = Math.hypot(ux, dy, 1), ry = dy / len;
-      if (ry > -0.004) return null;
-      const t = -2.5 / ry;
-      return [ux / len * t, -t / len];
-    },
-    render(now) {
-      const dpr = Math.min(devicePixelRatio || 1, 1.5);
-      const w = Math.max(2, Math.round(canvas.clientWidth * dpr)), h = Math.max(2, Math.round(canvas.clientHeight * dpr));
-      if (w !== W || h !== H) { W = w; H = h; canvas.width = w; canvas.height = h; gl.viewport(0, 0, w, h); gl.uniform2f(u.res, w, h); }
-      gl.useProgram(prog);
-      gl.bindBuffer(gl.ARRAY_BUFFER, buf);
-      gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
-      gl.uniform1f(u.time, now);
-      gl.uniform4fv(u.rip, rip);
-      gl.drawArrays(gl.TRIANGLES, 0, 3);
-    },
-  };
-}
 
 /* ============================================================ sound */
 function syncSound() {
-  const b = $("#snd");
-  b.textContent = isOn() ? "sound" : "muted";
-  b.setAttribute("aria-pressed", String(isOn()));
+  $("#snd").setAttribute("aria-pressed", String(isOn()));
+  $("#sndlb").textContent = isOn() ? "sound" : "muted";
 }
 $("#snd").addEventListener("click", e => {
   e.stopPropagation();
@@ -771,38 +664,102 @@ let sampleIdx = (Math.random() * SAMPLES.length) | 0;
 const seaCv = $("#sea"), fishCv = $("#fish"), rig = $("#rig");
 const sea = Sea(seaCv);
 const stage = FishStage(fishCv);
+/* the rod is drawn the way the fish is rendered: flat facets, a hard ink
+   silhouette and three shading steps -- never a smooth vector taper. */
+const ROD = {
+  ink: "#0B1012", dark: "#4A3320", mid: "#7B5936", lit: "#B98B57",
+  whip: "#1C3A3E", corkDark: "#8A6739", corkLit: "#CDA467", guide: "#DCE7E9",
+};
+/* a regular polygon, vertex-aligned so halves cut cleanly on the horizon */
+const poly = (r, n, rot) => {
+  const p = [];
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * TAU + (rot || 0);
+    p.push((Math.cos(a) * r).toFixed(1) + " " + (Math.sin(a) * r).toFixed(1));
+  }
+  return "M " + p.join(" L ") + " Z";
+};
+const halfPoly = (r, n, up) => {
+  const p = [];
+  for (let i = 0; i <= n / 2; i++) {
+    const a = (i / n) * TAU * (up ? -1 : 1);
+    p.push((Math.cos(a) * r).toFixed(1) + " " + (Math.sin(a) * r).toFixed(1));
+  }
+  return "M " + p.join(" L ") + " Z";
+};
 rig.innerHTML =
-  `<path id="rodBody" fill="#241C15"/>
-   <path id="rodSpine" fill="none" stroke="rgba(255,226,190,.30)" stroke-width="1.6" stroke-linecap="round"/>
-   <path id="rodGrip" fill="none" stroke="#A8763E" stroke-width="13" stroke-linecap="round"/>
+  `<path id="rodInk" fill="${ROD.ink}"/>
+   <path id="rodDark" fill="${ROD.dark}"/>
+   <path id="rodMid" fill="${ROD.mid}"/>
+   <path id="rodLit" fill="${ROD.lit}"/>
+   <path id="rodWhip" fill="${ROD.whip}"/>
+   <path id="gripInk" fill="${ROD.ink}"/>
+   <path id="gripDark" fill="${ROD.corkDark}"/>
+   <path id="gripLit" fill="${ROD.corkLit}"/>
    <g id="rodReel">
-     <circle r="10" fill="#2B383D" stroke="#0F1A1D" stroke-width="2"/>
-     <circle r="4.2" fill="#8FA6AE"/>
-     <path d="M 0 -10 L 0 -16" stroke="#0F1A1D" stroke-width="3" stroke-linecap="round"/>
+     <path d="${poly(12.4, 8, 0.3927)}" fill="${ROD.ink}"/>
+     <path d="${poly(10.2, 8, 0.3927)}" fill="#3A4E55"/>
+     <path d="${poly(9.4, 8, 0.3927)}" fill="#4E666E" transform="translate(-0.9 -0.9)"/>
+     <path d="${poly(4.6, 6, 0)}" fill="#93A9B0"/>
+     <path d="M -2.2 -10 L 2.2 -10 L 1.6 -18 L -1.6 -18 Z" fill="${ROD.ink}"/>
+     <path d="M -1.1 -10.6 L 1.1 -10.6 L 0.8 -17.2 L -0.8 -17.2 Z" fill="#93A9B0"/>
    </g>
-   <g id="rodGuides" fill="none" stroke="#C9D6D9" stroke-width="1.6">
-     <circle r="3.1"/><circle r="2.7"/><circle r="2.3"/>
+   <g id="rodGuides">
+     <g><path d="${poly(5.4, 4, 0)}" fill="${ROD.ink}"/><path d="${poly(2.8, 4, 0)}" fill="${ROD.guide}"/></g>
+     <g><path d="${poly(4.7, 4, 0)}" fill="${ROD.ink}"/><path d="${poly(2.4, 4, 0)}" fill="${ROD.guide}"/></g>
+     <g><path d="${poly(4.0, 4, 0)}" fill="${ROD.ink}"/><path d="${poly(2.0, 4, 0)}" fill="${ROD.guide}"/></g>
    </g>
-   <path id="cline" fill="none" stroke="rgba(255,255,255,.85)" stroke-width="1.6"/>
-   <g id="cbob"><circle r="9" fill="#fff" stroke="#22333A" stroke-width="2.2"/><path d="M -9 0 A 9 9 0 0 1 9 0 Z" fill="#E1552F" stroke="#22333A" stroke-width="2.2"/></g>
-   <g id="cbang" opacity="0"><circle r="15" fill="#fff" stroke="#22333A" stroke-width="2.5"/><text x="0" y="6.5" text-anchor="middle" font-family="Futura, Avenir Next, sans-serif" font-size="20" font-weight="700" fill="#E1552F">!</text></g>`;
+   <path id="cline" fill="none" stroke="rgba(255,255,255,.85)" stroke-width="1.7"/>
+   <g id="cbob">
+     <path d="${poly(10.6, 8, 0)}" fill="${ROD.ink}"/>
+     <path d="${halfPoly(8.8, 8, false)}" fill="#E8E4D6"/>
+     <path d="${halfPoly(8.8, 8, true)}" fill="#D8552F"/>
+     <path d="M -4.6 -6.2 L -1.4 -7.6 L -0.6 -5.6 L -3.8 -4.2 Z" fill="#F0A184"/>
+   </g>
+   <g id="cbang" opacity="0">
+     <path d="${poly(16.4, 8, 0.3927)}" fill="${ROD.ink}"/>
+     <path d="${poly(14.2, 8, 0.3927)}" fill="#E8E4D6"/>
+     <path d="M -2.4 -8 L 2.4 -8 L 1.5 2.2 L -1.5 2.2 Z" fill="#D8552F"/>
+     <path d="M -2.1 4.6 L 2.1 4.6 L 2.1 8.4 L -2.1 8.4 Z" fill="#D8552F"/>
+   </g>`;
 const world = $("#world");
-const nBody = $("#rodBody"), nSpine = $("#rodSpine"), nGrip = $("#rodGrip"),
+const nInk = $("#rodInk"), nDark = $("#rodDark"), nMid = $("#rodMid"), nLit = $("#rodLit"),
+  nWhip = $("#rodWhip"), nGripInk = $("#gripInk"), nGripDark = $("#gripDark"), nGripLit = $("#gripLit"),
   nReel = $("#rodReel"), nGuides = [...$("#rodGuides").children],
   nLine = $("#cline"), nBob = $("#cbob"), nBang = $("#cbang");
 const elStatus = $("#status");
 
 let W = 0, H = 0, state = "idle", t0 = 0, fish = null;
 let bob = { x: 0, y: 0 }, target = { x: 0, y: 0 }, from = { x: 0, y: 0 };
-const say = s => (elStatus.textContent = s);
+/* where a fish leaving re-enters the water, and the trail it leaves heading out */
+let sendTo = { x: 0, y: 0 }, goneNote = "sent", goneWake = false, sentSplash = false, wake = null;
+let stowTo = { x: 0, y: 0 };
+let said = "drop a file";
+const say = s => { said = s; elStatus.textContent = s; };
 /* the blank flexes as a damped spring, so releasing a load whips through on its own */
 let bend = 0, bendV = 0;
 let rodTip = { x: 0, y: 0 };
 const tip = () => rodTip;
 
+/* the hand holding the rod drifts after the cursor -- a fraction of the way,
+   and late, so the rod feels carried rather than pinned to the pointer */
+const sway = { x: 0, y: 0, tx: 0, ty: 0 };
+addEventListener("pointermove", e => {
+  if (!W || !H) return;
+  sway.tx = clamp((e.clientX - W * 0.5) / W, -1, 1) * 46;
+  sway.ty = clamp((e.clientY - H * 0.5) / H, -1, 1) * 30;
+}, { passive: true });
+
+const GUIDE_T = [0.44, 0.68, 0.90];
+
 function rodFrame(dt, bendTarget) {
-  const butt = { x: W * 1.02, y: H * 1.08 };
-  const rest = { x: W * 0.80, y: H * 0.21 };
+  const k = 1 - Math.exp(-dt * 5.2);
+  sway.x += (sway.tx - sway.x) * k;
+  sway.y += (sway.ty - sway.y) * k;
+
+  /* held off to the right, but clear of the controls stacked in that corner */
+  const butt = { x: W * 0.88 + sway.x * 0.30, y: H * 1.08 + sway.y * 0.30 };
+  const rest = { x: W * 0.66 + sway.x, y: H * 0.20 + sway.y };
   let dx = rest.x - butt.x, dy = rest.y - butt.y;
   const L = Math.hypot(dx, dy) || 1;
   dx /= L; dy /= L;
@@ -820,31 +777,75 @@ function rodFrame(dt, bendTarget) {
     return { x: a * butt.x + bb * c1.x + c * c2.x + d * c3.x, y: a * butt.y + bb * c1.y + c * c2.y + d * c3.y };
   };
 
-  const N = 22, left = [], right = [], spine = [];
-  for (let i = 0; i <= N; i++) {
-    const t = i / N, p = at(t), q = at(Math.min(1, t + 0.004));
-    let tx = q.x - p.x, ty = q.y - p.y;
+  /* one flat-sided quad per segment: the blank steps down in facets the way the
+     fish's body does, instead of tapering smoothly like clip art */
+  const N = 11, segs = [];
+  for (let i = 0; i < N; i++) {
+    const t0s = i / N, t1s = (i + 1) / N, tm = (t0s + t1s) * 0.5;
+    const p0 = at(t0s), p1 = at(t1s), pm = at(tm), q = at(Math.min(1, tm + 0.004));
+    let tx = q.x - pm.x, ty = q.y - pm.y;
     const m = Math.hypot(tx, ty) || 1; tx /= m; ty /= m;
-    const w = lerp(5.6, 0.85, Math.pow(t, 0.7));
-    left.push((p.x - ty * w).toFixed(1) + " " + (p.y + tx * w).toFixed(1));
-    right.push((p.x + ty * w).toFixed(1) + " " + (p.y - tx * w).toFixed(1));
-    spine.push(p.x.toFixed(1) + " " + p.y.toFixed(1));
+    /* whole-pixel widths, so the blank steps down instead of tapering */
+    segs.push({ p0, p1, nx: -ty, ny: tx, w: Math.max(1, Math.round(lerp(9, 1.6, Math.pow(tm, 0.66)))) });
   }
-  nBody.setAttribute("d", "M " + left.join(" L ") + " L " + right.reverse().join(" L ") + " Z");
-  nSpine.setAttribute("d", "M " + spine.join(" L "));
+  /* a ribbon between two offsets from the centreline, in absolute pixels */
+  const band = (from, to, i0, i1) => {
+    let d = "";
+    for (let i = i0 == null ? 0 : i0; i < (i1 == null ? N : i1); i++) {
+      const s = segs[i], a = from(s), c = to(s);
+      d += `M ${(s.p0.x + s.nx * a).toFixed(1)} ${(s.p0.y + s.ny * a).toFixed(1)}` +
+        ` L ${(s.p1.x + s.nx * a).toFixed(1)} ${(s.p1.y + s.ny * a).toFixed(1)}` +
+        ` L ${(s.p1.x + s.nx * c).toFixed(1)} ${(s.p1.y + s.ny * c).toFixed(1)}` +
+        ` L ${(s.p0.x + s.nx * c).toFixed(1)} ${(s.p0.y + s.ny * c).toFixed(1)} Z`;
+    }
+    return d;
+  };
+  nInk.setAttribute("d", band(s => -s.w - 2.4, s => s.w + 2.4));
+  nDark.setAttribute("d", band(s => -s.w, s => s.w));
+  nMid.setAttribute("d", band(s => -s.w * 0.20, s => s.w));
+  nLit.setAttribute("d", band(s => s.w * 0.50, s => s.w));
 
-  const g0 = at(0.015), g1 = at(0.115);
-  nGrip.setAttribute("d", `M ${g0.x.toFixed(1)} ${g0.y.toFixed(1)} L ${g1.x.toFixed(1)} ${g1.y.toFixed(1)}`);
+  /* a short lash of whipping thread where each guide is bound on */
+  let whip = "";
+  for (const t of GUIDE_T) {
+    const a = at(t - 0.009), c = at(t + 0.009);
+    let tx = c.x - a.x, ty = c.y - a.y;
+    const m = Math.hypot(tx, ty) || 1; tx /= m; ty /= m;
+    const nx = -ty, ny = tx, w = lerp(9, 1.6, Math.pow(t, 0.66)) + 1.6;
+    whip += `M ${(a.x + nx * -w).toFixed(1)} ${(a.y + ny * -w).toFixed(1)}` +
+      ` L ${(c.x + nx * -w).toFixed(1)} ${(c.y + ny * -w).toFixed(1)}` +
+      ` L ${(c.x + nx * w).toFixed(1)} ${(c.y + ny * w).toFixed(1)}` +
+      ` L ${(a.x + nx * w).toFixed(1)} ${(a.y + ny * w).toFixed(1)} Z`;
+  }
+  nWhip.setAttribute("d", whip);
+
+  /* cork grip: same facet language, just fatter */
+  const gs = [];
+  for (let i = 0; i < 4; i++) {
+    const a = 0.02 + i * 0.026, c = 0.02 + (i + 1) * 0.026;
+    const p0 = at(a), p1 = at(c), pm = at((a + c) / 2), q = at(Math.min(1, (a + c) / 2 + 0.004));
+    let tx = q.x - pm.x, ty = q.y - pm.y;
+    const m = Math.hypot(tx, ty) || 1; tx /= m; ty /= m;
+    gs.push({ p0, p1, nx: -ty, ny: tx, w: [8.6, 10.4, 10.0, 8.2][i] });
+  }
+  const gband = (from, to) => gs.map(s =>
+    `M ${(s.p0.x + s.nx * from(s)).toFixed(1)} ${(s.p0.y + s.ny * from(s)).toFixed(1)}` +
+    ` L ${(s.p1.x + s.nx * from(s)).toFixed(1)} ${(s.p1.y + s.ny * from(s)).toFixed(1)}` +
+    ` L ${(s.p1.x + s.nx * to(s)).toFixed(1)} ${(s.p1.y + s.ny * to(s)).toFixed(1)}` +
+    ` L ${(s.p0.x + s.nx * to(s)).toFixed(1)} ${(s.p0.y + s.ny * to(s)).toFixed(1)} Z`).join("");
+  nGripInk.setAttribute("d", gband(s => -s.w - 2.4, s => s.w + 2.4));
+  nGripDark.setAttribute("d", gband(s => -s.w, s => s.w));
+  nGripLit.setAttribute("d", gband(s => s.w * 0.30, s => s.w));
 
   const rp = at(0.165), rq = at(0.185);
   const ang = Math.atan2(rq.y - rp.y, rq.x - rp.x) * 180 / Math.PI;
   nReel.setAttribute("transform",
-    `translate(${(rp.x + px * 11).toFixed(1)} ${(rp.y + py * 11).toFixed(1)}) rotate(${(ang + 90).toFixed(1)})`);
+    `translate(${(rp.x + px * 12).toFixed(1)} ${(rp.y + py * 12).toFixed(1)}) rotate(${(ang + 90).toFixed(1)})`);
 
-  [0.44, 0.68, 0.90].forEach((t, i) => {
+  GUIDE_T.forEach((t, i) => {
     const p = at(t);
-    nGuides[i].setAttribute("cx", (p.x + px * 5).toFixed(1));
-    nGuides[i].setAttribute("cy", (p.y + py * 5).toFixed(1));
+    nGuides[i].setAttribute("transform",
+      `translate(${(p.x + px * (9 - i * 1.6)).toFixed(1)} ${(p.y + py * (9 - i * 1.6)).toFixed(1)}) rotate(${ang.toFixed(1)})`);
   });
 
   rodTip = at(1);
@@ -861,6 +862,22 @@ function splash(str, now) {
   if (p) sea.ripple(p[0], p[1], str, now);
 }
 
+/* a chain of ripples marching out toward the horizon: something under the
+   surface, still swimming, already someone else's */
+function startWake(x, y) {
+  wake = { t: 0, dur: 2.6, next: 0, x0: x, y0: y, x1: W * 0.90, y1: H * 0.415 };
+}
+function stepWake(dt, now) {
+  if (!wake) return;
+  wake.t += dt;
+  if (wake.t >= wake.dur) { wake = null; return; }
+  if (wake.t < wake.next) return;
+  const k = wake.t / wake.dur;
+  const p = sea && sea.screenToWorld(lerp(wake.x0, wake.x1, k), lerp(wake.y0, wake.y1, k));
+  if (p) sea.ripple(p[0], p[1], 0.9 * (1 - k * 0.75), now);
+  wake.next = wake.t + 0.15;
+}
+
 function enter(s, now) {
   state = s; t0 = now;
   if (s === "cast") { from = { x: tip().x - 26, y: tip().y + 20 }; say("casting"); sfx("cast"); }
@@ -873,13 +890,16 @@ function enter(s, now) {
   }
   if (s === "caught") {
     document.body.classList.add("has-catch");
-    $("#p-rar").textContent = fish.rarity;
+    const seen = !!DEX[fish.speciesKey];
+    $("#p-rar").textContent = fish.rarity + (seen ? "" : " · new species");
     $("#p-rar").style.color = (RARE_LOOK[fish.rarity] || RARE_LOOK.Common).css;
     $("#p-nm").textContent = fish.name;
     $("#p-sub").textContent = `${fish.cm.toFixed(0)} cm · ${fish.file.name} · ${fmtBytes(fish.file.size)}`;
-    $("#copy").textContent = "copy link";
+    for (const id of ["#release", "#keep", "#send"]) $(id).disabled = false;
+    /* a whole folder is already logged by the time it lands, so there is
+       nothing left to decide about it except who else gets to see it */
+    $("#release").hidden = $("#keep").hidden = !!fish.bulk;
     history.replaceState(null, "", "#f=" + packFish(fish));
-    if (fish.shared) { sfx("land", false); say("someone else's catch · drop your own"); return; }
     const look = RARE_LOOK[fish.rarity] || RARE_LOOK.Common;
     if (RANK[fish.rarity] >= 3) {                 // rarity should be a moment, not just a colour
       stage.burst(0.5, 0.40, look.css);
@@ -889,10 +909,27 @@ function enter(s, now) {
       document.body.classList.add("rar-flash");
     }
     shake = 6;
-    const fresh = record(fish);
     sfx("land", RANK[fish.rarity] >= 3);
-    if (fresh) setTimeout(() => sfx("sparkle"), 380);
-    say(fresh ? "new species" : "drop another");
+    /* nothing is logged yet -- what happens to it is the player's call */
+    say(fish.shared ? "someone else's catch · it's yours if you keep it" : "on the line");
+  }
+  /* the fish is on its way to someone else: it goes back over the side */
+  if (s === "send") {
+    document.body.classList.remove("has-catch", "rar-flash");
+    say("away it goes");
+  }
+  if (s === "release") {
+    document.body.classList.remove("has-catch", "rar-flash");
+    say("back it goes");
+  }
+  if (s === "stow") {
+    document.body.classList.remove("has-catch", "rar-flash");
+    say("into the book");
+  }
+  if (s === "gone") {
+    if (goneWake) startWake(sendTo.x, sendTo.y);
+    stage.place(0, 0, 0, 0, false);
+    say(goneNote);
   }
 }
 
@@ -983,7 +1020,7 @@ function makeCard(f) {
 }
 
 function syncDexButton() {
-  $("#dexbtn").textContent = `dex ${dexCount()}/${SPECIES.length}`;
+  $("#dexn").textContent = `${dexCount()}/${SPECIES.length}`;
 }
 
 const dexEl = $("#dex"), groupsEl = $("#dex-groups"), detailEl = $("#dex-detail");
@@ -1035,6 +1072,8 @@ addEventListener("keydown", e => { if (e.key === "Escape" && !dexEl.hidden) clos
 syncDexButton();
 
 let shake = 0, nextIdle = 3, nextDrip = 0;
+const DRY_AT = 26;                              // seconds of held fish before it stops dripping
+const lit = [1, 1, 1]; let litAmb = 1, lastFx = "";
 let last = performance.now();
 function frame(nowMs) {
   requestAnimationFrame(frame);
@@ -1051,8 +1090,11 @@ function frame(nowMs) {
   else if (state === "wait") bt = 20 + Math.sin(now * 2.1) * 4;
   else if (state === "bite") bt = 78 + Math.sin(now * 26) * 26;
   else if (state === "reel") bt = lerp(185, 60, ease(clamp(age / 1.05, 0, 1))) + Math.sin(now * 17) * 9;
+  else if (state === "send") bt = lerp(-80, 24, ease(clamp(age / 0.9, 0, 1)));
+  else if (state === "release") bt = lerp(46, 18, ease(clamp(age / 0.9, 0, 1)));
   else bt = 18 + Math.sin(now * 0.9) * 4;
   rodFrame(dt, bt);
+  stepWake(dt, now);
 
   /* something jumps out of frame now and then, so the empty screen is a place */
   if (!REDUCED && (state === "idle" || state === "caught") && now > nextIdle && sea) {
@@ -1060,9 +1102,12 @@ function frame(nowMs) {
     if (p) sea.ripple(p[0], p[1], 0.42 + Math.random() * 0.3, now);
     nextIdle = now + 3.5 + Math.random() * 5.5;
   }
-  if (state === "caught" && !REDUCED && now > nextDrip) {
-    stage.drip(0.5 + (Math.random() - 0.5) * 0.10, 0.44);
-    nextDrip = now + 0.28 + Math.random() * 0.5;
+  /* a fish out of water sheets off fast and then just beads: the gap between
+     drops grows as sqrt(time), and it is dry inside half a minute */
+  if (state === "caught" && !REDUCED && now > nextDrip && age < DRY_AT) {
+    const wet = Math.sqrt(1 + age * 5);
+    stage.drip(0.5 + (Math.random() - 0.5) * 0.14, 0.44, age < 0.5 ? 3 : age < 1.6 ? 2 : 1);
+    nextDrip = now + (0.055 + Math.random() * 0.045) * wet;
   }
 
   const T = tip();
@@ -1087,11 +1132,54 @@ function frame(nowMs) {
     bob.x = W * 0.5; bob.y = H * 0.40 + Math.sin(now * 1.05) * H * 0.012;
     vis = true; sc = 1; tilt = Math.sin(now * 0.8) * 0.05;
   }
+  else if (state === "send") {
+    const k = clamp(age / 1.20, 0, 1), e = ease(k);
+    bob.x = lerp(W * 0.5, sendTo.x, e);
+    bob.y = lerp(H * 0.40, sendTo.y, e) - Math.sin(k * Math.PI) * H * 0.20;
+    vis = k < 0.66; sc = lerp(1, 0.26, e); tilt = e * 0.95;
+    if (!sentSplash && k >= 0.62) {
+      sentSplash = true;
+      stage.splash(bob.x / Math.max(W, 1), bob.y / Math.max(H, 1));
+      const p = sea && sea.screenToWorld(bob.x, bob.y);
+      if (p) sea.ripple(p[0], p[1], 1.5, now);
+      shake = 4.5;
+    }
+    if (k >= 1) enter("gone", now);
+  }
+  /* let go: it noses over and slides back under, close in */
+  else if (state === "release") {
+    const k = clamp(age / 0.85, 0, 1), e = ease(k);
+    bob.x = lerp(W * 0.5, W * 0.5 - W * 0.04, e);
+    bob.y = lerp(H * 0.40, H * 0.60, e);
+    vis = k < 0.72; sc = lerp(1, 0.52, e); tilt = -e * 1.15;
+    if (!sentSplash && k >= 0.66) {
+      sentSplash = true;
+      stage.splash(bob.x / Math.max(W, 1), bob.y / Math.max(H, 1));
+      const p = sea && sea.screenToWorld(bob.x, bob.y);
+      if (p) sea.ripple(p[0], p[1], 1.7, now);
+      shake = 3;
+    }
+    if (k >= 1) enter("gone", now);
+  }
+  /* kept: it goes into the book in the corner */
+  else if (state === "stow") {
+    const k = clamp(age / 0.72, 0, 1), e = ease(k);
+    bob.x = lerp(W * 0.5, stowTo.x, e);
+    bob.y = lerp(H * 0.40, stowTo.y, e) - Math.sin(k * Math.PI) * H * 0.06;
+    vis = true; sc = lerp(1, 0.04, e * e); tilt = e * 0.7;
+    if (k >= 1) enter("gone", now);
+  }
+  else if (state === "gone") {
+    vis = false;
+    bob.x = T.x - 22; bob.y = T.y + 44 + Math.sin(now * 1.6) * 3;
+    if (age > 3.2) { state = "idle"; t0 = now; say("drop a file"); }
+  }
 
-  const onWater = state !== "caught" && state !== "reel";
-  nLine.setAttribute("opacity", state === "caught" ? "0" : "1");
+  const holding = state === "caught" || state === "send" || state === "release" || state === "stow";
+  const onWater = !holding && state !== "reel";
+  nLine.setAttribute("opacity", holding ? "0" : "1");
   nBob.setAttribute("opacity", onWater ? "1" : "0");
-  if (state !== "caught") {
+  if (!holding) {
     const sag = state === "cast" ? 6 : state === "bite" ? 8 : state === "reel" ? 2 : 24;
     nLine.setAttribute("d", `M ${T.x.toFixed(1)} ${T.y.toFixed(1)} Q ${((T.x + bob.x) / 2).toFixed(1)} ${((T.y + bob.y) / 2 + sag).toFixed(1)} ${bob.x.toFixed(1)} ${bob.y.toFixed(1)}`);
     if (onWater) nBob.setAttribute("transform", `translate(${bob.x.toFixed(1)} ${bob.y.toFixed(1)})`);
@@ -1107,7 +1195,24 @@ function frame(nowMs) {
       `translate(${((Math.random() * 2 - 1) * shake).toFixed(2)}px,${((Math.random() * 2 - 1) * shake).toFixed(2)}px)`;
   } else if (world.style.transform) { shake = 0; world.style.transform = ""; }
 
-  if (sea) sea.render(now);
+  tickClock(now);
+  if (sea) {
+    /* the catch is lit by whatever sky it was pulled out of, riding the sea's
+       own cross-fade so the fish never pops a frame ahead of the water */
+    const p = sea.paletteNow ? sea.paletteNow() : sea.palette();
+    lit[0] = p.light[0]; lit[1] = p.light[1]; lit[2] = p.light[2];
+    litAmb = p.ambient;
+    stage.setLight(lit, litAmb);
+    /* the rod is out in that same weather, so grade it with the same light.
+       clear daylight is the identity grade, so it pays nothing for the layer */
+    const lum = clamp((lit[0] * 0.3 + lit[1] * 0.5 + lit[2] * 0.2) * litAmb, 0.30, 1.15);
+    const warm = lit[0] - lit[2];
+    const fx = (Math.abs(lum - 1) < 0.02 && Math.abs(warm) < 0.02) ? ""
+      : `brightness(${lum.toFixed(2)}) saturate(${clamp(1 + warm * 0.9, 0.5, 1.35).toFixed(2)})` +
+        ` hue-rotate(${clamp(-warm * 26, -14, 24).toFixed(0)}deg)`;
+    if (fx !== lastFx) { lastFx = fx; rig.style.filter = fx; }
+    sea.render(now);
+  }
   stage.render(dt);
 }
 requestAnimationFrame(frame);
@@ -1140,6 +1245,7 @@ async function haul(files) {
     if (!best || (RANK[f.rarity] || 0) > (RANK[best.rarity] || 0)) best = f;
   }
   fish = best;
+  fish.bulk = true;
   document.body.classList.remove("has-catch");
   layout();
   stage.set(fish);
@@ -1150,8 +1256,10 @@ async function haul(files) {
 }
 
 const unlock = () => { if (isOn()) audio(); };
-$("#sample").addEventListener("click", e => {
+$("#cast").addEventListener("click", e => {
   e.stopPropagation(); unlock();
+  const btn = e.currentTarget;
+  btn.classList.remove("casting"); void btn.offsetWidth; btn.classList.add("casting");
   const s = SAMPLES[sampleIdx++ % SAMPLES.length];
   accept({ ...s, bytes: strBytes(s.name + s.size) });
 });
@@ -1176,20 +1284,140 @@ function copyText(str) {
   if (!ok && navigator.clipboard) navigator.clipboard.writeText(str).catch(() => { });
   return ok || !!navigator.clipboard;
 }
-$("#copy").addEventListener("click", e => {
+/* ---------------------------------------------------------------- sending
+   one button, and the catch actually leaves: a card of it prints out of thin
+   air and sails off, then the fish goes over the side and swims for the
+   horizon. the link is on the clipboard by the time the splash lands. */
+function printCard(f, cx, cy) {
+  const cv = makeCard(f);
+  const w = Math.min(innerWidth * 0.68, 440), h = w * 630 / 1200;
+  cv.id = "card";
+  cv.style.width = w + "px"; cv.style.height = h + "px";
+  cv.style.left = (cx - w / 2) + "px"; cv.style.top = (cy - h / 2) + "px";
+  document.body.appendChild(cv);
+  const fly = `translate(${(innerWidth * 0.62).toFixed(0)}px,${(-innerHeight * 0.92).toFixed(0)}px) rotate(34deg) scale(.22)`;
+  const anim = cv.animate([
+    { transform: "scale(.14) rotate(-14deg)", opacity: 0, offset: 0 },
+    { transform: "scale(1.05) rotate(-3deg)", opacity: 1, offset: 0.20 },
+    { transform: "scale(1) rotate(-3deg)", opacity: 1, offset: 0.46 },
+    { transform: "scale(1.02) rotate(2deg)", opacity: 1, offset: 0.56 },
+    { transform: fly, opacity: 0, offset: 1 },
+  ], { duration: REDUCED ? 900 : 1750, easing: "cubic-bezier(.32,.06,.3,1)" });
+  anim.onfinish = () => cv.remove();
+}
+
+/* the three things you can do with a fish in your hands. exactly one of them,
+   which is what makes any of them mean anything. */
+const decided = () => { for (const id of ["#release", "#keep", "#send"]) $(id).disabled = true; };
+const clearHash = () => history.replaceState(null, "", location.pathname + location.search);
+
+$("#release").addEventListener("click", e => {
   e.stopPropagation();
-  if (!fish) return;
-  const btn = e.currentTarget;                 // null after any await, so grab it now
-  btn.textContent = copyText(shareURL(fish)) ? "copied" : "copy failed";
-  setTimeout(() => { btn.textContent = "copy link"; }, 1600);
+  if (!fish || state !== "caught") return;
+  decided();
+  sentSplash = false; goneWake = false;
+  goneNote = "put back · nothing logged";
+  clearHash();
+  enter("release", performance.now() / 1000);
 });
-$("#savepic").addEventListener("click", e => {
+
+$("#keep").addEventListener("click", e => {
   e.stopPropagation();
-  if (!fish) return;
-  const a = document.createElement("a");
-  a.href = makeCard(fish).toDataURL("image/png");
-  a.download = "filetofish-" + fish.name.toLowerCase().replace(/[^a-z0-9]+/g, "-") + ".png";
-  document.body.appendChild(a); a.click(); a.remove();
+  if (!fish || state !== "caught") return;
+  decided();
+  const r = $("#dexbtn").getBoundingClientRect();
+  stowTo = { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  const fresh = record(fish);                    // only now does it go in the book
+  if (fresh) freshKeys.add(fish.speciesKey);
+  goneWake = false;
+  goneNote = fresh ? `new species · ${dexCount()}/${SPECIES.length} logged` : `kept · ${dexCount()}/${SPECIES.length} logged`;
+  const btn = $("#dexbtn");
+  btn.classList.remove("pop"); void btn.offsetWidth; btn.classList.add("pop");
+  setTimeout(() => btn.classList.remove("pop"), 700);
+  if (fresh) setTimeout(() => sfx("sparkle"), 320);
+  enter("stow", performance.now() / 1000);
+});
+
+$("#send").addEventListener("click", e => {
+  e.stopPropagation();
+  if (!fish || state !== "caught") return;
+  decided();
+  const url = shareURL(fish);
+  const copied = copyText(url);
+  goneWake = true;
+  goneNote = copied ? "link copied · it's theirs now" : "link in the address bar · it's theirs now";
+  /* on a phone the share sheet is the honest way to hand it over, and it has
+     to be called straight out of the tap or the gesture is spent */
+  if (navigator.share && matchMedia("(pointer:coarse)").matches) {
+    try {
+      navigator.share({ title: "filetofish", text: `I caught a ${fish.rarity} ${fish.name}.`, url })
+        .catch(() => { });
+    } catch (err) { }
+  }
+  printCard(fish, innerWidth / 2, innerHeight * 0.40);
+  /* the address bar stops showing a fish you no longer have -- unless the
+     clipboard failed, in which case the address bar IS the link */
+  if (copied) setTimeout(clearHash, 1400);
+  sentSplash = false;
+  sendTo = { x: W * (0.66 + Math.random() * 0.14), y: H * 0.56 };
+  setTimeout(() => { if (state === "caught") enter("send", performance.now() / 1000); },
+    REDUCED ? 200 : 640);
+});
+
+/* what each choice costs, said out loud on hover -- a trade you cannot see is
+   not a trade */
+for (const [id, hint] of [["#release", "nothing kept, no link"],
+                          ["#keep", "logged in the dex, yours to look at"],
+                          ["#send", "they collect it · you give it up"]]) {
+  const b = $(id);
+  b.addEventListener("pointerenter", () => { if (state === "caught") elStatus.textContent = hint; });
+  b.addEventListener("pointerleave", () => { elStatus.textContent = said; });
+}
+
+/* ---------------------------------------------------------------- clock */
+const elClockT = $("#clock-t"), elClockW = $("#clock-w");
+let wxManual = false, wxNext = 0, lastSec = -1;
+const pad2 = n => (n < 10 ? "0" : "") + n;
+
+function applyWeather(name) {
+  if (!sea) return;
+  sea.setWeather(name);
+  const p = sea.palette();
+  elClockW.textContent = p.label;
+  document.body.style.setProperty("--wx", p.css || "#FFC49A");
+}
+if (sea) {
+  /* it is whatever it is outside, except when the weather rolls in -- or when
+     a link pins it, so a particular sky can be shared */
+  const pin = /[?&]wx=([a-z]+)/.exec(location.search);
+  if (pin && WEATHERS.indexOf(pin[1]) >= 0) { wxManual = true; applyWeather(pin[1]); }
+  else {
+    const roll = Math.random();
+    applyWeather(roll < 0.10 ? "rain" : roll < 0.18 ? "fog" : weatherForDate(new Date()));
+  }
+}
+function tickClock(now) {
+  const d = new Date(), s = d.getSeconds();
+  if (s !== lastSec) {
+    lastSec = s;
+    elClockT.textContent = `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(s)}`;
+  }
+  if (sea && !wxManual && now > wxNext) {         // the sky keeps its own time
+    wxNext = now + 30;
+    const base = weatherForDate(d), cur = sea.weather();
+    if (cur !== base && cur !== "fog" && cur !== "rain") applyWeather(base);
+  }
+}
+function cycleWeather(e) {
+  e.stopPropagation();
+  if (!sea) return;
+  wxManual = true;
+  applyWeather(WEATHERS[(WEATHERS.indexOf(sea.weather()) + 1) % WEATHERS.length]);
+  sfx("tick");
+}
+$("#clock").addEventListener("click", cycleWeather);
+$("#clock").addEventListener("keydown", e => {
+  if (e.key === "Enter" || e.key === " ") { e.preventDefault(); cycleWeather(e); }
 });
 
 /* someone opened a shared link: show their fish straight away */

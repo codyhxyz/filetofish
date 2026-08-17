@@ -20,7 +20,10 @@ button{font:inherit; color:inherit; background:none; border:0; cursor:pointer; p
 #world{position:fixed; inset:0; z-index:0; will-change:transform;}
 #sea,#fish{position:fixed; inset:0; width:100%; height:100%;}
 #sea{z-index:0;}
-#rig{position:fixed; inset:0; width:100%; height:100%; z-index:1; pointer-events:none;}
+/* aliased on purpose: the rod should read as the same chunky material as the
+   pixel-diced fish, not as smooth vector art sitting on top of it */
+#rig{position:fixed; inset:0; width:100%; height:100%; z-index:1; pointer-events:none;
+  shape-rendering:crispEdges;}
 #fish{z-index:2; pointer-events:none;}
 
 /* dims the world when a specimen is on screen */
@@ -69,35 +72,123 @@ body.has-catch #plate{opacity:1; transform:translate(-50%,0);}
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
 }
 
-#plate .acts{display:flex; gap:1.1rem; justify-content:center; margin-top:.75rem; pointer-events:auto;}
+#plate .acts{
+  display:flex; gap:.6rem; justify-content:center; align-items:center; flex-wrap:wrap;
+  margin-top:.95rem; pointer-events:auto;
+}
 #plate .acts button{
-  font-family:var(--f-mono); font-size:.64rem; letter-spacing:.16em; text-transform:uppercase;
-  color:rgba(238,250,252,.72); border:1px solid rgba(238,250,252,.3); padding:.42rem .8rem;
-  transition:color .16s, border-color .16s, background .16s;
+  font-family:var(--f-mono); font-size:.66rem; letter-spacing:.18em; text-transform:uppercase;
+  color:#0B1E24; background:#EAF7FA; border:1px solid #EAF7FA; padding:.62rem 1.15rem;
+  transition:transform .16s cubic-bezier(.2,.9,.3,1.4), box-shadow .16s, background .16s,
+             color .16s, border-color .16s;
+  box-shadow:0 6px 22px -10px rgba(0,0,0,.9);
 }
-#plate .acts button:hover{color:#0B1E24; background:#EAF7FA; border-color:#EAF7FA;}
-#snd{
-  position:fixed; right:clamp(1.1rem,3vw,2.2rem); top:clamp(1.05rem,2.7vw,2rem); z-index:8;
-  font-family:var(--f-mono); font-size:.62rem; letter-spacing:.16em; text-transform:uppercase;
-  color:rgba(238,250,252,.66); text-shadow:0 1px 10px rgba(4,30,40,.85);
-  border-bottom:1px solid rgba(238,250,252,.26); padding-bottom:2px;
-  transition:color .18s, border-color .18s;
+#plate .acts button.ghost{
+  background:none; box-shadow:none; color:rgba(238,250,252,.72); border-color:rgba(238,250,252,.32);
 }
-#snd:hover{color:#fff; border-color:#fff;}
-#snd[aria-pressed="false"]{color:rgba(238,250,252,.34); border-bottom-style:dashed;}
+#plate .acts button.ghost.warm{color:rgba(255,201,154,.9); border-color:rgba(255,196,154,.5);}
+#plate .acts button:hover{transform:translateY(-2px); background:#fff; color:#0B1E24; border-color:#fff;
+  box-shadow:0 12px 26px -12px rgba(0,0,0,.9);}
+#plate .acts button.ghost.warm:hover{background:#FFC49A; border-color:#FFC49A;}
+#plate .acts button:active{transform:translateY(1px) scale(.985);}
+#plate .acts button[disabled]{opacity:.4; pointer-events:none;}
+#plate .acts .narrow{display:none;}
+
+/* ---------------------------------------------------------------- clock */
+#clock{
+  position:fixed; right:clamp(1.1rem,3vw,2.2rem); top:clamp(1.05rem,2.7vw,2rem); z-index:9;
+  font-family:var(--f-mono); text-align:right; line-height:1.3; cursor:pointer;
+  text-shadow:0 1px 10px rgba(4,30,40,.9);
+}
+#clock b{
+  display:block; font-weight:400; font-size:.84rem; letter-spacing:.13em;
+  color:rgba(238,250,252,.94); font-variant-numeric:tabular-nums;
+}
+#clock i{
+  display:block; font-style:normal; font-size:.56rem; letter-spacing:.24em; text-transform:uppercase;
+  color:var(--wx,#FFC49A); opacity:.9; transition:opacity .18s;
+}
+#clock:hover i{opacity:1;}
+#clock:hover b{color:#fff;}
+
+/* ---------------------------------------------------------------- tools */
+#tools{
+  position:fixed; right:clamp(1rem,3vw,2rem); bottom:clamp(1rem,3vh,2rem); z-index:9;
+  display:flex; flex-direction:column; align-items:flex-end; gap:.5rem;
+}
+.tool{display:flex; align-items:center; gap:.65rem; color:rgba(238,250,252,.66);}
+.tool .lb{
+  font-family:var(--f-mono); font-size:.56rem; letter-spacing:.17em; text-transform:uppercase;
+  text-shadow:0 1px 10px rgba(4,30,40,.92); opacity:.6; transition:opacity .18s, color .18s;
+  white-space:nowrap;
+}
+.tool .ic{
+  width:2.7rem; height:2.7rem; border-radius:50%; display:grid; place-items:center; flex:0 0 auto;
+  background:rgba(6,26,33,.42); border:1px solid rgba(226,242,244,.26);
+  backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+  transition:transform .16s cubic-bezier(.2,.9,.3,1.4), background .16s, border-color .16s, color .16s;
+}
+.tool svg{width:1.2rem; height:1.2rem; display:block;}
+.tool:hover{color:#fff;}
+.tool:hover .lb{opacity:1; color:#fff;}
+.tool:hover .ic{background:rgba(10,42,52,.8); border-color:rgba(255,255,255,.9); transform:translateY(-2px);}
+.tool:active .ic{transform:translateY(1px) scale(.94);}
+.tool.primary .ic{
+  width:3.3rem; height:3.3rem; background:rgba(255,196,154,.14); border-color:rgba(255,196,154,.72);
+  color:#FFD9A8;
+}
+.tool.primary .lb{color:rgba(255,217,168,.8); opacity:.85;}
+.tool.primary:hover .ic{background:#FFC49A; border-color:#FFC49A; color:#0B1E24;}
+.tool.primary svg{width:1.5rem; height:1.5rem;}
+.tool.primary.casting .ic{animation:rodkick .5s ease;}
+@keyframes rodkick{0%{transform:rotate(0)}30%{transform:rotate(-22deg) scale(1.06)}100%{transform:rotate(0)}}
+.tool.pop .ic{animation:dexpop .55s cubic-bezier(.2,.9,.3,1.4);}
+.tool.pop{color:#FFC49A;}
+@keyframes dexpop{0%{transform:scale(1)}34%{transform:scale(1.3)}100%{transform:scale(1)}}
+#snd[aria-pressed="false"]{color:rgba(238,250,252,.34);}
+#snd[aria-pressed="false"] .ic{border-color:rgba(226,242,244,.14); border-style:dashed;}
+#snd .on,#snd .off{display:none;}
+#snd[aria-pressed="true"] .on{display:block;}
+#snd[aria-pressed="false"] .off{display:block;}
+#dexn{font-style:normal;}
+
 #foot{
   position:fixed; left:50%; transform:translateX(-50%); bottom:clamp(1.1rem,3vh,2rem); z-index:6;
-  display:flex; gap:1.4rem; align-items:baseline; font-family:var(--f-mono);
-  font-size:.72rem; letter-spacing:.13em; text-transform:uppercase; white-space:nowrap;
-  text-shadow:0 1px 10px rgba(4,30,40,.85);
+  font-family:var(--f-mono); font-size:.72rem; letter-spacing:.13em; text-transform:uppercase;
+  white-space:nowrap; text-shadow:0 1px 10px rgba(4,30,40,.85); pointer-events:none;
+  max-width:min(64vw,30rem); overflow:hidden; text-overflow:ellipsis;
 }
 #foot b{font-weight:400; color:rgba(238,250,252,.95);}
-#foot button{
-  color:rgba(238,250,252,.6); letter-spacing:.13em; border-bottom:1px solid rgba(238,250,252,.28);
-  padding-bottom:2px; transition:color .18s, border-color .18s;
+#src{
+  position:fixed; left:clamp(1.1rem,3vw,2.2rem); bottom:clamp(1.15rem,3vh,2.05rem); z-index:9;
+  font-family:var(--f-mono); font-size:.56rem; letter-spacing:.18em; text-transform:uppercase;
+  color:rgba(238,250,252,.45); text-decoration:none; padding-bottom:2px;
+  border-bottom:1px solid rgba(238,250,252,.2); transition:color .18s, border-color .18s;
+  text-shadow:0 1px 10px rgba(4,30,40,.9);
 }
-#foot button:hover{color:#fff; border-color:#fff;}
-@media (max-width:560px){ #foot{gap:1rem; font-size:.66rem;} }
+#src:hover{color:#fff; border-color:#fff;}
+
+/* the catch, printed as a card and thrown to whoever you sent it to */
+#card{
+  position:fixed; z-index:12; pointer-events:none; left:0; top:0; transform-origin:50% 50%;
+  box-shadow:0 30px 60px -24px rgba(0,0,0,.95); border:2px solid rgba(255,255,255,.85);
+}
+/* on a phone the corner stack turns into a row along the bottom edge, and
+   everything else moves up out of its way */
+@media (max-width:560px){
+  #tools{flex-direction:row; align-items:center; gap:.45rem; bottom:1rem; right:1rem;}
+  .tool .lb{display:none;}
+  .tool .ic{width:2.5rem; height:2.5rem;}
+  .tool.primary .ic{width:3rem; height:3rem;}
+  #src{bottom:1.5rem; left:1rem;}
+  #foot{font-size:.6rem; bottom:5.6rem; max-width:88vw;}
+  #plate{bottom:8.6rem; width:min(96vw,34rem);}
+  #plate .acts{gap:.4rem; margin-top:.8rem;}
+  #plate .acts button{font-size:.56rem; padding:.5rem .62rem; letter-spacing:.1em;}
+  #plate .acts .wide{display:none;}
+  #plate .acts .narrow{display:inline;}
+  #plate .nm{font-size:clamp(1.7rem,7vw,2.4rem);}
+}
 
 #drop{
   position:fixed; inset:clamp(.6rem,2vw,1.4rem); z-index:7; pointer-events:none;
@@ -197,20 +288,63 @@ body.has-catch #plate{opacity:1; transform:translate(-50%,0);}
 <div id="hit" title="pick a file"></div>
 
 <div class="mark">file<i>to</i>fish</div>
-<button id="snd" aria-pressed="true">sound</button>
+
+<div id="clock" role="button" tabindex="0" title="click to change the weather">
+  <b id="clock-t">--:--:--</b><i id="clock-w">clear</i>
+</div>
 
 <div id="plate">
   <div class="rar" id="p-rar"></div>
   <div class="nm" id="p-nm"></div>
   <div class="sub" id="p-sub"></div>
-  <div class="acts"><button id="copy">copy link</button><button id="savepic">save image</button></div>
+  <div class="acts">
+    <button id="release" class="ghost" title="let it go: nothing kept, no link">put it back</button>
+    <button id="keep">keep it</button>
+    <button id="send" class="ghost warm" title="they collect it, and you give it up"><span
+      class="wide">send this fish to a friend</span><span class="narrow">send to a friend</span></button>
+  </div>
 </div>
 
-<div id="foot">
-  <b id="status">drop a file</b>
-  <button id="sample">sample</button>
-  <button id="dexbtn">dex 0/39</button>
+<div id="foot"><b id="status">drop a file</b></div>
+
+<div id="tools">
+  <button class="tool" id="dexbtn" aria-label="Open the fish dex">
+    <span class="lb">dex <i id="dexn">0/39</i></span>
+    <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+      stroke-linejoin="round" stroke-linecap="round" aria-hidden="true">
+      <path d="M12 7.1C10.1 5.2 7.4 4.4 3.6 4.6v12.9c3.8-.2 6.5.6 8.4 2.5 1.9-1.9 4.6-2.7 8.4-2.5V4.6c-3.8-.2-6.5.6-8.4 2.5z"/>
+      <path d="M12 7.1V20"/>
+      <path d="M6.3 8.6h2.9M6.3 11.6h2.9M14.8 8.6h2.9M14.8 11.6h2.9"/>
+    </svg></span>
+  </button>
+  <button class="tool" id="snd" aria-pressed="true" aria-label="Sound">
+    <span class="lb" id="sndlb">sound</span>
+    <span class="ic">
+      <svg class="on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+        stroke-linejoin="round" stroke-linecap="round" aria-hidden="true">
+        <path d="M4 9.2h3.4L12 5v14l-4.6-4.2H4z" fill="currentColor"/>
+        <path d="M15.4 9.4a4 4 0 0 1 0 5.2"/><path d="M18.1 6.8a8 8 0 0 1 0 10.4"/>
+      </svg>
+      <svg class="off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+        stroke-linejoin="round" stroke-linecap="round" aria-hidden="true">
+        <path d="M4 9.2h3.4L12 5v14l-4.6-4.2H4z" fill="currentColor"/>
+        <path d="M16 9.5l5 5M21 9.5l-5 5"/>
+      </svg>
+    </span>
+  </button>
+  <button class="tool primary" id="cast" aria-label="Cast for a sample file">
+    <span class="lb">cast a sample</span>
+    <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+      stroke-linejoin="round" stroke-linecap="round" aria-hidden="true">
+      <path d="M2.8 21.2 16.8 3.4"/>
+      <path d="M6.4 16.6a2.2 2.2 0 1 0 2.8-2.2"/>
+      <path d="M16.8 3.4c2.4 3.4 3.6 7.2 3.4 11"/>
+      <circle cx="20.1" cy="17.6" r="1.9" fill="currentColor" stroke="none"/>
+    </svg></span>
+  </button>
 </div>
+
+<a id="src" href="https://github.com/codyhxyz/filetofish" target="_blank" rel="noopener">source</a>
 
 <div id="drop"><span>let go</span></div>
 <input type="file" id="file" multiple hidden>

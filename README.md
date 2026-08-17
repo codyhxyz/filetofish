@@ -5,6 +5,10 @@
 Drop in any file. It comes back as a fish. Same file, same fish, every time.
 Nothing is uploaded — the first 64 KB is read in the browser, hashed, and thrown away.
 
+The `source` link in the bottom-left corner of the site points here. The whole thing
+is one self-contained HTML file, so view-source on the deployed page is also the
+whole program.
+
 ```
 npm install
 node build.mjs                 # -> dist/ (site) and mockups/ (artifact build)
@@ -57,7 +61,8 @@ adding a knob needs no UI work. The page is `noindex` and costs 12 KB; delete
 ## Layout
 
 - `src/page.html` — markup + CSS, with an `<!--APP_BUNDLE-->` marker
-- `src/app.js` — the site, imports `three` and `./sfx.js`
+- `src/app.js` — the site, imports `three`, `./sfx.js` and `./sea.js`
+- `src/sea.js` — sky and water: the GLSL, the seven weathers, the cross-fade
 - `src/sfx.js` — synthesised audio, shared with the audition page
 - `src/audition.{html,js}` — the /sfx tuning page
 - `build.mjs` — esbuild bundles to an IIFE and inlines it, then emits two builds:
@@ -71,7 +76,8 @@ every non-ASCII character becomes an entity or a `\u` escape or it mojibakes.
 
 Two renderers, deliberately different:
 
-- **The sea** is hand-written GLSL, no library. Cel-banded with foam from
+- **The sea** is hand-written GLSL, no library, in seven weathers (see below).
+  Cel-banded with foam from
   `abs(fract(fbm) - 0.5)` anti-aliased against `fwidth`, biased toward wave crests
   so it reads as water rather than a contour map. Ripples are pushed in as uniforms
   when the bobber lands.
@@ -99,14 +105,53 @@ coarse grid so they block up with the facets. No textures.
 Traits are pure functions of (name, size, MIME, hash), so a shared fish could be a
 URL rather than a database row.
 
+## Weather
+
+Seven skies — `dawn`, `sunrise`, `day`, `dusk`, `night`, `fog`, `rain` — live in
+`src/sea.js`. Each is a flat 46-float scene (water, sky, haze, cloud, sun) and
+`setWeather()` lerps the whole array over 2 s, so nothing ever snaps.
+
+The load-bearing trick is that the **visible sun and the key light are separate
+vectors**. The sun can sit on the horizon for the glitter path while the swell
+still gets a high key, so the cel bands never flatten out at sunrise or dusk. The
+glitter path itself comes off the half-vector slope rather than a `pow(dot)` hack,
+which is why it narrows at the horizon and spreads toward the camera.
+
+Which sky you get is your actual local time (`weatherForDate`), with a small chance
+of fog or rain rolling in instead. The clock strip top-right ticks to the second and
+cycling it by hand is one click; `?wx=night` pins one so a particular sky can be
+shared or screenshotted.
+
+Whatever the sea is doing, the catch is lit to match: `paletteNow()` hands back the
+mid-cross-fade light, which grades the fish through a uniform in the post pass and
+the rod through a CSS filter on the SVG. A fish landed at midnight is a fish at
+midnight.
+
+## What happens to a catch
+
+A landed fish is **not** logged. Three buttons decide, and you get exactly one:
+
+- **put it back** — it noses over, slides under, and nothing is recorded.
+- **keep it** — it flies into the book in the corner and enters the dex.
+- **send this fish to a friend** — a 1200x630 card of it prints out of thin air,
+  sails off the top of the screen, and the fish goes over the side and swims for
+  the horizon leaving a wake. The link is on your clipboard before the splash
+  lands. You do not get to keep it. That is the trade.
+
+Making the dex a decision rather than a side effect is the whole point: giving a
+fish away has to cost something or sharing is just a copy button.
+
+Dropping a folder skips all of this — a haul is logged wholesale, so those two
+buttons hide and only sending is left.
+
 ## The dex
 
 The hash makes infinite individuals, so the collectible unit is the **species**:
 archetype x noun, 38 of them, plus the zero-byte Ghost Minnow. That is the finite
 set you can actually finish.
 
-Entries are pre-rendered icons, which is how OSRS does item sprites anyway: on a
-new catch the fish is built off-screen, rendered at a canonical 3/4 angle through
+Entries are pre-rendered icons, which is how OSRS does item sprites anyway: when a
+catch is kept the fish is built off-screen, rendered at a canonical 3/4 angle through
 the same dither + ink post-pass into an 88x66 target, read back with
 `readRenderTargetPixels`, flipped (GL reads bottom-up) and stored as a PNG data URL
 in `localStorage` under `ftf.dex.v1`. A full 39-species dex is ~120 KB, and the
@@ -124,16 +169,18 @@ each species.
 
 A fish is a pure function of `(name, size, MIME, hash)`, so a link needs no server:
 those four values are packed as base64url into `#f=...` and reconstructed exactly on
-open. Shared fish are shown but deliberately **not** recorded to the dex -- the dex is
-what you caught.
+open. Opening someone's link puts their fish in your hands with the same three
+choices you get for your own — collecting it is how it becomes yours.
 
-`save image` composes a 1200x630 card on a 2D canvas: the fish re-rendered through
-the same dither + ink pass, the name, the file it came from, and the domain.
-Synchronous `toDataURL` rather than `toBlob`, so there is no async path to fail.
+The card is composed 1200x630 on a 2D canvas: the fish re-rendered through the same
+dither + ink pass, the name, the file it came from, and the domain. Synchronous
+`toDataURL` rather than `toBlob`, so there is no async path to fail. On a coarse
+pointer the native share sheet is invoked straight out of the tap, before any
+`await` can spend the gesture; everywhere else the clipboard is the handoff.
 
 Known limit: OG previews of a `#f=` link show the generic `og.png`, not that fish.
 Hash fragments are never sent to the server, so no static host can do per-fish
-previews -- the save-image button is the answer to that.
+previews -- the printed card is the answer to that.
 
 ## Sound
 
@@ -175,10 +222,18 @@ and `+185` easing to `+60` through the fight. The blank is ~740 px long, so anyt
 under ~60 px of tip offset simply does not read -- an earlier pass at `78` looked
 rigid.
 
-Drawn as a tapered filled polygon (22 samples, half-width 5.6 -> 0.85) rather than a
-stroke, plus a cork grip, a reel that rides the curve, and three line guides. The tip
-is read back off the curve, so the line and bobber follow the flex instead of hanging
-off a fixed point.
+Drawn to match the fish rather than to look like vector art: eleven flat-sided quads
+with whole-pixel widths, so the blank **steps down in facets** the way the low-poly
+body does, under a hard ink silhouette and three flat shading bands. Faceted cork
+grip, an octagonal reel that rides the curve, diamond guides with a short lash of
+whipping thread. `shape-rendering:crispEdges` keeps the edges aliased, which is the
+same chunky material as the pixel-diced fish. The tip is read back off the curve, so
+the line and bobber follow the flex instead of hanging off a fixed point.
+
+The hand holding it drifts after the cursor — a fraction of the way (46 px of travel
+across the full width) and late, chasing on an exponential, so the rod feels carried
+rather than pinned to the pointer. The butt follows at 30% of the tip, which is what
+turns a translation into a pivot.
 
 ## Flourishes
 
@@ -189,7 +244,9 @@ call, 110-particle pool, simulated on the CPU. `gl_PointSize` is scaled by the
 render-target height, not the canvas, or droplets come out `PX` times too big.
 
 - **splash** on the fish breaking the surface
-- **drip** every ~0.4s while you hold it up, so the catch reads as wet
+- **drip** — a fish out of water sheets off fast and then only beads, so the gap
+  between drops grows as `sqrt(1 + 5t)`: three drops every 55 ms at first, a lone
+  bead a second by the half-minute mark, then dry
 - **burst** in the rarity colour on Rare and above, plus a one-shot vignette flash
   driven by a `--rar` custom property. Rarity was a state; now it is a moment.
 - **idle ripples** pushed into the sea shader every few seconds so the empty screen
