@@ -17,16 +17,30 @@ cd dist && python3 -m http.server
 
 ## Deploy
 
+**Push to `main`.** That is the whole thing. `.github/workflows/deploy.yml` runs
+`node build.mjs`, sanity-checks that `dist/index.html` is a real build, and ships
+it to Cloudflare Pages. Watch it with `gh run watch`.
+
 Cloudflare Pages, project `filetofish`, custom domain `filetofish.codyh.xyz`
 (CNAME -> `filetofish.pages.dev`, proxied, in the `codyh.xyz` zone).
+
+The Action authenticates with a token scoped to **Pages:Write on this account
+only** — not the master key in `~/.claude/secrets/cloudflare.env`. It lives in
+the repo's Actions secrets as `CLOUDFLARE_API_TOKEN` alongside
+`CLOUDFLARE_ACCOUNT_ID`. To rotate it, mint a new one against permission group
+`8d28297797f24fb8a0c332fe0866ec89` and `gh secret set` it; the repo is public,
+so nothing broader than Pages should ever go in there.
+
+Deploying by hand still works if CI is down:
 
 ```
 node build.mjs
 wrangler pages deploy dist --project-name=filetofish --branch=main --commit-dirty=true
 ```
 
-Creds come from `~/.claude/secrets/cloudflare.env` via `~/.zshrc`. See the
-`cloudflare-ops` skill. Whole app is ~145 KB gzipped, static, $0 per catch.
+That path uses the master creds from `~/.claude/secrets/cloudflare.env` via
+`~/.zshrc`. See the `cloudflare-ops` skill. Whole app is ~145 KB gzipped,
+static, $0 per catch.
 
 ## Tuning the sound
 

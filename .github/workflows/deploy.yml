@@ -1,0 +1,52 @@
+# Push to main is the whole deploy story. GitHub builds dist/ and ships it to
+# the Cloudflare Pages project that serves filetofish.codyh.xyz.
+#
+# Secrets (repo settings -> Actions):
+#   CLOUDFLARE_API_TOKEN   scoped to Pages:Write on this account only
+#   CLOUDFLARE_ACCOUNT_ID
+name: deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# a second push while one is in flight cancels the older run rather than racing
+concurrency:
+  group: pages-deploy
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build
+        run: node build.mjs
+
+      # dist/index.html is gitignored on purpose -- it is generated, so if the
+      # build silently produced nothing there is no stale copy to ship instead
+      - name: Check the build actually produced a site
+        run: |
+          bytes=$(wc -c < dist/index.html)
+          echo "dist/index.html $bytes bytes"
+          test "$bytes" -gt 300000                  # the inlined three.js bundle alone clears this
+          grep -q '<canvas id="sea">' dist/index.html
+          test -s dist/og.png
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy dist --project-name=filetofish --branch=main
