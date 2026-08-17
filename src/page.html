@@ -1,0 +1,223 @@
+<title>filetofish</title>
+
+<style>
+:root{
+  --f-display:Futura,"Futura PT","Avenir Next","Century Gothic",system-ui,sans-serif;
+  --f-mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,"Roboto Mono",monospace;
+  --ink:#F2FAFB;
+}
+*{box-sizing:border-box;}
+html,body{height:100%;}
+body{
+  margin:0; overflow:hidden; background:#7EC8E3; color:var(--ink);
+  font-family:var(--f-display); -webkit-font-smoothing:antialiased;
+  -webkit-tap-highlight-color:transparent;
+}
+canvas{display:block;}
+button{font:inherit; color:inherit; background:none; border:0; cursor:pointer; padding:0;}
+:focus-visible{outline:2px solid #FFD9A8; outline-offset:4px;}
+
+#sea,#fish{position:fixed; inset:0; width:100%; height:100%;}
+#sea{z-index:0;}
+#rig{position:fixed; inset:0; width:100%; height:100%; z-index:1; pointer-events:none;}
+#fish{z-index:2; pointer-events:none;}
+
+/* dims the world when a specimen is on screen */
+#veil{
+  position:fixed; inset:0; z-index:1; pointer-events:none; opacity:0;
+  transition:opacity .5s ease;
+  background:radial-gradient(ellipse at 50% 44%, rgba(5,26,33,.30) 0%, rgba(4,20,26,.64) 68%);
+}
+body.has-catch #veil{opacity:1;}
+#rig{transition:opacity .5s ease;}
+body.has-catch #rig{opacity:.22;}
+
+#hit{position:fixed; inset:0; z-index:3; cursor:pointer;}
+
+.mark{
+  position:fixed; left:clamp(1.1rem,3vw,2.2rem); top:clamp(1rem,2.6vw,1.9rem); z-index:5;
+  font-size:clamp(1.15rem,2vw,1.5rem); letter-spacing:-.02em; line-height:1;
+  text-shadow:0 2px 12px rgba(4,30,40,.55); pointer-events:none;
+}
+.mark i{font-style:normal; color:#FFD9A8;}
+
+/* the catch record: name, rarity, and the file it came from */
+#plate{
+  position:fixed; left:50%; bottom:clamp(3.6rem,8vh,5.5rem); transform:translate(-50%,10px);
+  z-index:5; text-align:center; opacity:0; transition:opacity .45s ease, transform .45s ease;
+  pointer-events:none; width:min(92vw,34rem);
+}
+body.has-catch #plate{opacity:1; transform:translate(-50%,0);}
+#plate .rar{
+  font-family:var(--f-mono); font-size:.6rem; letter-spacing:.26em; text-transform:uppercase;
+  color:#FFC49A; text-shadow:0 1px 8px rgba(4,30,40,.8);
+}
+#plate .nm{
+  font-size:clamp(1.9rem,5.2vw,3.1rem); line-height:1.04; margin-top:.28rem; letter-spacing:-.02em;
+  text-shadow:0 3px 18px rgba(4,30,40,.7); text-wrap:balance;
+}
+#plate .sub{
+  font-family:var(--f-mono); font-size:.7rem; letter-spacing:.1em; margin-top:.5rem;
+  color:rgba(238,250,252,.78); text-shadow:0 1px 10px rgba(4,30,40,.9);
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+
+#plate .acts{display:flex; gap:1.1rem; justify-content:center; margin-top:.75rem; pointer-events:auto;}
+#plate .acts button{
+  font-family:var(--f-mono); font-size:.64rem; letter-spacing:.16em; text-transform:uppercase;
+  color:rgba(238,250,252,.72); border:1px solid rgba(238,250,252,.3); padding:.42rem .8rem;
+  transition:color .16s, border-color .16s, background .16s;
+}
+#plate .acts button:hover{color:#0B1E24; background:#EAF7FA; border-color:#EAF7FA;}
+#snd{
+  position:fixed; right:clamp(1.1rem,3vw,2.2rem); top:clamp(1.05rem,2.7vw,2rem); z-index:8;
+  font-family:var(--f-mono); font-size:.62rem; letter-spacing:.16em; text-transform:uppercase;
+  color:rgba(238,250,252,.66); text-shadow:0 1px 10px rgba(4,30,40,.85);
+  border-bottom:1px solid rgba(238,250,252,.26); padding-bottom:2px;
+  transition:color .18s, border-color .18s;
+}
+#snd:hover{color:#fff; border-color:#fff;}
+#snd[aria-pressed="false"]{color:rgba(238,250,252,.34); border-bottom-style:dashed;}
+#foot{
+  position:fixed; left:50%; transform:translateX(-50%); bottom:clamp(1.1rem,3vh,2rem); z-index:6;
+  display:flex; gap:1.4rem; align-items:baseline; font-family:var(--f-mono);
+  font-size:.72rem; letter-spacing:.13em; text-transform:uppercase; white-space:nowrap;
+  text-shadow:0 1px 10px rgba(4,30,40,.85);
+}
+#foot b{font-weight:400; color:rgba(238,250,252,.95);}
+#foot button{
+  color:rgba(238,250,252,.6); letter-spacing:.13em; border-bottom:1px solid rgba(238,250,252,.28);
+  padding-bottom:2px; transition:color .18s, border-color .18s;
+}
+#foot button:hover{color:#fff; border-color:#fff;}
+@media (max-width:560px){ #foot{gap:1rem; font-size:.66rem;} }
+
+#drop{
+  position:fixed; inset:clamp(.6rem,2vw,1.4rem); z-index:7; pointer-events:none;
+  border:2px dashed rgba(255,255,255,.85); opacity:0; transition:opacity .18s;
+  display:grid; place-items:center;
+}
+#drop.on{opacity:1;}
+#drop span{
+  font-family:var(--f-mono); font-size:.78rem; letter-spacing:.2em; text-transform:uppercase;
+  background:rgba(6,28,36,.5); padding:.9rem 1.5rem;
+}
+/* ---------------------------------------------------------------- dex */
+#dex{
+  position:fixed; inset:0; z-index:20; display:grid; place-items:center;
+  grid-template-rows:minmax(0,1fr);   /* definite row, or max-height:100% is circular */
+  padding:clamp(.6rem,3vh,2rem); background:rgba(4,18,24,.72);
+  backdrop-filter:blur(7px); -webkit-backdrop-filter:blur(7px);
+  animation:dexin .22s ease;
+}
+@keyframes dexin{from{opacity:0}to{opacity:1}}
+#dex[hidden]{display:none;}
+#dex-panel{
+  width:min(100%,58rem); max-height:100%; display:flex; flex-direction:column;
+  background:rgba(9,28,35,.94); border:1px solid rgba(190,230,236,.18);
+  box-shadow:0 40px 90px -40px rgba(0,0,0,.9);
+}
+#dex-panel header{
+  flex:0 0 auto; display:flex; align-items:center; gap:1.4rem; padding:1rem 1.2rem .9rem;
+  border-bottom:1px solid rgba(190,230,236,.14);
+}
+#dex-panel h2{margin:0; font-size:1.25rem; font-weight:500; letter-spacing:-.01em; line-height:1;}
+#dex-panel header>div:first-child{flex:1; min-width:0;}
+.bar{margin-top:.5rem; height:3px; background:rgba(190,230,236,.14); max-width:22rem;}
+.bar i{display:block; height:100%; width:0; background:#FFC49A; transition:width .4s ease;}
+#dex-panel .count{
+  font-family:var(--f-mono); font-size:.68rem; letter-spacing:.13em; text-transform:uppercase;
+  color:rgba(226,242,244,.55); white-space:nowrap;
+}
+#dex-panel .count b{font-weight:400; color:#FFC49A;}
+#dex-close{
+  font-family:var(--f-mono); font-size:.62rem; letter-spacing:.14em; text-transform:uppercase;
+  color:rgba(226,242,244,.5); border:1px solid rgba(190,230,236,.24); padding:.35rem .55rem;
+}
+#dex-close:hover{color:#fff; border-color:#fff;}
+
+#dex-groups{flex:1 1 auto; min-height:0; overflow-y:auto; padding:1rem 1.2rem 1.2rem;
+  display:flex; flex-direction:column; gap:1.1rem;}
+.grp h3{
+  margin:0 0 .45rem; font-family:var(--f-mono); font-size:.6rem; letter-spacing:.2em;
+  text-transform:uppercase; color:rgba(226,242,244,.42); font-weight:400;
+}
+.slots{display:grid; grid-template-columns:repeat(auto-fill,minmax(72px,1fr)); gap:6px;}
+.slot{
+  position:relative; aspect-ratio:4/3; border:1px solid rgba(190,230,236,.13);
+  background:rgba(3,14,18,.55); display:grid; place-items:center; overflow:hidden;
+  transition:border-color .16s, background .16s;
+}
+.slot img{width:100%; height:100%; object-fit:contain; image-rendering:pixelated;}
+.slot.locked::after{
+  content:"?"; font-family:var(--f-mono); font-size:.9rem; color:rgba(190,230,236,.16);
+}
+.slot.got{cursor:pointer; background:rgba(20,52,62,.5);}
+.slot.got:hover,.slot.sel{border-color:#FFC49A;}
+.slot.sel{background:rgba(48,32,26,.6);}
+.slot .dot{
+  position:absolute; right:4px; top:4px; width:5px; height:5px; border-radius:50%;
+  background:rgba(226,242,244,.35);
+}
+.slot .dot.r2{background:#7FD6C4;} .slot .dot.r3{background:#8AB6FF;}
+.slot .dot.r4{background:#C79BFF;} .slot .dot.r5{background:#FFC24A;}
+.slot.fresh{animation:pop .5s ease;}
+@keyframes pop{0%{transform:scale(.7);opacity:0}60%{transform:scale(1.06)}100%{transform:none;opacity:1}}
+
+#dex-detail{
+  flex:0 0 auto; border-top:1px solid rgba(190,230,236,.14); padding:.8rem 1.2rem;
+  font-family:var(--f-mono); font-size:.7rem; letter-spacing:.06em;
+  color:rgba(226,242,244,.62); min-height:3.4rem;
+}
+#dex-detail .nm{font-family:var(--f-display); font-size:1.05rem; letter-spacing:0; color:#fff; margin-bottom:.2rem;}
+#dex-detail .nm em{font-style:normal; font-size:.6rem; font-family:var(--f-mono); letter-spacing:.2em; text-transform:uppercase; color:#FFC49A; margin-left:.6rem;}
+#dex-detail .empty{color:rgba(226,242,244,.3);}
+#dex-detail .done{color:#FFC49A;}
+@media (max-width:560px){
+  .slots{grid-template-columns:repeat(auto-fill,minmax(58px,1fr));}
+  #dex-panel header{gap:.8rem;}
+}
+@media (prefers-reduced-motion:reduce){*{transition-duration:.001ms !important; animation:none !important;}}
+</style>
+
+<canvas id="sea"></canvas>
+<svg id="rig"></svg>
+<div id="veil"></div>
+<canvas id="fish"></canvas>
+<div id="hit" title="pick a file"></div>
+
+<div class="mark">file<i>to</i>fish</div>
+<button id="snd" aria-pressed="true">sound</button>
+
+<div id="plate">
+  <div class="rar" id="p-rar"></div>
+  <div class="nm" id="p-nm"></div>
+  <div class="sub" id="p-sub"></div>
+  <div class="acts"><button id="copy">copy link</button><button id="savepic">save image</button></div>
+</div>
+
+<div id="foot">
+  <b id="status">drop a file</b>
+  <button id="sample">sample</button>
+  <button id="dexbtn">dex 0/39</button>
+</div>
+
+<div id="drop"><span>let go</span></div>
+<input type="file" id="file" multiple hidden>
+
+<div id="dex" hidden>
+  <div id="dex-panel" role="dialog" aria-modal="true" aria-label="Collection">
+    <header>
+      <div>
+        <h2>Dex</h2>
+        <div class="bar"><i id="dex-fill"></i></div>
+      </div>
+      <div class="count"><b id="dex-count">0</b> / 39 species</div>
+      <button id="dex-close" aria-label="Close">esc</button>
+    </header>
+    <div id="dex-groups"></div>
+    <footer id="dex-detail"><span class="empty">pick a slot</span></footer>
+  </div>
+</div>
+
+<!--APP_BUNDLE-->

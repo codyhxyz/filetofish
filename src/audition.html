@@ -1,0 +1,114 @@
+<title>filetofish &#183; sfx audition</title>
+
+<style>
+:root{
+  --f-display:Futura,"Futura PT","Avenir Next","Century Gothic",system-ui,sans-serif;
+  --f-mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,"Roboto Mono",monospace;
+  --ink:#E7F1F2; --dim:rgba(231,241,242,.55); --line:rgba(190,230,236,.16);
+  --accent:#FFC49A;
+}
+*{box-sizing:border-box;}
+body{
+  margin:0; background:#081619; color:var(--ink); font-family:var(--f-display);
+  -webkit-font-smoothing:antialiased; line-height:1.5;
+  background-image:radial-gradient(ellipse at 50% -10%, #14343C 0%, #081619 62%);
+  min-height:100vh;
+}
+button{font:inherit; color:inherit; background:none; border:0; cursor:pointer;}
+:focus-visible{outline:2px solid var(--accent); outline-offset:3px;}
+.wrap{max-width:64rem; margin:0 auto; padding:clamp(1.5rem,4vw,3rem) clamp(1rem,3vw,2rem) 5rem;}
+
+.check{
+  display:flex; align-items:center; gap:1rem; flex-wrap:wrap;
+  margin-top:1.1rem; padding:.85rem 1rem; border:1px solid var(--line); background:#0B1F24;
+}
+.meter{position:relative; flex:1; min-width:12rem; height:10px; background:rgba(190,230,236,.12); overflow:hidden;}
+.meter i{display:block; height:100%; width:0%; background:linear-gradient(90deg,#7FD6C4,#FFC49A 78%,#FF7A5C); transition:width .05s linear;}
+.check .hint{font-family:var(--f-mono); font-size:.66rem; color:var(--dim); flex-basis:100%;}
+header{display:flex; flex-wrap:wrap; gap:1rem 1.6rem; align-items:flex-end; padding-bottom:1.1rem; border-bottom:1px solid var(--line);}
+h1{margin:0; font-size:1.6rem; font-weight:500; letter-spacing:-.015em; line-height:1;}
+h1 i{font-style:normal; color:var(--accent);}
+.note{font-family:var(--f-mono); font-size:.72rem; color:var(--dim); max-width:44ch; letter-spacing:.02em;}
+.spacer{flex:1;}
+
+.btn{
+  font-family:var(--f-mono); font-size:.68rem; letter-spacing:.14em; text-transform:uppercase;
+  border:1px solid rgba(190,230,236,.3); padding:.55rem .95rem; transition:.16s; white-space:nowrap;
+}
+.btn:hover{background:var(--ink); color:#081619; border-color:var(--ink);}
+.btn.hero{border-color:var(--accent); color:var(--accent);}
+.btn.hero:hover{background:var(--accent); color:#081619;}
+
+.master{display:flex; align-items:center; gap:.7rem; font-family:var(--f-mono); font-size:.68rem; color:var(--dim);}
+input[type=range]{
+  -webkit-appearance:none; appearance:none; height:3px; background:rgba(190,230,236,.22);
+  width:100%; outline:none; cursor:pointer;
+}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none; width:13px; height:13px; border-radius:50%;
+  background:var(--accent); cursor:pointer;
+}
+input[type=range]::-moz-range-thumb{width:13px;height:13px;border:0;border-radius:50%;background:var(--accent);cursor:pointer;}
+
+.cues{display:grid; gap:1px; background:var(--line); border:1px solid var(--line); margin-top:1.6rem;}
+.cue{background:#0B1F24; padding:1rem 1.1rem 1.15rem;}
+.cue-top{display:flex; align-items:baseline; gap:1rem; flex-wrap:wrap;}
+.cue h2{margin:0; font-size:1.05rem; font-weight:500; letter-spacing:0;}
+.cue .what{font-family:var(--f-mono); font-size:.7rem; color:var(--dim); flex:1; min-width:14rem;}
+.params{
+  display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr));
+  gap:.65rem 1.4rem; margin-top:.95rem;
+}
+.p{display:grid; grid-template-columns:1fr auto; gap:.1rem .6rem; align-items:center;}
+.p label{font-family:var(--f-mono); font-size:.63rem; letter-spacing:.1em; text-transform:uppercase; color:var(--dim);}
+.p output{font-family:var(--f-mono); font-size:.68rem; color:var(--ink); font-variant-numeric:tabular-nums;}
+.p input{grid-column:1 / -1;}
+
+footer{
+  position:sticky; bottom:0; margin-top:2rem; padding:.9rem 0;
+  background:linear-gradient(to top,#081619 60%,rgba(8,22,25,0));
+  display:flex; gap:.6rem; flex-wrap:wrap; align-items:center;
+}
+#out{
+  width:100%; margin-top:1rem; min-height:11rem; background:#050F11; color:#9FE8D6;
+  border:1px solid var(--line); font-family:var(--f-mono); font-size:.72rem; line-height:1.55;
+  padding:.9rem 1rem; white-space:pre; overflow:auto; display:none;
+}
+#out.on{display:block;}
+.msg{font-family:var(--f-mono); font-size:.68rem; color:var(--accent); margin-left:.4rem;}
+</style>
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1>sfx <i>audition</i></h1>
+      <p class="note">Every cue is synthesised &#8212; no samples. Tune, then apply to the site or copy the block into <code>src/sfx.js</code>.</p>
+    </div>
+    <div class="spacer"></div>
+    <div class="master">
+      <span>master</span>
+      <input type="range" id="master" min="0" max="1.4" step="0.01" style="width:8rem">
+      <output id="master-v"></output>
+    </div>
+    <button class="btn hero" id="play-all">Play the whole cast</button>
+  </header>
+
+  <div class="check">
+    <button class="btn" id="tone">440 Hz test tone</button>
+    <div class="meter"><i id="meter-fill"></i></div>
+    <span class="hint" id="hint">If the bar moves and you hear nothing, it is your output device or tab mute &#8212; not the page.</span>
+  </div>
+
+  <div class="cues" id="cues"></div>
+
+  <footer>
+    <button class="btn hero" id="apply">Apply to the site</button>
+    <button class="btn" id="copy">Copy params</button>
+    <button class="btn" id="show">Show block</button>
+    <button class="btn" id="reset">Reset</button>
+    <span class="msg" id="msg"></span>
+  </footer>
+  <pre id="out"></pre>
+</div>
+
+<!--APP_BUNDLE-->

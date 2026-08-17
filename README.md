@@ -1,0 +1,200 @@
+# filetofish
+
+**https://filetofish.codyh.xyz**
+
+Drop in any file. It comes back as a fish. Same file, same fish, every time.
+Nothing is uploaded — the first 64 KB is read in the browser, hashed, and thrown away.
+
+```
+npm install
+node build.mjs                 # -> dist/ (site) and mockups/ (artifact build)
+cd dist && python3 -m http.server
+```
+
+## Deploy
+
+Cloudflare Pages, project `filetofish`, custom domain `filetofish.codyh.xyz`
+(CNAME -> `filetofish.pages.dev`, proxied, in the `codyh.xyz` zone).
+
+```
+node build.mjs
+wrangler pages deploy dist --project-name=filetofish --branch=main --commit-dirty=true
+```
+
+Creds come from `~/.claude/secrets/cloudflare.env` via `~/.zshrc`. See the
+`cloudflare-ops` skill. Whole app is ~145 KB gzipped, static, $0 per catch.
+
+## Tuning the sound
+
+Levels are measured, not guessed. Tap the graph with an `AnalyserNode` injected via
+CDP `Page.addScriptToEvaluateOnNewDocument` (needs `Page.enable` first) and read the
+peak per cue. The first pass measured 0.03-0.30 -- a 10x spread -- because `hiss()`
+loses far more level through a bandpass than `bleep()` does from a raw oscillator,
+and both had similar-looking gain numbers. Everything now sits 0.24-0.53 with a
+`DynamicsCompressor` on the bus for headroom.
+
+
+
+**https://filetofish.codyh.xyz/sfx** -- every cue with a Play button, a slider per
+parameter, and "Play the whole cast" which fires them on the real timings so pacing
+can be judged rather than guessed.
+
+It imports `src/sfx.js`, the same module the site uses, so what you hear while tuning
+is what ships. Two ways out:
+
+- **Apply to the site** writes the tuning to `localStorage["ftf.sfx"]`; reload the
+  main page and it uses your values. Good for A/B in context, local to your browser.
+- **Copy params** gives the `export const P = {...}` block to paste over the one in
+  `src/sfx.js` to make it permanent. **Reset** clears both.
+
+The page carries a live output meter and a 440 Hz reference tone: if the bar moves
+and you hear nothing, it is the output device or a muted tab, not the code.
+
+Sliders are generated from `P`, with ranges guessed from the parameter name, so
+adding a knob needs no UI work. The page is `noindex` and costs 12 KB; delete
+`src/audition.*` and the third block in `build.mjs` to remove it.
+
+## Layout
+
+- `src/page.html` — markup + CSS, with an `<!--APP_BUNDLE-->` marker
+- `src/app.js` — the site, imports `three` and `./sfx.js`
+- `src/sfx.js` — synthesised audio, shared with the audition page
+- `src/audition.{html,js}` — the /sfx tuning page
+- `build.mjs` — esbuild bundles to an IIFE and inlines it, then emits two builds:
+  - `dist/index.html` — standalone, its own `<head>` (title, **viewport**, OG, favicon)
+  - `mockups/index.html` — body only, pure ASCII, for hosts that own `<head>`
+
+The ASCII pass matters for the artifact build: no `<meta charset>` to rely on, so
+every non-ASCII character becomes an entity or a `\u` escape or it mojibakes.
+
+## The look
+
+Two renderers, deliberately different:
+
+- **The sea** is hand-written GLSL, no library. Cel-banded with foam from
+  `abs(fract(fbm) - 0.5)` anti-aliased against `fwidth`, biased toward wave crests
+  so it reads as water rather than a contour map. Ripples are pushed in as uniforms
+  when the bobber lands.
+- **The fish** is three.js: low-poly (11×7 body, ~200 tris), non-indexed so
+  `computeVertexNormals` gives hard facets, a 4-step lamp, no specular, muted
+  palette. Rendered to a low-res target and post-processed with an 8×8 Bayer dither
+  at 5 levels per channel, plus a silhouette ink pass that finds transparent texels
+  touching opaque ones. That combination is the OSRS item-sprite look.
+
+The turntable eases: `spin - 0.45·sin(2·spin)`. A linear turntable parks flat fish
+edge-on where they read as a sliver; this lingers in profile and hurries through
+head-on.
+
+## The fish are generated, not modelled
+
+`radiusAt()` is a beta-ish profile curve swept around a spine. Seven **archetypes**
+carry the variety — perch, torpedo, flat, eel, puffer, shark, angler — each setting
+ranges for the profile exponents, depth, girth, stretch and tail type, plus optional
+features: swordfish bill, puffer spikes, angler lure, barbels, second dorsal.
+Continuous jitter alone only ever reads as one fish.
+
+Patterns live in the fragment shader, keyed off object-space position quantised to a
+coarse grid so they block up with the facets. No textures.
+
+Traits are pure functions of (name, size, MIME, hash), so a shared fish could be a
+URL rather than a database row.
+
+## The dex
+
+The hash makes infinite individuals, so the collectible unit is the **species**:
+archetype x noun, 38 of them, plus the zero-byte Ghost Minnow. That is the finite
+set you can actually finish.
+
+Entries are pre-rendered icons, which is how OSRS does item sprites anyway: on a
+new catch the fish is built off-screen, rendered at a canonical 3/4 angle through
+the same dither + ink post-pass into an 88x66 target, read back with
+`readRenderTargetPixels`, flipped (GL reads bottom-up) and stored as a PNG data URL
+in `localStorage` under `ftf.dex.v1`. A full 39-species dex is ~120 KB, and the
+save path drops icons rather than failing if quota is ever hit.
+
+Dropping more than one file switches to **haul mode**: no cast animation, every
+file is hashed straight into the dex, the rarest becomes the on-screen specimen,
+and the dex opens on its own showing what is new. Drop a folder; a few hundred
+files is roughly a full set (coupon-collector over unequal archetype weights).
+
+Only a better rarity overwrites an existing entry, so the dex keeps your best of
+each species.
+
+## Sharing
+
+A fish is a pure function of `(name, size, MIME, hash)`, so a link needs no server:
+those four values are packed as base64url into `#f=...` and reconstructed exactly on
+open. Shared fish are shown but deliberately **not** recorded to the dex -- the dex is
+what you caught.
+
+`save image` composes a 1200x630 card on a 2D canvas: the fish re-rendered through
+the same dither + ink pass, the name, the file it came from, and the domain.
+Synchronous `toDataURL` rather than `toBlob`, so there is no async path to fail.
+
+Known limit: OG previews of a `#f=` link show the generic `og.png`, not that fish.
+Hash fragments are never sent to the server, so no static host can do per-fish
+previews -- the save-image button is the answer to that.
+
+## Sound
+
+Entirely synthesised in WebAudio -- no samples, no assets, no licensing, 0 bytes of
+payload. Simple waveforms and short envelopes on purpose: realistic water foley
+fights the dither, chiptune-adjacent blips sit with it. Two primitives do all of it:
+`bleep()` (one oscillator, exponential pitch slide, percussive envelope) and
+`hiss()` (filtered noise burst). Everything runs through one bus with a gentle
+lowpass so nothing gets shrill.
+
+| cue | build |
+|---|---|
+| cast | two bandpassed noise sweeps, up then down |
+| plop | 700->105 Hz sine + a bandpassed droplet transient |
+| bite | low sine thud + a rising triangle |
+| splash | lowpassed noise fall + a pitch-swept sine |
+| reel | ~20 highpassed noise clicks, spacing eased so the ratchet slows |
+| catch | C-E-G-C square arpeggio doubled an octave down in sine |
+| sparkle | three rising triangles, only on a never-seen species |
+
+**Do not ship RuneScape or Nintendo audio.** The visual homage is fine; the assets
+are not, and it is exactly what gets a viral site pulled.
+
+Autoplay: the first cue fires from `requestAnimationFrame`, not from the gesture, so
+`unlock()` creates and resumes the context inside the click/drop/change handlers
+themselves. Verified with a trusted CDP input event -- a synthetic `dispatchEvent`
+leaves the context suspended and will mislead you. Preference persists in
+`ftf.sound`.
+
+## The rod
+
+Modelled as a cubic blank from an off-screen butt to the tip, with control points
+offset along the perpendicular by a signed `bend`. The bend is a damped spring
+(`k=118, c=13`, so underdamped) chasing a per-state target, which means releasing a
+load whips through and overshoots on its own rather than being keyframed.
+
+Targets: rearing back at `-125`, resting near `+16`, a fish on at `+78` with jitter,
+and `+185` easing to `+60` through the fight. The blank is ~740 px long, so anything
+under ~60 px of tip offset simply does not read -- an earlier pass at `78` looked
+rigid.
+
+Drawn as a tapered filled polygon (22 samples, half-width 5.6 -> 0.85) rather than a
+stroke, plus a cork grip, a reel that rides the curve, and three line guides. The tip
+is read back off the curve, so the line and bobber follow the flex instead of hanging
+off a fixed point.
+
+## Gotchas hit along the way
+
+- Cones point +Y; aim them along a surface normal with `rotation.x = π/2 − θ`.
+- The peduncle must keep a floor radius or the tail fin reads as detached.
+- Fit to a real `Box3`, not to length — deep-bodied archetypes overflow otherwise.
+- An inverted-hull outline drew over the body and skipped the fins.
+- A dither post-pass must preserve alpha or it paints the whole background black.
+- SVG rasterised through a `data:` URI needs an explicit `xmlns` on the root.
+- A flex child that scrolls needs `min-height:0` or it refuses to shrink.
+- `max-height:100%` on a grid item is circular unless the row is definite
+  (`grid-template-rows:minmax(0,1fr)`).
+- `e.currentTarget` is null after any `await` -- capture the element first.
+- A synthetic `DragEvent`/`MouseEvent` is not a trusted gesture: `AudioContext`
+  stays suspended. Test audio unlock with real CDP `Input.dispatchMouseEvent`.
+- `Runtime.evaluate` runs in global scope, so re-declaring `const x` across two
+  calls throws SyntaxError and silently kills the step.
+- Rarity now drives the ink colour of the silhouette pass, so it reads in the dex
+  grid at a glance; Legendary and Mythic also get a sweeping sheen.

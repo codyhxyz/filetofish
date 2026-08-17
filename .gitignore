@@ -1,0 +1,8 @@
+node_modules/
+.DS_Store
+
+# build output (node build.mjs regenerates both)
+dist/index.html
+dist/_headers
+dist/sfx/
+mockups/
