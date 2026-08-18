@@ -11,7 +11,7 @@ import {
   Scene, PerspectiveCamera, OrthographicCamera, WebGLRenderer, WebGLRenderTarget,
   BufferGeometry, BufferAttribute, InstancedMesh, InstancedBufferAttribute,
   Mesh, Points, ShaderMaterial, Color, NearestFilter,
-  Vector3, Object3D, PlaneGeometry, DoubleSide, AdditiveBlending, Raycaster, Vector2,
+  Vector3, Object3D, PlaneGeometry, DoubleSide, AdditiveBlending, Vector2,
 } from "three";
 
 const TUNE = {
@@ -23,20 +23,26 @@ const TUNE = {
   lateral: 760,           // radius of the whole packed field
 
   /* --- what a file looks like ------------------------------------------ */
-  fishMin: 0.30,          // world units, a 1 KB file
-  fishMax: 5.6,           // world units, a 20 GB file
+  sizeGain: 1.0,          // scales the whole size ladder (SIZE_LADDER below)
   schoolTight: 0.34,      // how hard same-species-same-size files clump
+  deepFrom: 0.62,         // fraction of the column below which deep-sea forms start
+  deepTo: 0.86,           // ...and past which everything down there is one
 
   /* --- the four tiers -------------------------------------------------- */
   hazeFrom: 240,          // haze starts fading in beyond this
   pointFar: 900,          // points die past here
   pointNear: 26,          // ...and hand off to meshes inside here
   meshFar: 150,           // meshes only exist within this
+  meshFarBig: 18,         // ...plus this much per world unit of size, so a
+                          //    whale is geometry long before you reach it
+  bigFrom: 3.0,           // world units: at this size a creature gets the long
+                          //    draw distance and a reserved slice of the budget
   meshBudget: 1400,       // hard cap on instanced fish per frame
 
   /* --- water ------------------------------------------------------------ */
   fogNear: 0.0016,
   fogDeep: 0.0052,
+  fogBig: 0.055,         // how much less murk a creature eats per unit of size
   snow: 2600,
 
   /* --- feel -------------------------------------------------------------- */
@@ -141,6 +147,9 @@ const SPEC = [
   { path: "Pictures/Lightroom/Previews", n: 4100, fam: "image", size: [40e3, 400e3], age: [400, 1500], mode: "burst", bursts: 24 },
   { path: "Movies/Camera", n: 260, fam: "video", size: [180e6, 8e9], age: [10, 3200], mode: "burst", bursts: 60 },
   { path: "Movies/Renders", n: 42, fam: "video", size: [900e6, 2.2e10], age: [5, 600], mode: "trickle" },
+  /* the whales: a shoal of masters near the surface, and a pod of ancient disc
+     images in the abyss, so both ends of the water column have leviathans */
+  { path: "Movies/Masters", n: 34, fam: "video", size: [4e9, 6e10], age: [40, 900], mode: "trickle" },
   { path: "Music/Library", n: 3400, fam: "audio", size: [4e6, 42e6], age: [900, 4380], mode: "burst", bursts: 90 },
   { path: "Music/Voice Memos", n: 210, fam: "audio", size: [400e3, 9e6], age: [1, 2200], mode: "trickle" },
   { path: "Code/filetofish/src", n: 46, fam: "code", size: [900, 92e3], age: [0, 40], mode: "trickle" },
@@ -156,6 +165,12 @@ const SPEC = [
   { path: "Desktop", n: 96, fam: "image", size: [90e3, 4e6], age: [0, 90], mode: "trickle", mixed: true },
   { path: "Archives/backups", n: 62, fam: "archive", size: [1e9, 4.2e10], age: [200, 4300], mode: "trickle" },
   { path: "Archives/2014-laptop", n: 3100, fam: "archive", size: [1e3, 40e6], age: [3900, 4380], mode: "instant" },
+  { path: "Archives/2011-imac", n: 26, fam: "archive", size: [8e9, 9e10], age: [3700, 4380], mode: "burst", bursts: 9 },
+  /* deep water needs a population, not just a few strays: these are the files
+     that come back as anglerfish, gulpers and oarfish */
+  { path: "Documents/Old Papers", n: 720, fam: "doc", size: [40e3, 6e6], age: [3000, 4380], mode: "trickle" },
+  /* zero bytes: .gitkeep, touch, a failed download. Ghost Minnows. */
+  { path: "Code/atlas/.cache", n: 240, fam: "code", size: [0, 0], age: [0, 900], mode: "trickle" },
 ];
 const DEMO_EXT = {
   image: ["heic", "jpg", "png", "webp"], video: ["mov", "mp4", "mkv"],
@@ -183,8 +198,9 @@ function buildDemo() {
       const fam = s.mixed && rnd() < 0.55 ? FAMILIES[(rnd() * 6) | 0].key : s.fam;
       const exts = DEMO_EXT[fam] || DEMO_EXT.doc;
       const ext = exts[(rnd() * exts.length) | 0];
-      const lo = Math.log(s.size[0]), hi = Math.log(s.size[1]);
-      const size = Math.round(Math.exp(lerp(lo, hi, Math.pow(rnd(), 1.9))));
+      const lo = Math.log(Math.max(1, s.size[0])), hi = Math.log(Math.max(1, s.size[1]));
+      const size = s.size[1] === 0 ? 0
+        : Math.round(Math.exp(lerp(lo, hi, Math.pow(rnd(), 1.9))));
       let ageDays;
       if (s.mode === "instant") ageDays = instantDay + rnd() * 0.02;
       else if (s.mode === "burst") ageDays = burstDays[(rnd() * burstDays.length) | 0] + (rnd() - 0.5) * 1.5;
@@ -306,7 +322,12 @@ function toPlaces(node) {
    rectangles read as architecture. Greedy front-chain. */
 function packRadius(place) {
   for (const k of place.kids) packRadius(k);
-  const own = Math.sqrt(place.files.length) * 1.9;
+  /* area by visual mass rather than by headcount: sixty disc images are sixty
+     leviathans and need a bay, not the puddle sixty dotfiles would get. A
+     normal file counts as exactly one, so ordinary folders pack as before. */
+  let mass = 0;
+  for (const f of place.files) mass += footprint(f.size);
+  const own = Math.sqrt(mass) * 1.9;
   if (!place.kids.length) { place.r = Math.max(6, own); return place.r; }
   const laid = layoutKids(place.kids);
   place.r = Math.max(laid + 4, own * 0.6 + laid * 0.35);
@@ -374,8 +395,47 @@ const ageToY = d =>
   -DEPTH * Math.pow(clamp((d - AGE_LO) / (AGE_HI - AGE_LO), 0, 1), TUNE.ageCurve);
 const yToAge = y =>
   AGE_LO + (AGE_HI - AGE_LO) * Math.pow(clamp(-y / DEPTH, 0, 1), 1 / TUNE.ageCurve);
-const sizeToScale = b => lerp(TUNE.fishMin, TUNE.fishMax,
-  Math.pow(clamp(Math.log2(b + 1) / 34, 0, 1), 2.1));
+/* SIZE IS SIZE, and at the top end that has to mean something. One smooth
+   curve makes a 20 GB video a slightly bigger perch, so the ladder is
+   piecewise instead: log2(bytes) -> world units, with the classes landing on
+   the breaks. A mote is 0.20 across and a 32 GB disc image is 21 -- a hundred
+   times the animal, not twice it. */
+const SIZE_LADDER = [
+  [0, 0.20],    // an empty file
+  [10, 0.34],   // 1 KB
+  [14, 0.55],   // 16 KB
+  [17, 0.90],   // 128 KB
+  [20, 1.45],   // 1 MB
+  [23, 2.30],   // 8 MB
+  [25, 3.20],   // 32 MB
+  [28, 6.00],   // 256 MB
+  [30, 9.00],   // 1 GB
+  [31, 11.0],   // 2 GB
+  [33, 16.0],   // 8 GB
+  [35, 21.0],   // 32 GB
+  [38, 30.0],   // 256 GB
+];
+/* the class breaks, in log2(bytes): fry | fish | big fish | leviathan */
+const CLASS_BREAK = [15, 25, 31];              // 32 KB, 32 MB, 2 GB
+const CLASS_KEY = ["fry", "mid", "big", "lev"];
+const classOf = lb => lb < CLASS_BREAK[0] ? 0 : lb < CLASS_BREAK[1] ? 1
+  : lb < CLASS_BREAK[2] ? 2 : 3;
+
+function sizeToScale(b) {
+  const lb = clamp(Math.log2(b + 1), 0, 38);
+  let i = 0;
+  while (i < SIZE_LADDER.length - 2 && lb >= SIZE_LADDER[i + 1][0]) i++;
+  const a = SIZE_LADDER[i], c = SIZE_LADDER[i + 1];
+  return lerp(a[1], c[1], (lb - a[0]) / (c[0] - a[0])) * TUNE.sizeGain;
+}
+/* how much water one file's animal needs, in units of "one ordinary fish".
+   This is what both the folder circles and the whole ocean are sized by, so a
+   drive of 4K masters is a bigger sea than a drive of dotfiles even at the
+   same file count -- which is the honest reading of "the size of the drive". */
+function footprint(b) {
+  const s = sizeToScale(b) / 1.35;
+  return Math.max(1, s * s);
+}
 
 function layout(places) {
   for (const p of places) {
@@ -389,26 +449,43 @@ function layout(places) {
       if (!s) {
         const r = mulberry32(fnv1a(p.name + key));
         const th = r() * TAU, rad = Math.sqrt(r()) * p.r * 0.60;
-        s = { x: Math.cos(th) * rad, z: Math.sin(th) * rad, n: 0, phase: r() * TAU };
+        s = { x: Math.cos(th) * rad, z: Math.sin(th) * rad, n: 0, phase: r() * TAU, big: 0 };
         schools.set(key, s);
       }
       f.school = s; s.n++;
+      s.big = Math.max(s.big, sizeToScale(f.size));
     }
     for (const f of p.files) {
       const r = mulberry32(f.hash);
       const s = f.school;
+      f.scale = sizeToScale(f.size);
+      f.lb = clamp(Math.log2(f.size + 1), 0, 38);
+      f.cls = classOf(f.lb);
       /* keep school + scatter inside the folder's circle, or places bleed into
-         each other and the packing stops meaning anything */
-      const spread = lerp(p.r * 0.38, p.r * TUNE.schoolTight * 0.4, clamp(s.n / 220, 0, 1));
+         each other and the packing stops meaning anything -- but a pod of
+         leviathans needs the room its bodies actually take up */
+      const base = lerp(p.r * 0.38, p.r * TUNE.schoolTight * 0.4, clamp(s.n / 220, 0, 1));
+      const spread = Math.min(p.r * 0.88, Math.max(base, Math.sqrt(s.n) * s.big * 1.5));
       const th = r() * TAU, rad = Math.sqrt(r()) * spread;
       f.x = p.cx + s.x + Math.cos(th) * rad;
       f.z = p.cz + s.z + Math.sin(th) * rad;
-      /* nothing floats above the surface */
-      f.y = Math.min(-0.6, ageToY(f.ageDays) + (r() - 0.5) * 11);
-      f.scale = sizeToScale(f.size);
+      /* nothing floats above the surface, and a whale needs its whole back
+         under it */
+      f.y = Math.min(-0.6 - f.scale * 0.75, ageToY(f.ageDays) + (r() - 0.5) * 11);
+      /* the creature is a reading of the file. Depth is age, so where a file
+         sits in the column is exactly the light it lives in -- and that is
+         what decides whether it is a surface animal or a deep-sea one. */
+      const depthT = clamp(-f.y / DEPTH, 0, 1);
+      const deep = depthT > lerp(TUNE.deepFrom, TUNE.deepTo, r());
+      f.arch = archOf(f, deep);
+      /* behaviour follows size: a whale that darts like a minnow is wrong. Big
+         things beat slowly, turn on a much wider arc, and barely bob. */
+      const sT = clamp((f.lb - 14) / 19, 0, 1);
       f.phase = s.phase + r() * 1.4;
-      f.speed = 0.35 + r() * 0.5;
-      f.arch = (f.hash >>> 9) % ARCH.length;
+      f.speed = (0.35 + r() * 0.5) * lerp(1.45, 0.16, sT);
+      f.orbit = lerp(0.80, 2.10, sT);
+      f.bob = lerp(0.16, 0.022, sT);
+      f.roll = lerp(0.11, 0.016, sT);
       /* the individuality that used to live in per-file geometry now lives in
          a non-uniform scale and a colour nudge -- 200 tris x 50,000 files is
          not a thing you can build */
@@ -419,24 +496,138 @@ function layout(places) {
       c.offsetHSL((r() - 0.5) * 0.055, (r() - 0.5) * 0.20, (r() - 0.5) * 0.16);
       f.cr = c.r; f.cg = c.g; f.cb = c.b;
       /* plain / bands / spots / stripe, as a per-instance pair rather than a
-         uniform -- one draw call covers a thousand fish */
+         uniform -- one draw call covers a thousand fish. 4 is the ghost. */
       f.pat = (r() * 4) | 0;
       f.patF = 7 + r() * 11;
+      if (f.size === 0) {
+        /* a zero-byte file is the Ghost Minnow, as in the main app: nothing
+           there, so barely anything to see */
+        f.cr = 0.86; f.cg = 0.95; f.cb = 0.97;
+        f.pat = 4;
+      }
       f.place = p;
     }
   }
 }
 
-/* ============================================================ fish meshes */
+/* ============================================================ the taxonomy
+   The creature is a reading of the file, not of its hash.
+
+   SIZE CLASS decides the silhouette -- fry, fish, big fish, leviathan.
+   DEPTH, which is age, overrides it below the light: an ancient file is a
+   deep-sea animal, because that is where it lives. Leviathans stay leviathans
+   at any depth, they just change species.
+   FAMILY nudges the body plan inside whichever pool a file lands in (video as
+   long torpedoes, images as flat discs and rays, archives as armoured blocks)
+   while colour keeps carrying family as the primary channel.
+   The HASH only breaks ties, so two files of a kind are still two animals.
+
+   Every archetype is one geometry instanced up to meshBudget times, so the
+   whole table costs fifteen draw calls -- per-file geometry is the one thing
+   this view cannot afford. */
 const ARCH = [
-  { key: "perch", pF: .62, pB: .88, dep: .44, gir: .21, stretch: 1.04, tail: "fan", dor: .22 },
-  { key: "torpedo", pF: .66, pB: 1.15, dep: .29, gir: .19, stretch: 1.22, tail: "fork", dor: .13 },
-  { key: "flat", pF: .75, pB: .78, dep: .74, gir: .11, stretch: .88, tail: "fan", dor: .28 },
-  { key: "eel", pF: .42, pB: .46, dep: .15, gir: .12, stretch: 1.65, tail: "round", dor: .07 },
-  { key: "puffer", pF: 1.0, pB: 1.0, dep: .62, gir: .50, stretch: .78, tail: "fan", dor: .09 },
-  { key: "shark", pF: .67, pB: 1.22, dep: .31, gir: .21, stretch: 1.3, tail: "fork", dor: .39 },
-  { key: "angler", pF: .36, pB: 1.2, dep: .52, gir: .30, stretch: .95, tail: "round", dor: .14 },
+  { key: "fry", pools: { fry: 4 }, seg: 7, ring: 5,
+    pF: .60, pB: .92, dep: .36, gir: .17, stretch: .92, tail: "fork", dor: .16,
+    eyeK: 1.55, nouns: ["Fry", "Minnow", "Sprat", "Smelt"] },
+
+  { key: "perch", pools: { mid: 3, fry: 1 }, fam: "doc",
+    pF: .62, pB: .88, dep: .44, gir: .21, stretch: 1.04, tail: "fan", dor: .22,
+    nouns: ["Perch", "Bream", "Roach", "Rudd"] },
+
+  { key: "torpedo", pools: { mid: 2 }, fam: "video",
+    pF: .66, pB: 1.15, dep: .29, gir: .19, stretch: 1.22, tail: "fork", dor: .13,
+    bill: 1, nouns: ["Tuna", "Marlin", "Bonito", "Wahoo"] },
+
+  { key: "flat", pools: { mid: 3, fry: 1 }, fam: "image",
+    pF: .75, pB: .78, dep: .74, gir: .11, stretch: .88, tail: "fan", dor: .28,
+    nouns: ["Turbot", "Discus", "Moonfish", "Pomfret"] },
+
+  { key: "eel", pools: { mid: 2, deep: 1 }, fam: "code", seg: 12, ring: 5,
+    pF: .42, pB: .46, dep: .15, gir: .12, stretch: 1.65, tail: "round", dor: .07,
+    dorA: .18, dorB: .90, barbel: 1, nouns: ["Eel", "Conger", "Gunnel", "Lamprey"] },
+
+  { key: "puffer", pools: { mid: 2 }, fam: "archive",
+    pF: 1.0, pB: 1.0, dep: .62, gir: .50, stretch: .78, tail: "fan", dor: .09,
+    spikes: 1, nouns: ["Puffer", "Blowfish", "Lumpsucker", "Boxfish"] },
+
+  { key: "shark", pools: { big: 3 }, fam: "video",
+    pF: .67, pB: 1.22, dep: .31, gir: .21, stretch: 1.30, tail: "fork", dor: .39,
+    dor2: 1, nouns: ["Shark", "Tope", "Hound", "Thresher"] },
+
+  { key: "ray", pools: { big: 2 }, fam: "image", seg: 8, ring: 6,
+    pF: .80, pB: .80, dep: .11, gir: .58, stretch: .86, tail: "whip", dor: .03,
+    pect: 3.0, pectLen: -1.7, pectRot: 1.42, pectT: .30, eyeY: .12, eyeK: .8,
+    nouns: ["Ray", "Manta", "Skate", "Devilfish"] },
+
+  { key: "grouper", pools: { big: 3 }, fam: "archive",
+    pF: .52, pB: .86, dep: .54, gir: .36, stretch: .98, tail: "fan", dor: .26,
+    nouns: ["Grouper", "Halibut", "Wrasse", "Cod"] },
+
+  /* the leviathans. Horizontal flukes instead of a caudal fin is the one cue
+     that says "not a fish" from half an ocean away, so both get them. */
+  { key: "whale", pools: { lev: 3 }, seg: 12, ring: 8,
+    pF: .34, pB: .76, dep: .30, gir: .27, stretch: 1.55, tail: "fluke",
+    dor: .07, dorA: .58, dorB: .74, nose: .44, noseP: 1.7,
+    eyeK: .40, eyeT: .12, eyeY: .05, pect: .55, pectLen: -2.0, pectRot: .85, pectT: .30,
+    nouns: ["Whale", "Rorqual", "Finback", "Leviathan"] },
+
+  { key: "cachalot", pools: { lev: 2, levdeep: 3 }, seg: 12, ring: 8,
+    pF: .20, pB: .70, dep: .30, gir: .28, stretch: 1.50, tail: "fluke",
+    dor: .05, dorA: .62, dorB: .80, nose: .58, noseP: 3.4,
+    eyeK: .38, eyeT: .30, eyeY: -.10, pect: .5, pectLen: -1.4, pectRot: .80, pectT: .38,
+    nouns: ["Cachalot", "Bowhead", "Behemoth", "Sea Bull"] },
+
+  /* the deep. These only exist below the light, which is to say only for the
+     oldest files on the drive. */
+  { key: "angler", pools: { deep: 3 }, fam: "code",
+    pF: .34, pB: 1.20, dep: .52, gir: .32, stretch: .92, tail: "round", dor: .12,
+    lure: 1, eyeK: 1.25, nouns: ["Angler", "Monkfish", "Sea Devil", "Toadfish"] },
+
+  { key: "gulper", pools: { deep: 2 }, fam: "archive", seg: 11, ring: 5,
+    pF: .24, pB: 1.95, dep: .44, gir: .28, stretch: 1.70, tail: "whip",
+    dor: .05, dorA: .20, dorB: .80, jaw: 1, eyeK: .85, eyeT: .10,
+    nouns: ["Gulper", "Pelican Eel", "Swallower", "Blackmouth"] },
+
+  { key: "oarfish", pools: { deep: 2, levdeep: 1 }, fam: "doc", seg: 14, ring: 5,
+    pF: .50, pB: .55, dep: .34, gir: .055, stretch: 2.0, tail: "round",
+    dor: .055, dorA: .05, dorB: .95, crest: 1, eyeK: 1.1,
+    nouns: ["Oarfish", "Ribbonfish", "Regalec", "King of Herrings"] },
+
+  /* zero bytes: nothing is there, so there is barely anything to see */
+  { key: "ghost", pools: {}, seg: 7, ring: 5,
+    pF: .58, pB: .95, dep: .34, gir: .16, stretch: .98, tail: "fan", dor: .14,
+    eyeK: 1.30, nouns: ["Ghost Minnow"] },
 ];
+const POOLS = {};
+ARCH.forEach((a, i) => {
+  for (const p in a.pools) (POOLS[p] || (POOLS[p] = [])).push(i);
+});
+const GHOST_I = ARCH.findIndex(a => a.key === "ghost");
+
+/* the pool weight says how typical a form is of its class; a family match
+   multiplies it by four, which biases the pick hard without ever collapsing a
+   whole folder onto one animal */
+const archW = (i, pool, fam) => ARCH[i].pools[pool] * (ARCH[i].fam === fam ? 4 : 1);
+function pickArch(pool, fam, h) {
+  const list = POOLS[pool];
+  let tot = 0;
+  for (const i of list) tot += archW(i, pool, fam);
+  let x = h % tot;
+  for (const i of list) {
+    const w = archW(i, pool, fam);
+    if (x < w) return i;
+    x -= w;
+  }
+  return list[0];
+}
+function archOf(f, deep) {
+  if (f.size === 0) return GHOST_I;
+  const h = f.hash >>> 9;
+  if (f.cls === 3) return pickArch(deep ? "levdeep" : "lev", f.fam, h);
+  if (deep) return pickArch("deep", f.fam, h);
+  return pickArch(CLASS_KEY[f.cls], f.fam, h);
+}
+
 function peakOf(a) {
   let m = 1e-6;
   for (let i = 0; i <= 40; i++) {
@@ -445,22 +636,33 @@ function peakOf(a) {
   }
   return m;
 }
+/* `nose` is how much bulk the head keeps that the body curve alone would taper
+   away -- the difference between a rorqual and a sperm whale is one number */
 const radiusAt = (t, a, peak) =>
   Math.max(Math.pow(Math.pow(clamp(t, 0, 1), a.pF) * Math.pow(clamp(1 - t, 0, 1), a.pB), 0.85) / peak * 0.9
-    + 0.145 * Math.pow(1 - t, 1.15), 0.075);
+    + (a.nose === undefined ? 0.145 : a.nose) * Math.pow(1 - t, a.noseP || 1.15), 0.075);
 const spineX = (t, a) => (-1 + t * 2) * a.stretch;
 
 /* One geometry per archetype, instanced up to meshBudget times, so every gram
    of detail here is paid for 1400x. What earns its place is what makes a blob
    read as an animal at arm's length: an eye and a pair of pectorals. Both are
    baked in -- per-fish meshes are exactly the thing this view cannot afford.
-   PART tags a vertex as body (0), eye white (1) or pupil (2); the eye is flat
-   and unlit, the way the main app's flatMat eyes are. */
+   PART tags a vertex as body (0), eye white (1), pupil (2) or lure (3); the
+   eye is flat and unlit, the way the main app's flatMat eyes are, and the lure
+   is the one thing in the ocean that emits instead of reflecting. */
 function archGeometry(a) {
-  const SEG = 9, RING = 6, peak = peakOf(a), v = [], part = [];
+  const SEG = a.seg || 9, RING = a.ring || 6, peak = peakOf(a), v = [], part = [];
   const tri = (p, q, r, k) => {
     v.push(p[0], p[1], p[2], q[0], q[1], q[2], r[0], r[1], r[2]);
     part.push(k, k, k);
+  };
+  /* eight triangles is a sphere at four pixels wide */
+  const oct = (cx, cy, cz, R, k) => {
+    const p = [[R, 0, 0], [-R, 0, 0], [0, R, 0], [0, -R, 0], [0, 0, R], [0, 0, -R]]
+      .map(q => [cx + q[0], cy + q[1], cz + q[2]]);
+    for (const [i, j, m] of [[0, 2, 4], [2, 1, 4], [1, 3, 4], [3, 0, 4],
+                             [2, 0, 5], [1, 2, 5], [3, 1, 5], [0, 3, 5]])
+      tri(p[i], p[j], p[m], k);
   };
   const P = (i, j) => {
     const t = i / SEG, th = (j % RING) / RING * TAU;
@@ -476,37 +678,73 @@ function archGeometry(a) {
     tri(nose, P(0, j), P(0, j + 1), 0);
     tri(tail, P(SEG, j + 1), P(SEG, j), 0);
   }
-  const L = 0.42, H = 0.36, X = spineX(1, a);
-  const cfg = { fan: [0.30, 1.7], fork: [0.62, 2.3], round: [0.02, 1] }[a.tail];
-  const out = [];
-  for (let i = 0; i <= 7; i++) {
-    const u = -1 + (i / 7) * 2, au = Math.abs(u);
-    if (a.tail === "round") out.push([X + L * 0.18 + L * Math.sqrt(Math.max(0, 1 - u * u)), u * H * 0.92]);
-    else out.push([X + L * (1 - cfg[0] * (1 - Math.pow(au, cfg[1]))), u * H]);
+  const X = spineX(1, a);
+  if (a.tail === "fluke") {
+    /* horizontal flukes, notched at the centre. From any angle at all this is
+       the cue that says "this is not a fish, it breathes air" -- so the tips
+       drop a little, or side-on the whole tail goes edge-on and disappears. */
+    const FL = 0.55 * a.stretch, FH = 0.82;
+    const out = [];
+    for (let i = 0; i <= 8; i++) {
+      const u = -1 + (i / 8) * 2, au = Math.abs(u);
+      out.push([X + FL * (1 - 0.58 * (1 - Math.pow(au, 2.4))), u * FH, -au * au * FH * 0.24]);
+    }
+    for (let i = 0; i < out.length - 1; i++)
+      tri([X - 0.07, 0, 0], [out[i][0], out[i][2], out[i][1]],
+          [out[i + 1][0], out[i + 1][2], out[i + 1][1]], 0);
+  } else if (a.tail === "whip") {
+    const WL = 1.15 * a.stretch, w = 0.032;
+    tri([X, w, 0], [X, -w, 0], [X + WL, 0, 0], 0);
+    tri([X, 0, w], [X, 0, -w], [X + WL, 0, 0], 0);
+  } else {
+    const L = 0.42, H = 0.36;
+    const cfg = { fan: [0.30, 1.7], fork: [0.62, 2.3], round: [0.02, 1] }[a.tail];
+    const out = [];
+    for (let i = 0; i <= 7; i++) {
+      const u = -1 + (i / 7) * 2, au = Math.abs(u);
+      if (a.tail === "round") out.push([X + L * 0.18 + L * Math.sqrt(Math.max(0, 1 - u * u)), u * H * 0.92]);
+      else out.push([X + L * (1 - cfg[0] * (1 - Math.pow(au, cfg[1]))), u * H]);
+    }
+    for (let i = 0; i < out.length - 1; i++)
+      tri([X - 0.06, 0, 0], [out[i][0], out[i][1], 0], [out[i + 1][0], out[i + 1][1], 0], 0);
   }
-  for (let i = 0; i < out.length - 1; i++)
-    tri([X - 0.06, 0, 0], [out[i][0], out[i][1], 0], [out[i + 1][0], out[i + 1][1], 0], 0);
-  for (let i = 0; i < 5; i++) {
-    const s0 = i / 5, s1 = (i + 1) / 5;
-    const t0 = lerp(0.3, 0.66, s0), t1 = lerp(0.3, 0.66, s1);
-    const e0 = radiusAt(t0, a, peak) * a.dep, e1 = radiusAt(t1, a, peak) * a.dep;
-    const h0 = a.dor * Math.pow(Math.sin(s0 * Math.PI), 0.62), h1 = a.dor * Math.pow(Math.sin(s1 * Math.PI), 0.62);
-    tri([spineX(t0, a), e0, 0], [spineX(t0, a), e0 + h0, 0], [spineX(t1, a), e1, 0], 0);
-    tri([spineX(t0, a), e0 + h0, 0], [spineX(t1, a), e1 + h1, 0], [spineX(t1, a), e1, 0], 0);
-  }
+  /* dorsal ridge, over a span the archetype chooses: a shark's is a triangle
+     amidships, an oarfish's runs the whole animal */
+  const ridge = (t0s, t1s, hgt) => {
+    for (let i = 0; i < 5; i++) {
+      const s0 = i / 5, s1 = (i + 1) / 5;
+      const t0 = lerp(t0s, t1s, s0), t1 = lerp(t0s, t1s, s1);
+      const e0 = radiusAt(t0, a, peak) * a.dep, e1 = radiusAt(t1, a, peak) * a.dep;
+      const h0 = hgt * Math.pow(Math.sin(s0 * Math.PI), 0.62);
+      const h1 = hgt * Math.pow(Math.sin(s1 * Math.PI), 0.62);
+      tri([spineX(t0, a), e0, 0], [spineX(t0, a), e0 + h0, 0], [spineX(t1, a), e1, 0], 0);
+      tri([spineX(t0, a), e0 + h0, 0], [spineX(t1, a), e1 + h1, 0], [spineX(t1, a), e1, 0], 0);
+    }
+  };
+  const dA = a.dorA === undefined ? 0.30 : a.dorA;
+  const dB = a.dorB === undefined ? 0.66 : a.dorB;
+  ridge(dA, dB, a.dor);
+  if (a.dor2) ridge(dB + 0.05, Math.min(0.94, dB + 0.24), a.dor * 0.42);
 
   /* pectorals: the main app's fan, folded out of the flank. Two per fish, and
-     they are what stops a torpedo reading as a bullet. */
+     they are what stops a torpedo reading as a bullet. A manta's are the whole
+     animal; a whale's are long narrow flippers. */
   {
-    const N = 6, pt = 0.34, pr = radiusAt(pt, a, peak);
-    const ph = 0.13 + a.dep * 0.26, cz = Math.cos(-0.18), sz = Math.sin(-0.18);
+    const N = 6, pt = a.pectT || 0.34, pr = radiusAt(pt, a, peak);
+    const ph = (0.13 + a.dep * 0.26) * (a.pect || 1);
+    /* pectLen is signed: a short fin leans forward off the shoulder, but
+       anything long enough to matter -- a flipper, a manta's wing -- has to
+       sweep back or it grows out through the animal's own face */
+    const pl = 0.34 * a.stretch * (a.pectLen || 1);
+    const cz = Math.cos(-0.18), sz = Math.sin(-0.18);
     const outline = [];
     for (let i = 0; i <= N; i++) {
       const u = i / N;
-      outline.push([-u * 0.34 * a.stretch, -Math.sin(u * Math.PI) * ph * 1.15 - u * 0.06]);
+      outline.push([-u * pl, -Math.sin(u * Math.PI) * ph * 1.15 - u * 0.06]);
     }
     for (const s of [1, -1]) {
-      const cx = Math.cos(s * 0.62), sx = Math.sin(s * 0.62);
+      const rot = s * (a.pectRot || 0.62);
+      const cx = Math.cos(rot), sx = Math.sin(rot);
       const ox = spineX(pt, a), oy = -pr * a.dep * 0.10, oz = s * pr * a.gir * 0.92;
       const T = p => {
         const x = p[0] * cz - p[1] * sz, y = p[0] * sz + p[1] * cz;
@@ -517,12 +755,62 @@ function archGeometry(a) {
     }
   }
 
+  /* --- the things that make a species a species -------------------------- */
+  if (a.bill) {                                  // marlin: a spear on the nose
+    const x0 = spineX(0, a) - 0.05 * a.stretch, tip = x0 - 0.40 * a.stretch, w = 0.030;
+    tri([x0, w, 0], [x0, -w, 0], [tip, 0, 0], 0);
+    tri([x0, 0, w], [x0, 0, -w], [tip, 0, 0], 0);
+  }
+  if (a.barbel) {                                // whiskers under the chin
+    const x0 = spineX(0.07, a);
+    for (const s of [1, -1])
+      tri([x0, -a.dep * 0.30, s * 0.02], [x0 + 0.04, -a.dep * 0.30, s * 0.05],
+          [x0 - 0.16, -a.dep * 0.30 - 0.22, s * 0.06], 0);
+  }
+  if (a.spikes) {                                // puffer
+    const rr = mulberry32(0x5bf03635);
+    for (let i = 0; i < 11; i++) {
+      const t = 0.18 + rr() * 0.58, th = rr() * TAU;
+      const r = radiusAt(t, a, peak), s = Math.sin(th), c = Math.cos(th);
+      const b = [spineX(t, a), r * a.dep * s, r * a.gir * c];
+      const o = [spineX(t, a) - 0.03, r * a.dep * s * 1.9, r * a.gir * c * 1.9];
+      tri([b[0] - 0.05, b[1], b[2]], [b[0] + 0.05, b[1], b[2]], o, 0);
+    }
+  }
+  if (a.jaw) {
+    /* the gulper is a mouth that tows a body. A pouch hung off the nose does
+       the whole job in twelve triangles. */
+    const x0 = spineX(0, a) - 0.05 * a.stretch, x1 = spineX(0.34, a);
+    const drop = a.dep * 2.6, wide = a.gir * 3.4;
+    for (let i = 0; i < 6; i++) {
+      const t0 = i / 6 * TAU, t1 = (i + 1) / 6 * TAU;
+      const q = th => [x1, -drop * 0.55 + Math.sin(th) * drop * 0.55, Math.cos(th) * wide];
+      tri([x0, 0, 0], q(t0), q(t1), 0);
+    }
+  }
+  if (a.crest) {                                 // oarfish: the red plume
+    for (let i = 0; i < 3; i++) {
+      const t = 0.05 + i * 0.055, e = radiusAt(t, a, peak) * a.dep;
+      const h = 0.62 - i * 0.13;
+      tri([spineX(t, a), e, 0], [spineX(t, a) - 0.05, e + h, 0], [spineX(t, a) + 0.06, e, 0], 0);
+    }
+  }
+  if (a.lure) {
+    /* the anglerfish's lamp. It is the only light source down there, and it is
+       what makes descending into the dark worth doing. */
+    const bx = spineX(0.22, a), by = radiusAt(0.22, a, peak) * a.dep;
+    const tx = bx - 0.40 * a.stretch, ty = by + 0.48, w = 0.022;
+    tri([bx - w, by, 0], [bx + w, by, 0], [tx, ty, 0], 0);
+    tri([bx, by, -w], [bx, by, w], [tx, ty, 0], 0);
+    oct(tx, ty + 0.07, 0, 0.135, 3);
+  }
+
   /* the eye. A coplanar ring plus a disc -- concentric so nothing z-fights,
      and flat-facing so it survives being four pixels wide. */
   {
-    const K = 6, et = 0.20, er = radiusAt(et, a, peak);
-    const eR = clamp(Math.max(er * a.dep, er * a.gir) * 0.38, 0.026, 0.080);
-    const ex = spineX(et, a), ey = er * a.dep * 0.46;
+    const K = 6, et = a.eyeT || 0.20, er = radiusAt(et, a, peak);
+    const eR = clamp(Math.max(er * a.dep, er * a.gir) * 0.38 * (a.eyeK || 1), 0.014, 0.092);
+    const ex = spineX(et, a), ey = er * a.dep * (a.eyeY === undefined ? 0.46 : a.eyeY);
     let ez = 0;                                  // clear the widest station the eye spans
     const dt = eR / (2 * a.stretch);
     for (let i = -2; i <= 2; i++) ez = Math.max(ez, radiusAt(et + dt * i * 0.5, a, peak) * a.gir);
@@ -559,7 +847,7 @@ function archGeometry(a) {
 const A_FLOOR = 0.15;
 const FISH_VS = `
 attribute vec3 tint; attribute vec2 pat; attribute float part;
-varying vec3 vN, vC, vO, vW; varying vec2 vPat; varying float vFog, vPart;
+varying vec3 vN, vC, vO, vW; varying vec2 vPat; varying float vFog, vPart, vBig;
 void main(){
   vC = tint; vPat = pat; vPart = part; vO = position;
   vN = normalize(mat3(instanceMatrix) * normal);
@@ -567,12 +855,15 @@ void main(){
   vW = wp.xyz;
   vec4 mv = modelViewMatrix * wp;
   vFog = -mv.z;
+  /* how big this instance is, straight off its own matrix -- a leviathan has
+     to stay solid long after a minnow at the same distance has gone */
+  vBig = max(0.0, length(instanceMatrix[0].xyz) - 1.5);
   gl_Position = projectionMatrix * mv;
 }`;
 const FISH_FS = `
 precision highp float;
-uniform vec3 uWater; uniform float uFog, uFar;
-varying vec3 vN, vC, vO, vW; varying vec2 vPat; varying float vFog, vPart;
+uniform vec3 uWater; uniform float uFog, uTime, uFar, uFarBig, uFogBig;
+varying vec3 vN, vC, vO, vW; varying vec2 vPat; varying float vFog, vPart, vBig;
 float h31(vec3 p){ return fract(sin(dot(p, vec3(12.9898,78.233,37.719))) * 43758.5453); }
 float n31(vec3 p){
   vec3 i = floor(p), f = fract(p); f = f*f*(3.0-2.0*f);
@@ -581,7 +872,14 @@ float n31(vec3 p){
 }
 void main(){
   vec3 col;
-  if (vPart > 1.5) col = vec3(0.07, 0.055, 0.05);          // pupil, flat and unlit
+  float lure = 0.0;
+  if (vPart > 2.5) {
+    /* the anglerfish lamp: it emits, so it neither takes the lamp nor most of
+       the water. A light in the dark is the whole point of it. */
+    lure = 1.0;
+    col = vec3(1.00, 0.94, 0.70) * (1.00 + 0.28 * sin(uTime * 2.1 + vW.y * 0.6));
+  }
+  else if (vPart > 1.5) col = vec3(0.07, 0.055, 0.05);     // pupil, flat and unlit
   else if (vPart > 0.5) col = vec3(0.90, 0.88, 0.82);      // eye white, likewise
   else {
     vec3 N = normalize(vN);
@@ -596,16 +894,21 @@ void main(){
     vec3 alb = vC;
     if (vPat.x > 0.5 && vPat.x < 1.5)      alb = mix(alb, mk, step(0.62, sin(q.x * vPat.y) * 0.5 + 0.5) * 0.9);
     else if (vPat.x > 1.5 && vPat.x < 2.5) alb = mix(alb, mk, step(0.60, n31(q * vPat.y * 0.55)));
-    else if (vPat.x > 2.5)                 alb = mix(alb, mk, 1.0 - step(0.055, abs(q.y + 0.015)));
+    else if (vPat.x > 2.5 && vPat.x < 3.5) alb = mix(alb, mk, 1.0 - step(0.055, abs(q.y + 0.015)));
     float k = dot(N, normalize(vec3(0.15, 0.95, 0.28))) * 0.5 + 0.5;
     float band = floor(clamp(k, 0.0, 0.999) * 4.0) / 3.0;  // the same hard lamp as the main app
     col = alb * (0.30 + 0.85 * band);
   }
-  float f = clamp(1.0 - exp(-vFog * uFog), 0.0, 1.0);
+  /* turbidity is the render budget, but it is also apparent size: a big
+     silhouette survives scattering that swallows a minnow, which is what makes
+     "you can see it from across the ocean" true rather than a claim */
+  float far = uFar + vBig * uFarBig;
+  float f = clamp(1.0 - exp(-vFog * uFog / (1.0 + vBig * uFogBig)), 0.0, 1.0);
   /* the water takes half of it in colour and the rest in alpha, so the ink
      fades with the fish and the far tier hands off instead of popping */
-  col = mix(col, uWater, f * 0.5);
-  float vis = (1.0 - f) * (1.0 - smoothstep(uFar * 0.74, uFar, vFog));
+  col = mix(col, uWater, f * mix(0.5, 0.10, lure));
+  float vis = (1.0 - f * (1.0 - lure * 0.65)) * (1.0 - smoothstep(far * 0.74, far, vFog));
+  vis *= 1.0 - step(3.5, vPat.x) * 0.55;                   // pattern 4: the Ghost Minnow
   gl_FragColor = vec4(col, ${A_FLOOR.toFixed(2)} + ${(1 - A_FLOOR).toFixed(2)} * vis);
 }`;
 
@@ -748,7 +1051,8 @@ const fishMat = new ShaderMaterial({
   vertexShader: FISH_VS, fragmentShader: FISH_FS,
   uniforms: {
     uWater: { value: water }, uFog: { value: TUNE.fogNear },
-    uFar: { value: TUNE.meshFar },
+    uFar: { value: TUNE.meshFar }, uFarBig: { value: TUNE.meshFarBig },
+    uFogBig: { value: TUNE.fogBig }, uTime: { value: 0 },
   },
   side: DoubleSide,
 });
@@ -848,7 +1152,11 @@ const rayMats = [];
    Everything that depends on the file set. Rebuilt wholesale when a new
    folder is opened, so opening a second drive is not a reload. */
 const ARCH_GEO = ARCH.map(archGeometry);
-const CAP = Math.ceil(TUNE.meshBudget / ARCH.length) + 60;
+/* Each archetype gets a buffer that could hold the entire budget, because a
+   folder really can be one species -- ten thousand empty .gitkeep files are
+   ten thousand Ghost Minnows. Fifteen archetypes x 1400 x (16+3+2) floats is
+   about 1.8 MB of instance buffer, and only the used prefix is ever uploaded. */
+const CAP = TUNE.meshBudget;
 let world = null;
 
 function disposeWorld() {
@@ -877,9 +1185,14 @@ function buildWorld(files, label) {
   placeWorld(root, 0, 0, places);
   /* scale for constant density rather than to a constant radius: a thousand
      files stretched across the same field as fifty thousand is just an empty
-     sea. TUNE.lateral is the radius at the reference size. */
-  const radius = clamp(TUNE.lateral * Math.sqrt(files.length / 52000), 260, 1500);
-  DEPTH = clamp(TUNE.depth * (radius / TUNE.lateral), 330, 1200);
+     sea. Density is measured in visual mass, the same currency the folder
+     circles are packed in -- otherwise a drive full of leviathans would be
+     normalised back down to a field its own animals do not fit in.
+     TUNE.lateral is the radius at the reference size. */
+  let totalMass = 0;
+  for (const f of files) totalMass += footprint(f.size);
+  const radius = clamp(TUNE.lateral * Math.sqrt(totalMass / 52000), 260, 1800);
+  DEPTH = clamp(TUNE.depth * (radius / TUNE.lateral), 330, 1400);
   const k = radius / Math.max(1, root.r);
   for (const p of places) { p.cx *= k; p.cz *= k; p.r *= k; }
   layout(places);
@@ -988,7 +1301,15 @@ function buildWorld(files, label) {
     c.push(f);
   }
 
-  world = { files, places, points, haze, insts, grid, GRID, radius,
+  /* the big animals are few and they are visible from much further away, so
+     they get their own flat list rather than a grid search wide enough to
+     reach them -- which at a whale's draw distance would be most of the ocean */
+  const bigs = files.filter(f => f.scale >= TUNE.bigFrom);
+  let maxScale = 0;
+  for (const f of files) maxScale = Math.max(maxScale, f.scale);
+  const reach = TUNE.meshFar + Math.max(0, maxScale - 1.5) * TUNE.meshFarBig;
+
+  world = { files, places, points, haze, insts, grid, GRID, radius, bigs, reach,
             bytes: files.reduce((a, f) => a + f.size, 0) };
   net.clear(); syncNet();
   buildGauge();
@@ -1050,6 +1371,9 @@ addEventListener("wheel", e => {
 
 /* ============================================================ near set */
 let nearSet = [], nearAt = 0;
+/* big fish earn their geometry from further away, or you stand in node_modules
+   and the whole budget goes to dotfiles while a 20 GB video is a dot behind you */
+const nearScore = c => c[0] / (0.4 + c[1].scale);
 function rebuildNear() {
   if (!world) return;
   const R = TUNE.meshFar, G = world.GRID, cand = [];
@@ -1061,15 +1385,23 @@ function rebuildNear() {
         const c = world.grid.get((cx + i) * 73856093 ^ (cy + j) * 19349663 ^ (cz + k) * 83492791);
         if (!c) continue;
         for (const f of c) {
-          if (f.dead) continue;
+          if (f.dead || f.scale >= TUNE.bigFrom) continue;   // the big ones come from world.bigs
           const d = Math.hypot(f.x - cam.pos.x, f.y - cam.pos.y, f.z - cam.pos.z);
           if (d < R) cand.push([d, f]);
         }
       }
-  /* big fish earn their geometry from further away, or you stand in
-     node_modules and the whole budget goes to dotfiles */
-  cand.sort((a, b) => (a[0] / (0.4 + a[1].scale)) - (b[0] / (0.4 + b[1].scale)));
-  nearSet = cand.slice(0, TUNE.meshBudget).map(c => c[1]);
+  /* leviathans get a reserved slice of the budget: a whale that vanishes
+     because you swam into a crowd is worse than a missing dotfile */
+  const big = [];
+  for (const f of world.bigs) {
+    if (f.dead) continue;
+    const d = Math.hypot(f.x - cam.pos.x, f.y - cam.pos.y, f.z - cam.pos.z);
+    if (d < TUNE.meshFar + (f.scale - 1.5) * TUNE.meshFarBig) big.push([d, f]);
+  }
+  big.sort((a, b) => nearScore(a) - nearScore(b));
+  const keep = big.slice(0, Math.floor(TUNE.meshBudget * 0.45));
+  cand.sort((a, b) => nearScore(a) - nearScore(b));
+  nearSet = keep.concat(cand.slice(0, TUNE.meshBudget - keep.length)).map(c => c[1]);
 }
 
 /* ============================================================ the net */
@@ -1185,8 +1517,13 @@ function buildGauge() {
 
 const PRE = ["Brass", "Dappled", "Salt", "Moon", "Bramble", "Pocket", "Rusted", "Velvet", "Paper",
   "Hollow", "Lantern", "Speckled", "Drowsy", "Copper", "Cobble", "Midnight", "Sunday", "Wobbly"];
-const NOUN = ["Perch", "Tuna", "Turbot", "Eel", "Puffer", "Hound", "Angler"];
-const fishName = f => PRE[(f.hash >>> 13) % PRE.length] + " " + NOUN[f.arch];
+/* the noun is the species, which the file chose; the adjective is the hash,
+   which is the individual */
+function fishName(f) {
+  const a = ARCH[f.arch];
+  if (a.key === "ghost") return "Ghost Minnow";
+  return PRE[(f.hash >>> 13) % PRE.length] + " " + a.nouns[(f.hash >>> 19) % a.nouns.length];
+}
 
 const ago = (n, w) => n + " " + w + (n === 1 ? "" : "s") + " ago";
 function relAge(days) {
@@ -1201,24 +1538,39 @@ function relAge(days) {
 let sayUntil = 0;
 function say(msg) { elPlaceS.textContent = msg; sayUntil = performance.now() + 2600; }
 
-/* ============================================================ picking */
-const ray = new Raycaster();
-const centre = new Vector2(0, 0);
+/* ============================================================ picking
+   Analytic, not a raycast. Raycasting the instanced meshes does not work here:
+   three caches an InstancedMesh bounding sphere the first time it is asked,
+   and ours are built empty (count 0) and then refilled every frame, so the
+   cached sphere stays the empty marker and every ray early-outs.
+
+   Testing the crosshair against each near fish directly is also cheaper -- a
+   few hundred dot products instead of a quarter of a million triangles -- and
+   far kinder to aim with, since a 0.2 unit fry is a pixel and a half. */
 let aimed = null, aimAt = 0;
+const fwd = new Vector3();
 
 function pick() {
   if (!world) return null;
-  ray.setFromCamera(centre, camera);
-  ray.far = TUNE.meshFar;
-  const hits = ray.intersectObjects(world.insts, false);
-  for (const h of hits) {
-    const id = h.object.userData.ids[h.instanceId];
-    if (id >= 0) {
-      const f = world.files[id];
-      if (f && !f.dead) return f;
-    }
+  fwd.set(0, 0, -1).applyQuaternion(camera.quaternion);
+  const ox = camera.position.x, oy = camera.position.y, oz = camera.position.z;
+  let best = null, bestScore = Infinity;
+  for (const f of nearSet) {
+    if (f.dead) continue;
+    const dx = f.px - ox, dy = f.py - oy, dz = f.pz - oz;
+    const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+    if (dist < 1e-3 || dist > world.reach) continue;
+    const along = (dx * fwd.x + dy * fwd.y + dz * fwd.z) / dist;
+    if (along < 0.55) continue;                        // behind, or far off axis
+    /* how far the crosshair sits from the animal, in world units, against how
+       big the animal is: aiming stays honest at every size class */
+    const perp = dist * Math.sqrt(Math.max(0, 1 - along * along));
+    const reach = f.scale * 1.15 + dist * 0.006;       // a small angular grace
+    if (perp > reach) continue;
+    const score = dist * (0.35 + perp / reach);        // nearest and most centred
+    if (score < bestScore) { bestScore = score; best = f; }
   }
-  return null;
+  return best;
 }
 function updateCard() {
   document.body.classList.toggle("aimed", !!aimed);
@@ -1233,6 +1585,10 @@ function updateCard() {
 
 /* ============================================================ loop */
 const dummy = new Object3D();
+const upload = (attr, n) => {
+  if (attr.clearUpdateRanges) { attr.clearUpdateRanges(); attr.addUpdateRange(0, n); }
+  attr.needsUpdate = true;
+};
 let W = 0, H = 0, last = performance.now(), t = 0;
 const dpr = Math.min(devicePixelRatio || 1, 2);
 const ink = new Color();
@@ -1294,6 +1650,9 @@ function frame(nowMs) {
   const fog = lerp(TUNE.fogNear, TUNE.fogDeep, clamp(-cam.pos.y / DEPTH, 0, 1));
   fishMat.uniforms.uFog.value = fog;
   fishMat.uniforms.uFar.value = TUNE.meshFar;
+  fishMat.uniforms.uFarBig.value = TUNE.meshFarBig;
+  fishMat.uniforms.uFogBig.value = TUNE.fogBig;
+  fishMat.uniforms.uTime.value = t;
   /* the ink is graded to the water rather than fixed black, or it goes from a
      hard cartoon line at the surface to invisible in the abyss */
   ink.setRGB(0.030 + water.r * 0.22, 0.048 + water.g * 0.22, 0.062 + water.b * 0.22);
@@ -1323,16 +1682,22 @@ function frame(nowMs) {
       const mesh = world.insts[f.arch];
       const i = counts[f.arch];
       if (i >= CAP) continue;
+      /* behaviour follows size: the arc a creature turns on is its own body
+         lengths across, and a leviathan's is very wide and very slow */
       const ph = t * f.speed + f.phase;
       const yaw = ph * 0.42;
+      const orb = f.scale * f.orbit;
       dummy.position.set(
-        f.x + Math.cos(yaw) * f.scale * 0.9,
-        f.y + Math.sin(ph * 1.7) * f.scale * 0.10,
-        f.z + Math.sin(yaw) * f.scale * 0.9);
-      dummy.rotation.set(0, -yaw + Math.PI / 2, Math.sin(ph * 2.4) * 0.08);
+        f.x + Math.cos(yaw) * orb,
+        f.y + Math.sin(ph * 1.7) * f.scale * f.bob,
+        f.z + Math.sin(yaw) * orb);
+      dummy.rotation.set(0, -yaw + Math.PI / 2, Math.sin(ph * 2.4) * f.roll);
       dummy.scale.set(f.scale * f.sx, f.scale * f.sy, f.scale * f.sz);
       dummy.updateMatrix();
       mesh.setMatrixAt(i, dummy.matrix);
+      /* where it actually is this frame, so the crosshair aims at the animal
+         rather than at where it would be if it never swam */
+      f.px = dummy.position.x; f.py = dummy.position.y; f.pz = dummy.position.z;
       const T = mesh.userData.tint, Q = mesh.userData.pat;
       if (f.netted) { T[i * 3] = 0.92; T[i * 3 + 1] = 0.98; T[i * 3 + 2] = 0.95; }
       else { T[i * 3] = f.cr; T[i * 3 + 1] = f.cg; T[i * 3 + 2] = f.cb; }
@@ -1340,11 +1705,16 @@ function frame(nowMs) {
       mesh.userData.ids[i] = f.index;
       counts[f.arch] = i + 1;
     }
+    /* the buffers are budget-sized but usually mostly empty, so upload only the
+       prefix actually written -- otherwise fifteen archetypes cost 1.8 MB a
+       frame to say nothing */
     world.insts.forEach((m, i) => {
-      m.count = counts[i];
-      m.instanceMatrix.needsUpdate = true;
-      m.geometry.attributes.tint.needsUpdate = true;
-      m.geometry.attributes.pat.needsUpdate = true;
+      const n = counts[i];
+      m.count = n;
+      if (!n) return;
+      upload(m.instanceMatrix, n * 16);
+      upload(m.geometry.attributes.tint, n * 3);
+      upload(m.geometry.attributes.pat, n * 2);
     });
   }
 
@@ -1458,7 +1828,13 @@ $("#cap-note").textContent = canPick
   : "this browser is read only · chrome or edge can also delete what you net";
 
 /* live handle: tweak TUNE in the console, or fly the camera somewhere. */
-window.ocean = { TUNE, cam, get world() { return world; }, buildWorld, buildDemo, ARCH, net, syncNet };
+/* pick and camera are exposed so aiming can be tested without depending on the
+   rAF cadence -- headless browsers run a handful of frames, which is not
+   enough for the picker's own timer to ever fire */
+window.ocean = {
+  TUNE, cam, camera, get world() { return world; },
+  buildWorld, buildDemo, ARCH, net, syncNet, pick,
+};
 
 if (/[?&]demo\b/.test(location.search)) {
   elIntro.hidden = true;

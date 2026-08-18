@@ -120,12 +120,42 @@ unreadable at density. The haze tier uses a punchier copy of each colour
 Note this is a *choice against* colour-by-rarity or colour-by-folder. Folder is
 already encoded by position, and rarity is noise.
 
-## Size is size
+## The creature is a reading of the file
 
-`log2(bytes)`, then a `^2.1` curve so the enormous files are genuinely
-enormous. A 20 GB render is a whale you can see from far away; a 2 KB dotfile
-is a mote. This is inherited from the main app, where `cm` is already
-`log2(size)`, and it's the one channel that needed no new thinking.
+Size class decides the silhouette. Under 32 KB is fry; up to 32 MB is a fish;
+up to 2 GB is a big fish; past that it is a leviathan, and the ladder from a
+mote to a 32 GB disc image is a hundred to one, not two to one. (`SIZE_LADDER`
+is a piecewise log2-to-world-units table with the class breaks on ladder stops;
+`sizeGain` scales the whole thing.)
+
+Depth — which is to say age — overrides that below the light: a file sitting in
+the bottom third of the column comes back as an anglerfish, a gulper or an
+oarfish, because that is where it lives, and the anglerfish's lure is the only
+thing in the ocean that emits rather than reflects. The band is feathered by
+hash between `deepFrom` and `deepTo` so it reads as a gradient rather than a
+line, and it keys off position in the *fitted* column, so it means the same
+thing on a drive that goes back twenty years and one that goes back a week.
+
+Leviathans stay leviathans at any depth; they just change species, from rorqual
+to cachalot. Family nudges the body plan inside whichever pool a file lands in
+— video as long torpedoes and sharks, images as flat discs and rays, archives
+as armoured blocks — while colour keeps carrying family as the channel you can
+read across the whole reef. A zero-byte file is the Ghost Minnow, half-there.
+The hash only breaks ties, so two photos of the same size in the same folder
+are still two animals.
+
+Because size finally means something, behaviour follows it: a whale beats
+slowly, turns on an arc dozens of body-lengths wide, barely bobs, stays solid
+through murk that swallows a minnow (`fogBig` divides the fog by apparent
+size), earns real geometry out to `meshFar + (scale - 1.5) * meshFarBig`, and
+holds a reserved slice of the mesh budget so it can never be crowded out by the
+folder you happen to be standing in.
+
+One consequence worth knowing: **the ocean is scaled to the drive's visual mass,
+not its file count**, so a folder of 4K masters is a bigger sea than a folder of
+dotfiles with the same number of files. Without that, inflating one folder
+shrank every other folder through the normalisation, and whales ended up longer
+than the bay they lived in.
 
 ---
 
@@ -185,14 +215,31 @@ metres are the fiction and the date is the truth.
 
 ---
 
-## Fish identity at scale
+## Identity at scale
 
 The main app builds a `BufferGeometry` per fish. At 50,000 files that is not a
-thing you can do, so the individuality moved off the vertices: 7 archetype
-meshes are instanced, and each file's genome drives a **non-uniform scale**
-(stretch, depth, girth from its hash) plus a per-instance **colour nudge**
-around its family hue. A school of thumbnails shimmers with variation instead
-of being a flat block of one green, at no cost.
+thing you can do, so the individuality moved off the vertices. **Fifteen**
+archetype meshes are instanced — `fry, perch, torpedo, flat, eel, puffer,
+shark, ray, grouper, whale, cachalot, angler, gulper, oarfish, ghost` — about
+8,800 vertices for the entire table, and each file's genome drives a
+**non-uniform scale** (stretch, depth, girth) plus a per-instance **colour
+nudge** around its family hue and a **pattern** (bands / spots / stripe). A
+school of thumbnails shimmers with variation instead of being a flat block of
+one green, at no cost. The taxonomy is finite on purpose.
+
+## Aiming
+
+Picking is analytic, not a raycast: the crosshair is tested against each near
+creature directly, scoring by how far off-centre it sits relative to *its own
+size*. Two reasons. It is much cheaper — a few hundred dot products instead of
+a quarter of a million ray-triangle tests — and it is far kinder to aim with,
+since a 0.2-unit fry is a pixel and a half on screen.
+
+It is also the only thing that works here. Raycasting the instanced meshes
+silently never hits: three.js caches an `InstancedMesh` bounding sphere the
+first time it is asked for one, and these are built empty and refilled every
+frame, so the cached sphere stays the empty marker (radius -1) and every ray
+early-outs forever. Worth knowing before anyone tries to put the raycast back.
 
 ## What it is still not doing
 
@@ -206,8 +253,25 @@ of being a flat block of one green, at no cost.
   comfortably.
 - **Occlusion / ordering.** Transparent points and additive haze don't sort.
   At these densities it reads as volume, which is a happy accident rather than
-  a plan.
-- **The dither and ink pass.** The fish here are flat-shaded with the same
-  4-step lamp as the main app, but none of the post-processing that actually
-  makes that look — the 8x8 Bayer dither and the silhouette ink pass — is
-  wired up in the ocean yet.
+  a plan. Relatedly, the fish are composited as a layer, so a marine snow mote
+  drifting in front of a fish is hidden by it — the same trade the main app
+  already makes with its stacked canvases.
+- **A clean edge where the budget runs out.** Stand inside a folder with more
+  creatures than `meshBudget` and there is a visible line where geometry stops
+  and specks take over.
+
+## The look
+
+The fish render to their own low-resolution target and come back through the
+main app's post pass — 8x8 Bayer dither at 5 levels per channel, a silhouette
+ink pass, nearest upscale — composited over water that is left completely
+alone. Dithering the volumetric water would wreck the other half of the art
+direction, so this mirrors the main app's stacked sea/fish canvases rather than
+post-processing the whole frame.
+
+Alpha in that target encodes **visibility, not coverage**: background 0, fish
+`0.15 + 0.85 * vis`. That keeps the ink's "is this a fish texel" test binary
+while letting a fogged fish, and its outline with it, dissolve into the murk
+instead of hanging in the distance as an outlined blob. The ink colour is
+graded off the current water colour every frame, because fixed black goes from
+cartoon-hard at the surface to invisible in the abyss.
