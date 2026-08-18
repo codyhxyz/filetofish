@@ -8,8 +8,9 @@
    anywhere. See OCEAN.md for why each default is what it is. */
 
 import {
-  Scene, PerspectiveCamera, WebGLRenderer, BufferGeometry, BufferAttribute,
-  InstancedMesh, InstancedBufferAttribute, Mesh, Points, ShaderMaterial, Color,
+  Scene, PerspectiveCamera, OrthographicCamera, WebGLRenderer, WebGLRenderTarget,
+  BufferGeometry, BufferAttribute, InstancedMesh, InstancedBufferAttribute,
+  Mesh, Points, ShaderMaterial, Color, NearestFilter,
   Vector3, Object3D, PlaneGeometry, DoubleSide, AdditiveBlending, Raycaster, Vector2,
 } from "three";
 
@@ -417,6 +418,10 @@ function layout(places) {
       const c = famColor[f.fam].clone();
       c.offsetHSL((r() - 0.5) * 0.055, (r() - 0.5) * 0.20, (r() - 0.5) * 0.16);
       f.cr = c.r; f.cg = c.g; f.cb = c.b;
+      /* plain / bands / spots / stripe, as a per-instance pair rather than a
+         uniform -- one draw call covers a thousand fish */
+      f.pat = (r() * 4) | 0;
+      f.patF = 7 + r() * 11;
       f.place = p;
     }
   }
@@ -445,8 +450,18 @@ const radiusAt = (t, a, peak) =>
     + 0.145 * Math.pow(1 - t, 1.15), 0.075);
 const spineX = (t, a) => (-1 + t * 2) * a.stretch;
 
+/* One geometry per archetype, instanced up to meshBudget times, so every gram
+   of detail here is paid for 1400x. What earns its place is what makes a blob
+   read as an animal at arm's length: an eye and a pair of pectorals. Both are
+   baked in -- per-fish meshes are exactly the thing this view cannot afford.
+   PART tags a vertex as body (0), eye white (1) or pupil (2); the eye is flat
+   and unlit, the way the main app's flatMat eyes are. */
 function archGeometry(a) {
-  const SEG = 9, RING = 6, peak = peakOf(a), v = [];
+  const SEG = 9, RING = 6, peak = peakOf(a), v = [], part = [];
+  const tri = (p, q, r, k) => {
+    v.push(p[0], p[1], p[2], q[0], q[1], q[2], r[0], r[1], r[2]);
+    part.push(k, k, k);
+  };
   const P = (i, j) => {
     const t = i / SEG, th = (j % RING) / RING * TAU;
     const r = radiusAt(t, a, peak), s = Math.sin(th), c = Math.cos(th);
@@ -454,12 +469,12 @@ function archGeometry(a) {
   };
   for (let i = 0; i < SEG; i++) for (let j = 0; j < RING; j++) {
     const p = P(i, j), q = P(i, j + 1), r = P(i + 1, j), s = P(i + 1, j + 1);
-    v.push(...p, ...r, ...q, ...q, ...r, ...s);
+    tri(p, r, q, 0); tri(q, r, s, 0);
   }
   const nose = [spineX(0, a) - 0.05 * a.stretch, 0, 0], tail = [spineX(1, a), 0, 0];
   for (let j = 0; j < RING; j++) {
-    v.push(...nose, ...P(0, j), ...P(0, j + 1));
-    v.push(...tail, ...P(SEG, j + 1), ...P(SEG, j));
+    tri(nose, P(0, j), P(0, j + 1), 0);
+    tri(tail, P(SEG, j + 1), P(SEG, j), 0);
   }
   const L = 0.42, H = 0.36, X = spineX(1, a);
   const cfg = { fan: [0.30, 1.7], fork: [0.62, 2.3], round: [0.02, 1] }[a.tail];
@@ -470,44 +485,156 @@ function archGeometry(a) {
     else out.push([X + L * (1 - cfg[0] * (1 - Math.pow(au, cfg[1]))), u * H]);
   }
   for (let i = 0; i < out.length - 1; i++)
-    v.push(X - 0.06, 0, 0, out[i][0], out[i][1], 0, out[i + 1][0], out[i + 1][1], 0);
+    tri([X - 0.06, 0, 0], [out[i][0], out[i][1], 0], [out[i + 1][0], out[i + 1][1], 0], 0);
   for (let i = 0; i < 5; i++) {
     const s0 = i / 5, s1 = (i + 1) / 5;
     const t0 = lerp(0.3, 0.66, s0), t1 = lerp(0.3, 0.66, s1);
     const e0 = radiusAt(t0, a, peak) * a.dep, e1 = radiusAt(t1, a, peak) * a.dep;
     const h0 = a.dor * Math.pow(Math.sin(s0 * Math.PI), 0.62), h1 = a.dor * Math.pow(Math.sin(s1 * Math.PI), 0.62);
-    v.push(spineX(t0, a), e0, 0, spineX(t0, a), e0 + h0, 0, spineX(t1, a), e1, 0);
-    v.push(spineX(t0, a), e0 + h0, 0, spineX(t1, a), e1 + h1, 0, spineX(t1, a), e1, 0);
+    tri([spineX(t0, a), e0, 0], [spineX(t0, a), e0 + h0, 0], [spineX(t1, a), e1, 0], 0);
+    tri([spineX(t0, a), e0 + h0, 0], [spineX(t1, a), e1 + h1, 0], [spineX(t1, a), e1, 0], 0);
   }
+
+  /* pectorals: the main app's fan, folded out of the flank. Two per fish, and
+     they are what stops a torpedo reading as a bullet. */
+  {
+    const N = 6, pt = 0.34, pr = radiusAt(pt, a, peak);
+    const ph = 0.13 + a.dep * 0.26, cz = Math.cos(-0.18), sz = Math.sin(-0.18);
+    const outline = [];
+    for (let i = 0; i <= N; i++) {
+      const u = i / N;
+      outline.push([-u * 0.34 * a.stretch, -Math.sin(u * Math.PI) * ph * 1.15 - u * 0.06]);
+    }
+    for (const s of [1, -1]) {
+      const cx = Math.cos(s * 0.62), sx = Math.sin(s * 0.62);
+      const ox = spineX(pt, a), oy = -pr * a.dep * 0.10, oz = s * pr * a.gir * 0.92;
+      const T = p => {
+        const x = p[0] * cz - p[1] * sz, y = p[0] * sz + p[1] * cz;
+        return [ox + x, oy + y * cx, oz + y * sx];
+      };
+      const root = T([0.02, 0.015]);
+      for (let i = 0; i < N; i++) tri(root, T(outline[i]), T(outline[i + 1]), 0);
+    }
+  }
+
+  /* the eye. A coplanar ring plus a disc -- concentric so nothing z-fights,
+     and flat-facing so it survives being four pixels wide. */
+  {
+    const K = 6, et = 0.20, er = radiusAt(et, a, peak);
+    const eR = clamp(Math.max(er * a.dep, er * a.gir) * 0.38, 0.026, 0.080);
+    const ex = spineX(et, a), ey = er * a.dep * 0.46;
+    let ez = 0;                                  // clear the widest station the eye spans
+    const dt = eR / (2 * a.stretch);
+    for (let i = -2; i <= 2; i++) ez = Math.max(ez, radiusAt(et + dt * i * 0.5, a, peak) * a.gir);
+    ez = ez * 1.03 + 0.004;
+    const pR = eR * 0.52;
+    for (const s of [1, -1]) {
+      const z = s * ez;
+      for (let i = 0; i < K; i++) {
+        const t0 = i / K * TAU, t1 = (i + 1) / K * TAU;
+        const c0 = Math.cos(t0), n0 = Math.sin(t0), c1 = Math.cos(t1), n1 = Math.sin(t1);
+        tri([ex + c0 * pR, ey + n0 * pR, z], [ex + c0 * eR, ey + n0 * eR, z],
+            [ex + c1 * eR, ey + n1 * eR, z], 1);
+        tri([ex + c0 * pR, ey + n0 * pR, z], [ex + c1 * eR, ey + n1 * eR, z],
+            [ex + c1 * pR, ey + n1 * pR, z], 1);
+        tri([ex, ey, z], [ex + c0 * pR, ey + n0 * pR, z], [ex + c1 * pR, ey + n1 * pR, z], 2);
+      }
+    }
+  }
+
   const g = new BufferGeometry();
   g.setAttribute("position", new BufferAttribute(new Float32Array(v), 3));
   g.computeVertexNormals();
+  g.setAttribute("part", new BufferAttribute(new Float32Array(part), 1));
   return g;
 }
 
 /* ============================================================ shaders */
+/* The fish render to their own low-res target with alpha, so the post pass can
+   dither them and ink their silhouette without touching the water. Alpha is
+   not coverage but VISIBILITY: background is 0, a fish fragment is
+   0.15 + 0.85 * vis. That keeps the "is this a fish texel" test binary for the
+   ink pass while still letting a fogged fish -- and its outline with it --
+   dissolve into the murk instead of hanging there as an outlined blob. */
+const A_FLOOR = 0.15;
 const FISH_VS = `
-attribute vec3 tint;
-varying vec3 vN, vC; varying float vFog;
+attribute vec3 tint; attribute vec2 pat; attribute float part;
+varying vec3 vN, vC, vO, vW; varying vec2 vPat; varying float vFog, vPart;
 void main(){
-  vC = tint;
+  vC = tint; vPat = pat; vPart = part; vO = position;
   vN = normalize(mat3(instanceMatrix) * normal);
   vec4 wp = instanceMatrix * vec4(position, 1.0);
+  vW = wp.xyz;
   vec4 mv = modelViewMatrix * wp;
   vFog = -mv.z;
   gl_Position = projectionMatrix * mv;
 }`;
 const FISH_FS = `
 precision highp float;
-uniform vec3 uWater; uniform float uFog;
-varying vec3 vN, vC; varying float vFog;
+uniform vec3 uWater; uniform float uFog, uFar;
+varying vec3 vN, vC, vO, vW; varying vec2 vPat; varying float vFog, vPart;
+float h31(vec3 p){ return fract(sin(dot(p, vec3(12.9898,78.233,37.719))) * 43758.5453); }
+float n31(vec3 p){
+  vec3 i = floor(p), f = fract(p); f = f*f*(3.0-2.0*f);
+  return mix(mix(mix(h31(i),h31(i+vec3(1,0,0)),f.x), mix(h31(i+vec3(0,1,0)),h31(i+vec3(1,1,0)),f.x), f.y),
+             mix(mix(h31(i+vec3(0,0,1)),h31(i+vec3(1,0,1)),f.x), mix(h31(i+vec3(0,1,1)),h31(i+vec3(1,1,1)),f.x), f.y), f.z);
+}
 void main(){
-  vec3 N = normalize(vN);
-  float k = dot(N, normalize(vec3(0.15, 0.95, 0.28))) * 0.5 + 0.5;
-  float band = floor(clamp(k, 0.0, 0.999) * 4.0) / 3.0;   // the same hard lamp as the main app
-  vec3 col = vC * (0.30 + 0.85 * band);
-  float f = 1.0 - exp(-vFog * uFog);
-  gl_FragColor = vec4(mix(col, uWater, clamp(f, 0.0, 1.0)), 1.0);
+  vec3 col;
+  if (vPart > 1.5) col = vec3(0.07, 0.055, 0.05);          // pupil, flat and unlit
+  else if (vPart > 0.5) col = vec3(0.90, 0.88, 0.82);      // eye white, likewise
+  else {
+    vec3 N = normalize(vN);
+    vec3 V = normalize(cameraPosition - vW);
+    if (dot(N, V) < 0.0) N = -N;                           // fins are sheets; light both faces
+    /* pattern on a coarse object-space grid so it blocks up with the facets.
+       Which pattern is per-instance -- one draw call is a thousand fish. */
+    vec3 q = floor(vO * 13.0) / 13.0;
+    /* the mark keeps the family hue and only darkens: colour is file type and
+       it has to survive being read across a whole reef */
+    vec3 mk = vC * vec3(0.58, 0.64, 0.70);
+    vec3 alb = vC;
+    if (vPat.x > 0.5 && vPat.x < 1.5)      alb = mix(alb, mk, step(0.62, sin(q.x * vPat.y) * 0.5 + 0.5) * 0.9);
+    else if (vPat.x > 1.5 && vPat.x < 2.5) alb = mix(alb, mk, step(0.60, n31(q * vPat.y * 0.55)));
+    else if (vPat.x > 2.5)                 alb = mix(alb, mk, 1.0 - step(0.055, abs(q.y + 0.015)));
+    float k = dot(N, normalize(vec3(0.15, 0.95, 0.28))) * 0.5 + 0.5;
+    float band = floor(clamp(k, 0.0, 0.999) * 4.0) / 3.0;  // the same hard lamp as the main app
+    col = alb * (0.30 + 0.85 * band);
+  }
+  float f = clamp(1.0 - exp(-vFog * uFog), 0.0, 1.0);
+  /* the water takes half of it in colour and the rest in alpha, so the ink
+     fades with the fish and the far tier hands off instead of popping */
+  col = mix(col, uWater, f * 0.5);
+  float vis = (1.0 - f) * (1.0 - smoothstep(uFar * 0.74, uFar, vFog));
+  gl_FragColor = vec4(col, ${A_FLOOR.toFixed(2)} + ${(1 - A_FLOOR).toFixed(2)} * vis);
+}`;
+
+/* 8x8 Bayer at 5 levels per channel plus the silhouette ink -- a transparent
+   texel touching an opaque one becomes ink. Straight off the main app; it is
+   the half of the look that the ocean was missing. */
+const POST_FRAG = `
+precision highp float;
+uniform sampler2D tMap; uniform vec2 uRT; uniform float uLevels; uniform vec3 uInk;
+varying vec2 vUv;
+float b2(vec2 a){ a = floor(a); return fract(a.x / 2.0 + a.y * a.y * 0.75); }
+float b8(vec2 a){ return b2(0.25*a)*0.0625 + b2(0.5*a)*0.25 + b2(a); }
+void main(){
+  vec2 px = 1.0 / uRT;
+  vec4 s = texture2D(tMap, vUv);
+  if (s.a < ${(A_FLOOR * 0.5).toFixed(3)}){
+    float n = max(max(texture2D(tMap, vUv + vec2(px.x, 0.0)).a, texture2D(tMap, vUv - vec2(px.x, 0.0)).a),
+                  max(texture2D(tMap, vUv + vec2(0.0, px.y)).a, texture2D(tMap, vUv - vec2(0.0, px.y)).a));
+    if (n < ${(A_FLOOR * 0.5).toFixed(3)}) discard;
+    /* the ink dilates the silhouette by a texel, which welds a distant school
+       into one crust. Falling off faster than the fill keeps the outline hard
+       where you can see the animal and lets it go where you cannot. */
+    float iv = clamp((n - ${A_FLOOR.toFixed(2)}) / ${(1 - A_FLOOR).toFixed(2)}, 0.0, 1.0);
+    gl_FragColor = vec4(uInk, iv * iv * iv);
+    return;
+  }
+  float L = uLevels - 1.0;
+  vec3 c = floor(s.rgb * L + b8(floor(vUv * uRT))) / L;
+  gl_FragColor = vec4(c, clamp((s.a - ${A_FLOOR.toFixed(2)}) / ${(1 - A_FLOOR).toFixed(2)}, 0.0, 1.0));
 }`;
 
 const PT_VS = `
@@ -607,7 +734,9 @@ void main(){
 const canvas = $("#gl");
 const renderer = new WebGLRenderer({ canvas, antialias: true });
 renderer.setClearColor(0x04121a, 1);
-const scene = new Scene();
+renderer.autoClear = false;                  // the composite must not wipe the water
+const scene = new Scene();                   // the water: surface, rays, haze, points, snow
+const fishScene = new Scene();               // the animals, and only the animals
 const camera = new PerspectiveCamera(58, 1, 0.5, 4200);
 
 const WATER_TOP = new Color(0x2b7f9e), WATER_DEEP = new Color(0x02060c);
@@ -617,9 +746,36 @@ const water = new Color();
 
 const fishMat = new ShaderMaterial({
   vertexShader: FISH_VS, fragmentShader: FISH_FS,
-  uniforms: { uWater: { value: water }, uFog: { value: TUNE.fogNear } },
+  uniforms: {
+    uWater: { value: water }, uFog: { value: TUNE.fogNear },
+    uFar: { value: TUNE.meshFar },
+  },
   side: DoubleSide,
 });
+
+/* --- the dither + ink stage --------------------------------------------
+   The main app stacks two canvases: raw GLSL sea under a three.js fish layer
+   that gets the post pass. Same split here, one renderer: the water goes
+   straight to the screen, the fish go to a low-res target and are composited
+   back over it through POST_FRAG with nearest-neighbour upscaling. The soft
+   volumetric water is the other half of the art direction and dithering it
+   would wreck it. */
+const fishRT = new WebGLRenderTarget(4, 4, { minFilter: NearestFilter, magFilter: NearestFilter });
+const postScene = new Scene();
+const postCam = new OrthographicCamera(-1, 1, 1, -1, 0, 1);
+const postMat = new ShaderMaterial({
+  vertexShader: "varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }",
+  fragmentShader: POST_FRAG, transparent: true, depthTest: false, depthWrite: false,
+  uniforms: {
+    tMap: { value: fishRT.texture }, uRT: { value: new Vector2(1, 1) },
+    uLevels: { value: 5 }, uInk: { value: new Color(0x0b1012) },
+  },
+});
+{
+  const q = new Mesh(new PlaneGeometry(2, 2), postMat);
+  q.frustumCulled = false;
+  postScene.add(q);
+}
 const pointMat = new ShaderMaterial({
   vertexShader: PT_VS, fragmentShader: PT_FS, transparent: true, depthWrite: false,
   uniforms: {
@@ -697,7 +853,8 @@ let world = null;
 
 function disposeWorld() {
   if (!world) return;
-  scene.remove(world.points, world.haze, ...world.insts);
+  scene.remove(world.points, world.haze);
+  fishScene.remove(...world.insts);
   world.points.geometry.dispose();
   world.haze.geometry.dispose();
   for (const m of world.insts) m.dispose();
@@ -806,11 +963,16 @@ function buildWorld(files, label) {
     const ti = new Float32Array(CAP * 3);
     const attr = new InstancedBufferAttribute(ti, 3);
     attr.setUsage(35048);
+    const pi = new Float32Array(CAP * 2);
+    const pattr = new InstancedBufferAttribute(pi, 2);
+    pattr.setUsage(35048);
     mesh.geometry = ARCH_GEO[i].clone();
     mesh.geometry.setAttribute("tint", attr);
+    mesh.geometry.setAttribute("pat", pattr);
     mesh.userData.tint = ti;
+    mesh.userData.pat = pi;
     mesh.userData.ids = new Int32Array(CAP);
-    scene.add(mesh);
+    fishScene.add(mesh);
     return mesh;
   });
 
@@ -1073,6 +1235,7 @@ function updateCard() {
 const dummy = new Object3D();
 let W = 0, H = 0, last = performance.now(), t = 0;
 const dpr = Math.min(devicePixelRatio || 1, 2);
+const ink = new Color();
 
 function frame(nowMs) {
   requestAnimationFrame(frame);
@@ -1086,6 +1249,15 @@ function frame(nowMs) {
     for (const m of [pointMat, hazeMat, snowMat]) {
       m.uniforms.uH.value = h * 0.5; m.uniforms.uPx.value = dpr;
     }
+    /* the fish target's pixel scale. The main app uses /460 for one fish that
+       fills the frame; this runs slightly finer because the ocean shows a whole
+       school at once and the ink dilates every silhouette by a texel -- too
+       coarse and a school thirty metres out welds into one crust. */
+    const PX = Math.max(2, Math.ceil(W * dpr / 560));
+    const RW = Math.max(2, Math.round(W * dpr / PX));
+    const RH = Math.max(2, Math.round(H * dpr / PX));
+    fishRT.setSize(RW, RH);
+    postMat.uniforms.uRT.value.set(RW, RH);
   }
 
   const k = 1 - Math.exp(-dt * TUNE.damp);
@@ -1119,9 +1291,13 @@ function frame(nowMs) {
   camera.rotateX(cam.pitch);
 
   water.copy(waterAt(cam.pos.y));
-  renderer.setClearColor(water, 1);
   const fog = lerp(TUNE.fogNear, TUNE.fogDeep, clamp(-cam.pos.y / DEPTH, 0, 1));
   fishMat.uniforms.uFog.value = fog;
+  fishMat.uniforms.uFar.value = TUNE.meshFar;
+  /* the ink is graded to the water rather than fixed black, or it goes from a
+     hard cartoon line at the surface to invisible in the abyss */
+  ink.setRGB(0.030 + water.r * 0.22, 0.048 + water.g * 0.22, 0.062 + water.b * 0.22);
+  postMat.uniforms.uInk.value.copy(ink);
   surfMat.uniforms.uTime.value = t;
   surfMat.uniforms.uWater.value.copy(water).lerp(new Color(0x2f89a8), 0.5);
   for (const m of rayMats) m.uniforms.uTime.value = t;
@@ -1157,9 +1333,10 @@ function frame(nowMs) {
       dummy.scale.set(f.scale * f.sx, f.scale * f.sy, f.scale * f.sz);
       dummy.updateMatrix();
       mesh.setMatrixAt(i, dummy.matrix);
-      const T = mesh.userData.tint;
+      const T = mesh.userData.tint, Q = mesh.userData.pat;
       if (f.netted) { T[i * 3] = 0.92; T[i * 3 + 1] = 0.98; T[i * 3 + 2] = 0.95; }
       else { T[i * 3] = f.cr; T[i * 3 + 1] = f.cg; T[i * 3 + 2] = f.cb; }
+      Q[i * 2] = f.netted ? 0 : f.pat; Q[i * 2 + 1] = f.patF;
       mesh.userData.ids[i] = f.index;
       counts[f.arch] = i + 1;
     }
@@ -1167,6 +1344,7 @@ function frame(nowMs) {
       m.count = counts[i];
       m.instanceMatrix.needsUpdate = true;
       m.geometry.attributes.tint.needsUpdate = true;
+      m.geometry.attributes.pat.needsUpdate = true;
     });
   }
 
@@ -1194,7 +1372,22 @@ function frame(nowMs) {
 
   if (nowMs - aimAt > 90) { aimAt = nowMs; aimed = pick(); updateCard(); }
 
+  /* 1. the animals, alone, at PX-to-one with their own depth buffer, so they
+        still occlude each other */
+  const anyFish = !!world && nearSet.length > 0;
+  if (anyFish) {
+    renderer.setRenderTarget(fishRT);
+    renderer.setClearColor(0x000000, 0);
+    renderer.clear();
+    renderer.render(fishScene, camera);
+  }
+  /* 2. the water, full res, untouched */
+  renderer.setRenderTarget(null);
+  renderer.setClearColor(water, 1);
+  renderer.clear();
   renderer.render(scene, camera);
+  /* 3. dither + ink, upscaled nearest, over the top */
+  if (anyFish) renderer.render(postScene, postCam);
 }
 
 /* ============================================================ entry */
