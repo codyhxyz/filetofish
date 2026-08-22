@@ -188,7 +188,10 @@ float starfield(vec2 sp, float t){
 float rainLayer(vec2 q, float t, float cw, float ch, float spd, float slant){
   float px = uRes.y/max(uPx, 0.001);            /* frame height in CSS px */
   float cols = px/cw, rows = px/ch;
-  vec2 rp = vec2((q.x + q.y*slant)*cols, -q.y*rows);
+  /* uv.y counts UP the screen, and the time term below is added, so this must
+     NOT be negated: hold a dash at fixed y and advance t and the streak moves
+     to q.y - t*spd/rows. Negating here cancels that and it rains upwards. */
+  vec2 rp = vec2((q.x + q.y*slant)*cols, q.y*rows);
   float cn = floor(rp.x);
   float sc = hash21(vec2(cn, 1.73));
   float y = rp.y + t*(spd + sc*spd*0.8) + sc*23.0;
