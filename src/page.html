@@ -95,14 +95,19 @@ body.has-catch #plate{opacity:1; transform:translate(-50%,0);}
 #plate .acts .narrow{display:none;}
 
 /* ---------------------------------------------------------------- clock */
-#clock{
+#clockbox{
   position:fixed; right:clamp(1.1rem,3vw,2.2rem); top:clamp(1.05rem,2.7vw,2rem); z-index:9;
-  font-family:var(--f-mono); text-align:right; line-height:1.3; cursor:pointer;
-  text-shadow:0 1px 10px rgba(4,30,40,.9);
+  text-align:right;
 }
+#clock{
+  font-family:var(--f-mono); line-height:1.3; cursor:grab;
+  text-shadow:0 1px 10px rgba(4,30,40,.9);
+  touch-action:none; -webkit-user-select:none; user-select:none;
+}
+#clock.turning{cursor:grabbing;}
 #clock b{
   display:block; font-weight:400; font-size:.84rem; letter-spacing:.13em;
-  color:rgba(238,250,252,.94); font-variant-numeric:tabular-nums;
+  color:rgba(238,250,252,.94); font-variant-numeric:tabular-nums; transition:color .18s;
 }
 #clock i{
   display:block; font-style:normal; font-size:.56rem; letter-spacing:.24em; text-transform:uppercase;
@@ -110,6 +115,14 @@ body.has-catch #plate{opacity:1; transform:translate(-50%,0);}
 }
 #clock:hover i{opacity:1;}
 #clock:hover b{color:#fff;}
+/* the hands have been turned: this is our hour now, not the machine's */
+#clock.held b{color:var(--wx,#FFC49A);}
+#clock-now{
+  margin-top:.34rem; font-family:var(--f-mono); font-size:.5rem; letter-spacing:.2em;
+  text-transform:uppercase; color:rgba(238,250,252,.5);
+  text-shadow:0 1px 10px rgba(4,30,40,.92); transition:color .18s;
+}
+#clock-now:hover{color:rgba(238,250,252,.95);}
 
 /* ---------------------------------------------------------------- tools */
 #tools{
@@ -289,8 +302,12 @@ body.has-catch #plate{opacity:1; transform:translate(-50%,0);}
 
 <div class="mark">file<i>to</i>fish</div>
 
-<div id="clock" role="button" tabindex="0" title="click to change the weather">
-  <b id="clock-t">--:--:--</b><i id="clock-w">clear</i>
+<div id="clockbox">
+  <div id="clock" role="button" tabindex="0" aria-label="time of day"
+       title="click: change the weather · drag: turn the hands">
+    <b id="clock-t">--:--:--</b><i id="clock-w">clear</i>
+  </div>
+  <button id="clock-now" type="button" hidden title="give the clock back to your machine">back to now</button>
 </div>
 
 <div id="plate">
