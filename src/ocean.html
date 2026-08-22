@@ -4,6 +4,9 @@
 :root{
   --f-display:Futura,"Futura PT","Avenir Next","Century Gothic",system-ui,sans-serif;
   --f-mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,"Roboto Mono",monospace;
+  /* kelp gets his own face. Local-only on purpose: a webfont would be the one
+     asset this whole site does not have, and the fallback is the site's mono */
+  --f-talk:"Server Mono",ui-monospace,"SF Mono",SFMono-Regular,Menlo,monospace;
   --ink:#EAF6F8;
 }
 *{box-sizing:border-box;}
@@ -139,24 +142,24 @@ body.hasnet #net{opacity:1; pointer-events:auto;}
   margin:.9rem auto 0; max-width:36rem; font-family:var(--f-mono); font-size:.66rem;
   letter-spacing:.09em; line-height:2; color:rgba(214,238,244,.62);
 }
-.sheet .row{display:flex; gap:.7rem; justify-content:center; margin-top:1.7rem; flex-wrap:wrap;}
-.sheet .go{
+.row{display:flex; gap:.7rem; justify-content:center; margin-top:1.7rem; flex-wrap:wrap;}
+.go{
   font-family:var(--f-mono); font-size:.6rem; letter-spacing:.22em; text-transform:uppercase;
   color:#0B1E24; background:#EAF7FA; padding:.72rem 1.3rem; border:1px solid #EAF7FA;
   transition:transform .15s cubic-bezier(.2,.9,.3,1.4);
 }
-.sheet .go:hover{transform:translateY(-2px);}
-.sheet .ghost{
+.go:hover{transform:translateY(-2px);}
+.ghost{
   font-family:var(--f-mono); font-size:.6rem; letter-spacing:.22em; text-transform:uppercase;
   color:rgba(226,242,248,.75); background:none; border:1px solid rgba(214,238,244,.32);
   padding:.72rem 1.3rem; transition:border-color .15s, color .15s;
 }
-.sheet .ghost:hover{color:#fff; border-color:#fff;}
-.sheet .fine{
+.ghost:hover{color:#fff; border-color:#fff;}
+.fine{
   margin-top:1.2rem; font-family:var(--f-mono); font-size:.52rem; letter-spacing:.14em;
   color:rgba(214,238,244,.34); line-height:2;
 }
-.sheet .fine b{color:rgba(255,196,154,.7); font-weight:400;}
+.fine b{color:rgba(255,196,154,.7); font-weight:400;}
 
 #scan .bar{
   width:min(70vw,26rem); height:2px; background:rgba(190,230,240,.16); margin:1.6rem auto 0;
@@ -186,10 +189,71 @@ body.hasnet #net{opacity:1; pointer-events:auto;}
 }
 #confirm .warn{color:rgba(255,174,150,.85);}
 
+/* ------------------------------------------------------- kelp, and his raft
+   Not a sheet: the whole point of him is that you can see him while he talks,
+   so this sits at the bottom of the frame and leaves the water alone. */
+#intro{
+  position:fixed; z-index:8; left:50%; transform:translateX(-50%);
+  bottom:clamp(1rem,3.2vh,2.2rem); width:min(94vw,44rem);
+}
+#intro[hidden]{display:none;}
+/* an aside mid-dive, not the whole intro: clear the net bar and drop the
+   two-line reserve, since nothing here is ever that long */
+body.chatting #intro{bottom:calc(clamp(1rem,3.2vh,2.2rem) + 4.2rem);}
+body.chatting #talk-t{min-height:1.8em;}
+/* the gameplay HUD is noise while someone is talking to you */
+body.talking #stats,body.talking #legend,body.talking #keys,
+body.talking #depth,body.talking #cross,body.talking #card{opacity:0;}
+#stats,#legend,#keys,#depth{transition:opacity .35s ease;}
+
+#who{
+  display:inline-flex; align-items:baseline; gap:.55rem; margin-left:1rem;
+  background:#FFC49A; color:#12222A; padding:.28rem .8rem;
+  font-family:var(--f-talk); position:relative; z-index:1;
+}
+#who b{font-weight:400; font-size:.74rem; letter-spacing:.12em;}
+#who s{text-decoration:none; font-size:.48rem; letter-spacing:.18em; text-transform:uppercase; opacity:.62;}
+
+#box{
+  position:relative; background:rgba(4,20,28,.9); border:1px solid rgba(190,230,240,.28);
+  backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
+  padding:1rem 1.3rem 1.1rem;
+}
+#talk-t{
+  margin:0; min-height:calc(1.8em * 2); font-family:var(--f-talk);
+  font-size:.82rem; letter-spacing:.03em; line-height:1.8; color:rgba(240,250,252,.94);
+}
+#talk-more{
+  position:absolute; right:1rem; bottom:.5rem; width:.8rem; text-align:center;
+  color:#FFC49A; font-size:.55rem; line-height:1;
+  animation:nudge 1.05s ease-in-out infinite;
+}
+#talk-more::before{content:"\25BC";}
+#talk-more[hidden]{display:none;}
+@keyframes nudge{0%,100%{transform:translateY(0); opacity:.45;} 50%{transform:translateY(3px); opacity:1;}}
+
+#talk-choice[hidden]{display:none;}
+#talk-choice .row{margin-top:1.15rem;}
+#talk-choice .fine{margin-top:.9rem; text-align:center;}
+
+#talk-mute{
+  position:absolute; right:1rem; top:.7rem; font-family:var(--f-mono);
+  font-size:.46rem; letter-spacing:.18em; text-transform:uppercase;
+  color:rgba(214,238,244,.36); transition:color .15s;
+}
+#talk-mute:hover{color:rgba(238,250,252,.9);}
+#talk-mute::after{content:" \25CF"; letter-spacing:0;}
+#talk-mute.off::after{content:" \25CB";}
+
 @media (max-width:760px){
   #legend,#keys{display:none;}
   #depth{width:2.6rem;}
   #net{flex-wrap:wrap; max-width:94vw; justify-content:center;}
+  #talk-t{min-height:calc(1.8em * 3); font-size:.76rem;}
+  #box{padding:.85rem 1rem 1rem;}
+}
+@media (prefers-reduced-motion:reduce){
+  #talk-more{animation:none; opacity:.8;}
 }
 </style>
 
@@ -235,20 +299,18 @@ body.hasnet #net{opacity:1; pointer-events:auto;}
   <button id="net-del" class="danger">delete for good</button>
 </div>
 
-<div class="sheet" id="intro">
-  <div>
-    <h1>your drive, as an <i>ocean</i></h1>
-    <p>
-      every file is a fish &#183; how deep it swims is how old it is<br>
-      folders are places in the water &#183; the same file is always the same fish
-    </p>
-    <div class="row">
-      <button class="go" id="open-real">open a folder</button>
-      <button class="ghost" id="open-demo">explore a demo drive</button>
-    </div>
-    <div class="fine" id="intro-fine">
-      nothing is uploaded &#183; the folder is read in your browser and never leaves it<br>
-      <b id="cap-note"></b>
+<div id="intro" hidden>
+  <div id="who"><b>kelp</b><s>harbour otter</s></div>
+  <div id="box">
+    <p id="talk-t"></p>
+    <button id="talk-mute" type="button" title="his voice">sound</button>
+    <i id="talk-more" hidden></i>
+    <div id="talk-choice" hidden>
+      <div class="row">
+        <button class="go" id="open-real">select folder</button>
+        <button class="ghost" id="open-demo">demo</button>
+      </div>
+      <div class="fine">nothing is uploaded</div>
     </div>
   </div>
 </div>

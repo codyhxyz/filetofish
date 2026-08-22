@@ -13,6 +13,7 @@ const CUES = [
   ["land", "The payoff. Square arpeggio doubled an octave down in sine; extra notes when rare."],
   ["sparkle", "Only on a species you have never seen. Three rising triangles."],
   ["tick", "UI. Opening the dex, toggling sound."],
+  ["voice", "Animalese. One formant blip per letter, coloured by the vowel in that letter's name."],
 ];
 
 /* slider range guessed from the name, so adding a param needs no UI work */

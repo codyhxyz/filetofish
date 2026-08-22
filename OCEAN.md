@@ -275,3 +275,63 @@ while letting a fogged fish, and its outline with it, dissolve into the murk
 instead of hanging in the distance as an outlined blob. The ink colour is
 graded off the current water colour every frame, because fixed black goes from
 cartoon-hard at the surface to invisible in the abyss.
+
+## Kelp
+
+You do not arrive in an empty ocean and read a splash screen; you arrive
+thirteen metres down in front of an otter on a pier, and he talks you in. The
+two things the intro has to say — every file is a fish, nothing leaves your
+machine — are things he says, and the folder picker is the answer to a
+question he asks.
+
+He is hand-modelled out of loose triangles by a small kit (`box`, `ball`,
+`tube`) in the same currency as the fish: non-indexed, so `computeVertexNormals`
+gives hard facets. Winding is deliberately not fussed over — the shader flips
+a normal that faces away and the material is `DoubleSide` — which is what makes
+mirroring one arm geometry onto both sides safe.
+
+The pier stands on four pilings that **do not end**: the shader dissolves
+anything more than twelve metres below the deck into the water colour, so the
+platform rises out of the dark rather than hanging from something above it.
+He is moored at a fixed 13 m and only ever changes x and z, and when a drive is
+opened he re-moors above where you arrive — so `f`, surface, always puts him
+back in front of you. Come within fifteen metres and he says something.
+
+He renders into **his own** low-res target and gets his own composite of the
+same dither+ink pass, quantised to 9 levels at roughly half the pixel size the
+fish get. He is a face a few metres from yours, not a school seen through forty
+metres of water; wearing the school's dither reads as noise on his cheek.
+
+## Animalese
+
+He speaks, and none of it is a recording. The Animal Crossing trick is to play
+a clip of a person *naming* each letter, sped up — which is why it reads as a
+language rather than as beeping: the vowel you hear is the vowel in the
+letter's **English name**. "b" is *bee*, "k" is *kay*, "r" is *ar*.
+
+`src/sfx.js` synthesises exactly that, per letter: a sawtooth glottal buzz
+through two parallel bandpass formants placed at that vowel, plus a noise onset
+for letters whose name starts with one (plosive `b d g j k p q t w`, fricative
+`c f h s v x y z`). Two formants is the whole of it — F1/F2 is what the ear
+uses to tell one vowel from another. The vowels are stored as multiples of
+`P.voice.f1/f2` so the two sliders move the whole mouth without collapsing the
+vowels into each other; at the shipped 620/1750 they land on the textbook
+values (a 806/1085, e 558/1837, i 298/2292, o 601/840, u 322/875).
+
+Prosody is a phrase that falls as it runs and a question that turns back up at
+the end. Every blip is scheduled up front onto one gain node, so cutting him
+off mid-sentence is a single ramp rather than a pile of cancelled timers.
+
+The dialogue types a letter at a time off **the same clock**: `beats()` says
+what one character costs — a full stop is worth 3.4 of them, a space 0.9 — and
+both the typewriter and the scheduler charge in those units, so the text and
+the voice cannot drift apart over a long line.
+
+Autoplay is the usual trap with one extra tooth: a suspended `AudioContext`
+does not drop what you schedule on it, it hoards it and fires the lot at once
+on resume. So `speak()` returns silence unless the context is already
+`running`, and the first click is spent catching his voice up to where the text
+has got to rather than on skipping the line.
+
+`/sfx` carries a `voice` cue with a slider per parameter, same as every other
+cue, because it is the same module.

@@ -14,7 +14,7 @@ cd dist && python3 -m http.server
 - `src/page.html` — markup + CSS, with an `<!--APP_BUNDLE-->` marker
 - `src/app.js` — the site, imports `three`, `./sfx.js` and `./sea.js`
 - `src/sea.js` — sky and water: the GLSL, the seven weathers, the cross-fade
-- `src/sfx.js` — synthesised audio, shared with the audition page
+- `src/sfx.js` — synthesised audio, shared with the audition page and the ocean
 - `src/audition.{html,js}` — the /sfx tuning page
 - `build.mjs` — esbuild bundles to an IIFE and inlines it, then emits two builds:
   - `dist/index.html` — standalone, its own `<head>` (title, **viewport**, OG, favicon)
@@ -56,8 +56,20 @@ which is why it narrows at the horizon and spreads toward the camera.
 
 Which sky you get is your actual local time (`weatherForDate`), with a small chance
 of fog or rain rolling in instead. The clock strip top-right ticks to the second and
-cycling it by hand is one click; `?wx=night` pins one so a particular sky can be
-shared or screenshotted.
+cycling the weather by hand is one click; `?wx=night` pins one so a particular sky
+can be shared or screenshotted.
+
+The strip is also a dial. Take hold of it and turn and the hands follow your hand --
+angle, not pixels, so a full circle is twelve hours and the further out you take the
+pointer the finer the hour gets (inside 26 px the angle is all noise and is watched
+but not spent). Whatever hour you let go on is the hour the sky believes: the clock
+goes the colour of the weather, a **back to now** appears under it, and the offset
+rides on top of the machine clock so the seconds keep running from wherever you left
+them. The wheel is a crown (10 min a notch), the arrow keys step 15 min and an hour,
+`Esc` gives it back, and `?t=19:30` boots straight into an hour -- which is the short
+way to look at a dusk that is nine hours away. A press that never moves is still just
+a click, so cycling the weather survives the dial. Turning the hands hands the sky
+back to the hour it lands on; a click pins one on regardless.
 
 Whatever the sea is doing, the catch is lit to match: `paletteNow()` hands back the
 mid-cross-fade light, which grades the fish through a uniform in the post pass and
@@ -82,9 +94,12 @@ lowpass so nothing gets shrill.
 | reel | ~20 highpassed noise clicks, spacing eased so the ratchet slows |
 | catch | C-E-G-C square arpeggio doubled an octave down in sine |
 | sparkle | three rising triangles, only on a never-seen species |
+| voice | animalese: one formant blip per letter (see `OCEAN.md`) |
 
-**Do not ship RuneScape or Nintendo audio.** The visual homage is fine; the assets
-are not, and it is exactly what gets a viral site pulled.
+**Do not ship RuneScape or Nintendo assets** — audio or models. The visual homage
+is fine; the assets are not, and it is exactly what gets a viral site pulled. This
+is why the ocean's animalese is synthesised from a formant table rather than
+sampled, and why its otter is modelled rather than downloaded.
 
 Autoplay: the first cue fires from `requestAnimationFrame`, not from the gesture, so
 `unlock()` creates and resumes the context inside the click/drop/change handlers

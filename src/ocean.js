@@ -13,6 +13,7 @@ import {
   Mesh, Points, ShaderMaterial, Color, NearestFilter,
   Vector3, Object3D, PlaneGeometry, DoubleSide, AdditiveBlending, Vector2,
 } from "three";
+import { P as SND, speak, beats, isOn, setOn, audio } from "./sfx.js";
 
 const TUNE = {
   /* --- the two axes that carry meaning --------------------------------- */
@@ -1033,6 +1034,62 @@ void main(){
   gl_FragColor = vec4(0.66, 0.88, 0.96, body * fall * flick * near * 0.13);
 }`;
 
+/* --- the one thing in the ocean that is not a file ----------------------
+   Kelp and his raft are hand-modelled rather than instanced, so they get
+   their own pair of shaders: a plain model matrix instead of the fish's
+   instanceMatrix, and a palette indexed by the same `part` attribute the
+   fish use for eyes and lures. They still render into the fish target, so
+   the dither and the silhouette ink land on them exactly as they land on a
+   herring -- which is the only reason he looks like he lives here. */
+const GUIDE_VS = `
+attribute float part;
+varying vec3 vN, vW; varying float vPart;
+void main(){
+  vPart = part;
+  vN = normalize(mat3(modelMatrix) * normal);
+  vec4 wp = modelMatrix * vec4(position, 1.0);
+  vW = wp.xyz;
+  gl_Position = projectionMatrix * viewMatrix * wp;
+}`;
+const GUIDE_FS = `
+precision highp float;
+uniform vec3 uWater; uniform float uFog, uTime, uFade, uDeck;
+varying vec3 vN, vW; varying float vPart;
+void main(){
+  vec3 alb; float unlit = 0.0, glow = 0.0;
+  if (vPart < 0.5)      alb = vec3(0.64, 0.45, 0.28);              // fur
+  else if (vPart < 1.5) alb = vec3(0.96, 0.90, 0.76);              // muzzle, belly, ears
+  else if (vPart < 2.5) { alb = vec3(0.99, 0.99, 0.97); unlit = 1.0; }  // eye white, glint
+  else if (vPart < 3.5) { alb = vec3(0.10, 0.08, 0.09); unlit = 1.0; }  // pupil, nose, mouth
+  else if (vPart < 4.5) { glow = 1.0;                              // the lantern
+    alb = vec3(1.00, 0.86, 0.58) * (1.0 + 0.16 * sin(uTime * 2.4) + 0.07 * sin(uTime * 7.3)); }
+  else if (vPart < 5.5) alb = vec3(0.55, 0.39, 0.24);              // deck plank
+  else if (vPart < 6.5) alb = vec3(0.30, 0.21, 0.14);              // piling, batten, rail
+  else                  { alb = vec3(0.95, 0.58, 0.50); unlit = 1.0; }  // cheeks
+  vec3 col = alb;
+  if (unlit + glow < 0.5) {
+    vec3 N = normalize(vN);
+    vec3 V = normalize(cameraPosition - vW);
+    if (dot(N, V) < 0.0) N = -N;                 // the mirrored arm, and flat boards
+    float k = dot(N, normalize(vec3(0.18, 0.95, 0.32))) * 0.5 + 0.5;
+    /* three shallow bands. A villager is a flat colour with one shadow on it;
+       the fish next door get four hard ones over twice the range, and that
+       difference is the whole reason he does not look like tackle */
+    float band = floor(clamp(k, 0.0, 0.999) * 3.0) / 2.0;
+    col = alb * (0.74 + 0.34 * band);
+  }
+  float f = clamp(1.0 - exp(-length(cameraPosition - vW) * uFog), 0.0, 1.0);
+  col = mix(col, uWater, f * mix(0.5, 0.08, glow));
+  float vis = (1.0 - f * (1.0 - glow * 0.7)) * uFade;
+  /* the pilings do not end, they stop being visible: everything far enough
+     below the deck dissolves, so the platform rises out of the dark instead
+     of dangling from something */
+  float deep = clamp((uDeck - vW.y) / 12.0, 0.0, 1.0);
+  col = mix(col, uWater, deep * 0.7);
+  vis *= 1.0 - deep * deep;
+  gl_FragColor = vec4(col, ${A_FLOOR.toFixed(2)} + ${(1 - A_FLOOR).toFixed(2)} * vis);
+}`;
+
 /* ============================================================ scene */
 const canvas = $("#gl");
 const renderer = new WebGLRenderer({ canvas, antialias: true });
@@ -1075,10 +1132,30 @@ const postMat = new ShaderMaterial({
     uLevels: { value: 5 }, uInk: { value: new Color(0x0b1012) },
   },
 });
+const POST_VS = "varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }";
 {
   const q = new Mesh(new PlaneGeometry(2, 2), postMat);
   q.frustumCulled = false;
   postScene.add(q);
+}
+/* Kelp gets his own target and his own composite of the very same pass, only
+   turned down: he is a face a metre from yours, not a school seen through
+   forty metres of water, so he is diced finer and quantised further. A
+   character wearing the school's dither reads as noise on his cheek. */
+const guideRT = new WebGLRenderTarget(4, 4, { minFilter: NearestFilter, magFilter: NearestFilter });
+const guidePostMat = new ShaderMaterial({
+  vertexShader: POST_VS, fragmentShader: POST_FRAG,
+  transparent: true, depthTest: false, depthWrite: false,
+  uniforms: {
+    tMap: { value: guideRT.texture }, uRT: { value: new Vector2(1, 1) },
+    uLevels: { value: 9 }, uInk: { value: new Color(0x0b1012) },
+  },
+});
+const guideScene = new Scene(), guidePostScene = new Scene();
+{
+  const q = new Mesh(new PlaneGeometry(2, 2), guidePostMat);
+  q.frustumCulled = false;
+  guidePostScene.add(q);
 }
 const pointMat = new ShaderMaterial({
   vertexShader: PT_VS, fragmentShader: PT_FS, transparent: true, depthWrite: false,
@@ -1147,6 +1224,194 @@ const rayMats = [];
     rayMats.push(m);
   }
 }
+
+/* ============================================================ kelp
+   An otter on a moored raft, thirteen metres down, who talks you in.
+
+   He is hand-modelled out of loose triangles for the same reason the fish
+   are: `computeVertexNormals` on a non-indexed mesh gives hard facets, and
+   the ink pass wants a silhouette rather than a smooth shape. Winding is
+   deliberately not fussed over -- the shader flips a normal that faces away
+   and the material is DoubleSide, so a backwards quad shades correctly
+   anyway. */
+const FUR = 0, CREAM = 1, WHITE = 2, INK = 3, LAMP = 4, PLANK = 5, POST = 6, BLUSH = 7;
+
+function kit() {
+  const v = [], p = [];
+  const tri = (a, b, c, k) => {
+    v.push(a[0], a[1], a[2], b[0], b[1], b[2], c[0], c[1], c[2]);
+    p.push(k, k, k);
+  };
+  const quad = (a, b, c, d, k) => { tri(a, b, c, k); tri(a, c, d, k); };
+  const K = {
+    box(x, y, z, w, h, d, k) {
+      const X = w / 2, Y = h / 2, Z = d / 2;
+      const c = [[-1, -1, -1], [1, -1, -1], [1, 1, -1], [-1, 1, -1],
+                 [-1, -1, 1], [1, -1, 1], [1, 1, 1], [-1, 1, 1]]
+        .map(q => [x + q[0] * X, y + q[1] * Y, z + q[2] * Z]);
+      for (const f of [[4, 5, 6, 7], [1, 0, 3, 2], [5, 1, 2, 6],
+                       [0, 4, 7, 3], [3, 7, 6, 2], [4, 0, 1, 5]])
+        quad(c[f[0]], c[f[1]], c[f[2]], c[f[3]], k);
+      return K;
+    },
+    /* a coarse UV sphere -- everything soft on him is one of these squashed */
+    ball(x, y, z, rx, ry, rz, k, seg, ring) {
+      const S = seg || 8, R = ring || 5;
+      const at = (i, j) => {
+        const ph = (j / R) * Math.PI, th = (i / S) * TAU, s = Math.sin(ph);
+        return [x + rx * s * Math.cos(th), y + ry * Math.cos(ph), z + rz * s * Math.sin(th)];
+      };
+      for (let j = 0; j < R; j++) for (let i = 0; i < S; i++) {
+        const a = at(i, j), b = at(i + 1, j), c = at(i + 1, j + 1), d = at(i, j + 1);
+        if (j === 0) tri(a, c, d, k);                 // the poles are fans
+        else if (j === R - 1) tri(a, b, c, k);
+        else quad(a, b, c, d, k);
+      }
+      return K;
+    },
+    /* a tapered prism between two points: limbs, posts, rope, tail */
+    tube(a, b, r0, r1, k, seg) {
+      const S = seg || 6;
+      const d = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
+      const L = Math.hypot(d[0], d[1], d[2]) || 1;
+      const n = [d[0] / L, d[1] / L, d[2] / L];
+      const t = Math.abs(n[1]) > 0.9 ? [1, 0, 0] : [0, 1, 0];
+      const u = [n[1] * t[2] - n[2] * t[1], n[2] * t[0] - n[0] * t[2], n[0] * t[1] - n[1] * t[0]];
+      const ul = Math.hypot(u[0], u[1], u[2]) || 1;
+      u[0] /= ul; u[1] /= ul; u[2] /= ul;
+      const w = [n[1] * u[2] - n[2] * u[1], n[2] * u[0] - n[0] * u[2], n[0] * u[1] - n[1] * u[0]];
+      const rim = (c, r, i) => {
+        const th = (i / S) * TAU, cs = Math.cos(th), sn = Math.sin(th);
+        return [c[0] + r * (u[0] * cs + w[0] * sn),
+                c[1] + r * (u[1] * cs + w[1] * sn),
+                c[2] + r * (u[2] * cs + w[2] * sn)];
+      };
+      for (let i = 0; i < S; i++) {
+        const p0 = rim(a, r0, i), p1 = rim(a, r0, i + 1);
+        const q0 = rim(b, r1, i), q1 = rim(b, r1, i + 1);
+        quad(p0, p1, q1, q0, k);
+        tri(a, p1, p0, k); tri(b, q0, q1, k);
+      }
+      return K;
+    },
+    geo() {
+      const g = new BufferGeometry();
+      g.setAttribute("position", new BufferAttribute(new Float32Array(v), 3));
+      g.setAttribute("part", new BufferAttribute(new Float32Array(p), 1));
+      g.computeVertexNormals();
+      return g;
+    },
+  };
+  return K;
+}
+
+const guideMat = new ShaderMaterial({
+  vertexShader: GUIDE_VS, fragmentShader: GUIDE_FS,
+  uniforms: {
+    uWater: { value: water }, uFog: { value: TUNE.fogNear },
+    uTime: { value: 0 }, uFade: { value: 1 }, uDeck: { value: 0 },
+  },
+  side: DoubleSide,
+});
+
+function buildGuide() {
+  const M = g => new Mesh(g, guideMat);
+  const root = new Object3D();
+
+  /* --- the pier ----------------------------------------------------------
+     Four pilings rising out of the dark, braced, with a deck on top. They do
+     not end anywhere: the shader dissolves them twelve metres down, which is
+     what makes the platform read as standing on the deep rather than hanging
+     from something above it. */
+  const r = kit();
+  for (const sx of [-1, 1]) for (const sz of [-1, 1])
+    r.tube([sx * 0.86, 0.02, sz * 0.68], [sx * 1.42, -24, sz * 1.12], 0.15, 0.30, POST, 7);
+  for (const sz of [-1, 1]) {                            // cross braces
+    r.tube([-0.94, -1.55, sz * 0.77], [0.94, -1.55, sz * 0.77], 0.065, 0.065, POST, 5);
+    r.tube([-0.94, -2.35, sz * 0.83], [0.94, -0.95, sz * 0.72], 0.05, 0.05, POST, 4);
+    r.tube([0.94, -2.35, sz * 0.83], [-0.94, -0.95, sz * 0.72], 0.05, 0.05, POST, 4);
+  }
+  /* the deck */
+  r.box(0, -0.09, 0, 2.34, 0.18, 1.94, PLANK);
+  for (const x of [-0.88, -0.30, 0.30, 0.88])            // the plank lines
+    r.box(x, 0.016, 0, 0.05, 0.05, 1.94, POST);
+  r.box(0, -0.25, 0.88, 2.34, 0.14, 0.18, POST);
+  r.box(0, -0.25, -0.88, 2.34, 0.14, 0.18, POST);
+  r.box(1.08, -0.25, 0, 0.18, 0.14, 1.94, POST);
+  r.box(-1.08, -0.25, 0, 0.18, 0.14, 1.94, POST);
+  for (const x of [-1.02, 1.02]) r.tube([x, 0, -0.84], [x, 0.74, -0.84], 0.075, 0.06, POST, 6);
+  r.box(0, 0.68, -0.84, 2.14, 0.09, 0.09, POST);
+  /* the lamp stands out on the near corner, well to his left: close enough to
+     put a warm edge on the deck, far enough not to be in front of him */
+  r.tube([-0.95, 0, 0.58], [-0.95, 1.42, 0.58], 0.058, 0.046, POST, 6);
+  r.box(-0.95, 1.45, 0.58, 0.30, 0.07, 0.30, POST);
+  r.box(-0.95, 1.03, 0.58, 0.24, 0.06, 0.24, POST);
+  for (const s of [-1, 1])
+    r.tube([-0.95 + s * 0.11, 1.05, 0.58], [-0.95 + s * 0.11, 1.43, 0.58], 0.018, 0.018, POST, 4);
+  r.ball(-0.95, 1.23, 0.58, 0.10, 0.12, 0.10, LAMP, 7, 4);
+  root.add(M(r.geo()));
+
+  /* --- the otter ---------------------------------------------------------
+     Villager proportions: the head is half of him, the body is an egg, and
+     the limbs are stubs. */
+  const b = kit();
+  b.ball(0, 0.55, 0, 0.40, 0.38, 0.34, FUR, 13, 8);
+  b.ball(0, 0.50, 0.19, 0.26, 0.28, 0.20, CREAM, 11, 7);
+  for (const s of [-1, 1]) b.ball(s * 0.19, 0.07, 0.05, 0.145, 0.075, 0.20, FUR, 9, 5);
+  /* the tail is the part that says otter rather than bear */
+  b.tube([0, 0.44, -0.26], [0, 0.20, -0.70], 0.19, 0.12, FUR, 8);
+  b.tube([0, 0.20, -0.70], [0, 0.09, -1.08], 0.12, 0.04, FUR, 8);
+
+  const h = kit();                                    // local origin: the neck
+  h.ball(0, 0.44, 0.02, 0.48, 0.45, 0.46, FUR, 15, 9);
+  h.ball(0, 0.28, 0.38, 0.28, 0.20, 0.20, CREAM, 11, 7);
+  h.ball(0, 0.335, 0.545, 0.075, 0.058, 0.055, INK, 8, 5);
+  for (const s of [-1, 1]) {
+    /* big eye, bigger pupil, one glint high on the outside -- the glint is
+       most of what separates a villager's eye from a doll's */
+    h.ball(s * 0.21, 0.46, 0.395, 0.115, 0.135, 0.075, WHITE, 11, 7);
+    h.ball(s * 0.215, 0.455, 0.435, 0.078, 0.098, 0.052, INK, 9, 6);
+    h.ball(s * 0.245, 0.505, 0.462, 0.032, 0.034, 0.026, WHITE, 7, 4);
+    h.ball(s * 0.335, 0.315, 0.315, 0.098, 0.072, 0.05, BLUSH, 9, 5);
+    h.ball(s * 0.375, 0.66, -0.02, 0.14, 0.125, 0.085, FUR, 9, 5);
+    h.ball(s * 0.39, 0.66, 0.02, 0.08, 0.068, 0.055, CREAM, 7, 4);
+  }
+  const m = kit().ball(0, 0, 0, 0.062, 0.04, 0.05, INK, 8, 5);
+  const a = kit();                                    // local origin: the shoulder
+  a.tube([0, 0, 0], [0.09, -0.26, 0.05], 0.125, 0.112, FUR, 8);
+  a.ball(0.10, -0.30, 0.06, 0.115, 0.11, 0.115, CREAM, 9, 6);
+
+  const kelp = new Object3D();
+  kelp.position.set(0.16, 0, 0.10);
+  kelp.add(M(b.geo()));
+  const head = new Object3D();
+  head.position.set(0, 0.86, 0);
+  head.add(M(h.geo()));
+  const mouth = M(m.geo());
+  mouth.position.set(0, 0.16, 0.555);
+  head.add(mouth);
+  kelp.add(head);
+  /* one arm geometry, worn on both sides. scale.x = -1 sits inside the local
+     matrix's S, so the node's own rotation still happens in mirror-world and
+     a left arm is a right arm with the sign of its angle flipped. */
+  const armGeo = a.geo();
+  const armR = new Object3D(), armL = new Object3D();
+  armR.position.set(0.40, 0.64, 0.03);
+  armL.position.set(-0.40, 0.64, 0.03);
+  armL.scale.x = -1;
+  armR.add(M(armGeo)); armL.add(M(armGeo));
+  kelp.add(armR); kelp.add(armL);
+  root.add(kelp);
+
+  root.visible = false;
+  guideScene.add(root);
+  return { root, kelp, head, mouth, armR, armL };
+}
+const guide = buildGuide();
+/* fixed depth, moving berth: only x and z ever change, so the mooring lines
+   stay exactly as long as the water above him is deep */
+const GUIDE_Y = -13;
+guide.root.position.set(0, GUIDE_Y, TUNE.lateral * 1.72 - 8.6);
 
 /* ============================================================ the world
    Everything that depends on the file set. Rebuilt wholesale when a new
@@ -1325,6 +1590,11 @@ function buildWorld(files, label) {
   cam.pos.set(0, eye, back);
   cam.depthT = eye; cam.yaw = cam.yawT = 0; cam.pitch = cam.pitchT = -0.03;
   nearSet = []; nearAt = 0;
+  /* kelp re-moors above where you arrive, so `f` -- surface -- always puts
+     him back in front of you rather than somewhere off the last drive's map */
+  guide.root.position.set(0, GUIDE_Y, back - 34);
+  guide.root.visible = true;
+  lastChat = performance.now() + 4000;
   return world;
 }
 
@@ -1341,11 +1611,13 @@ let dragging = false, lastX = 0, lastY = 0, moved = 0;
 
 addEventListener("keydown", e => {
   if (e.target && /INPUT|TEXTAREA/.test(e.target.tagName)) return;
+  if (e.code === "Space") e.preventDefault();
+  if (talkMode && (e.code === "Space" || e.key === "Enter")) { advance(); return; }
   const k = e.key.toLowerCase();
   keys.add(k);
+  if (held()) return;                         // he is talking; stay put and listen
   if (k === "f") cam.depthT = -18;
   if (k === "e") toggleNet();
-  if (e.code === "Space") e.preventDefault();
 });
 addEventListener("keyup", e => keys.delete(e.key.toLowerCase()));
 canvas.addEventListener("pointerdown", e => {
@@ -1366,6 +1638,7 @@ canvas.addEventListener("pointermove", e => {
 });
 addEventListener("wheel", e => {
   e.preventDefault();
+  if (held()) return;
   cam.depthT = clamp(cam.depthT - e.deltaY * TUNE.descendSpeed, -DEPTH - 60, -2);
 }, { passive: false });
 
@@ -1423,7 +1696,7 @@ function setState(f, v) {
   a.needsUpdate = true;
 }
 function toggleNet() {
-  if (!aimed || aimed.dead) return;
+  if (talkMode || !aimed || aimed.dead) return;
   if (net.has(aimed)) { net.delete(aimed); aimed.netted = false; setState(aimed, 1); }
   else { net.add(aimed); aimed.netted = true; setState(aimed, 2); }
   syncNet();
@@ -1538,6 +1811,143 @@ function relAge(days) {
 let sayUntil = 0;
 function say(msg) { elPlaceS.textContent = msg; sayUntil = performance.now() + 2600; }
 
+/* ============================================================ kelp talks
+   A dialogue box, typed a letter at a time off the same clock the voice is
+   scheduled on -- `beats()` says what one character costs in both places, so
+   the text and the animalese cannot drift apart over a long line. */
+const elIntro = $("#intro"), elTalkT = $("#talk-t"), elMore = $("#talk-more"),
+  elChoice = $("#talk-choice"), elMute = $("#talk-mute");
+
+const LINES = [
+  "oh! hello. i didn't hear you come down.",
+  "welcome to the water. this is your drive, as an ocean.",
+  "every file down here is a fish, and how deep it swims is how old it is.",
+  "folders are places in the water. the same file is always the same fish.",
+  "nothing you open leaves this machine. i only read the water, i never carry it.",
+  "so then. whose water are we swimming in today?",
+];
+const TIPS = [
+  "still here. still wet.",
+  "the deep ones are the old ones. mind the whale.",
+  "net whatever you like. you can always let it all go again.",
+  "a leviathan down there is only a very large file, you know.",
+  "the colour is what a thing is. the depth is how long you've kept it.",
+  "if you get lost, press f and come back up to me.",
+];
+
+let talkMode = null;                   // "intro" while he blocks, "chat" while he chats
+let line = "", cursor = 0, shown = -1, lineDone = true, voice = null, charge = 0;
+let lineIdx = 0, closeAt = 0, waveUntil = 0, lastChat = 0;
+
+/* the intro holds the camera still: drifting away from someone mid-sentence
+   is the one thing a conversation cannot survive */
+function held() { return talkMode === "intro"; }
+
+function renderLine() {
+  const n = Math.min(line.length, Math.max(0, Math.floor(cursor)));
+  if (n === shown) return;
+  shown = n;
+  elTalkT.textContent = line.slice(0, n);
+}
+function startLine(txt) {
+  line = txt; cursor = 0; shown = -1; lineDone = false; closeAt = 0; charge = 0;
+  if (voice) voice.stop();
+  voice = speak(txt);
+  elMore.hidden = true;
+  elChoice.hidden = true;
+  renderLine();
+}
+function endLine(cut) {
+  cursor = line.length; lineDone = true; renderLine();
+  if (cut && voice) { voice.stop(); voice = null; }
+  if (talkMode === "chat") closeAt = performance.now() + 3200;
+  else if (lineIdx >= LINES.length - 1) {
+    elChoice.hidden = false;
+    waveUntil = performance.now() + 1100;
+  } else elMore.hidden = false;
+}
+function advance() {
+  const c = audio();                   // we are inside a real gesture right here
+  if (!lineDone) {
+    /* the first click of the session is what unlocks the speakers. Spend it
+       on catching his voice up rather than on skipping the line he is in the
+       middle of -- otherwise the one thing it costs you is hearing him. */
+    if (c && c.state === "running" && !(voice && voice.on)) {
+      if (voice) voice.stop();
+      voice = speak(line.slice(Math.floor(cursor)));
+      if (voice.on) return;
+    }
+    endLine(true);
+    return;
+  }
+  if (talkMode === "chat") { closeTalk(); return; }
+  if (lineIdx < LINES.length - 1) { lineIdx++; startLine(LINES[lineIdx]); }
+}
+function closeTalk() {
+  talkMode = null;
+  elIntro.hidden = true;
+  document.body.classList.remove("talking", "chatting");
+  if (voice) { voice.stop(); voice = null; }
+  lineDone = true; closeAt = 0;
+  lastChat = performance.now();
+}
+/* the framing: he has to clear the dialogue box, so a narrow window is
+   answered by standing further back rather than by cropping him */
+function frameGuide() {
+  const back = 6.9 * clamp(1.55 / Math.max(0.45, innerWidth / Math.max(1, innerHeight)), 1, 2.1);
+  cam.pos.set(guide.root.position.x, GUIDE_Y + 0.30, guide.root.position.z + back);
+  cam.depthT = cam.pos.y;
+  cam.yaw = cam.yawT = 0;
+  cam.pitch = cam.pitchT = 0.11;
+  cam.vel.set(0, 0, 0);
+}
+function openIntro(first) {
+  talkMode = "intro";
+  lineIdx = first ? 0 : LINES.length - 1;
+  document.body.classList.add("talking");
+  elIntro.hidden = false;
+  guide.root.visible = true;
+  guideMat.uniforms.uFade.value = 1;
+  frameGuide();
+  elPlaceN.textContent = "";
+  elPlaceS.textContent = "";
+  waveUntil = performance.now() + 2800;
+  startLine(first ? LINES[0] : "hm. nothing in there but water. try another?");
+}
+function leaveIntro() {
+  waveUntil = performance.now() + 1700;      // he waves you off as you sink
+  closeTalk();
+  elPlaceN.textContent = "the ocean";
+}
+/* swim back up to the raft and he says something, the way a villager does.
+   Mid-dive the HUD stays put, so the box steps up out of the net bar's way
+   rather than sitting on top of it. */
+function chat(txt) {
+  if (talkMode) return;
+  talkMode = "chat";
+  document.body.classList.add("chatting");
+  elIntro.hidden = false;
+  waveUntil = performance.now() + 1300;
+  startLine(txt);
+}
+
+const syncMute = () => elMute.classList.toggle("off", !isOn());
+elMute.addEventListener("click", e => {
+  e.stopPropagation();
+  setOn(!isOn());
+  syncMute();
+  if (!isOn()) { if (voice) { voice.stop(); voice = null; } return; }
+  audio();
+  if (!lineDone) { if (voice) voice.stop(); voice = speak(line.slice(Math.floor(cursor))); }
+});
+syncMute();
+
+addEventListener("pointerdown", e => {
+  if (!talkMode) return;
+  if (e.target && e.target.closest && e.target.closest("#talk-choice, #talk-mute")) return;
+  advance();
+});
+
 /* ============================================================ picking
    Analytic, not a raycast. Raycasting the instanced meshes does not work here:
    three caches an InstancedMesh bounding sphere the first time it is asked,
@@ -1614,6 +2024,12 @@ function frame(nowMs) {
     const RH = Math.max(2, Math.round(H * dpr / PX));
     fishRT.setSize(RW, RH);
     postMat.uniforms.uRT.value.set(RW, RH);
+    const GPX = Math.max(1, Math.ceil(W * dpr / 1100));
+    const GW = Math.max(2, Math.round(W * dpr / GPX));
+    const GH = Math.max(2, Math.round(H * dpr / GPX));
+    guideRT.setSize(GW, GH);
+    guidePostMat.uniforms.uRT.value.set(GW, GH);
+    if (held()) frameGuide();                  // keep him framed as the window turns
   }
 
   const k = 1 - Math.exp(-dt * TUNE.damp);
@@ -1622,12 +2038,14 @@ function frame(nowMs) {
 
   const boost = keys.has("shift") ? TUNE.boost : 1;
   let fx = 0, fz = 0;
-  if (keys.has("w") || keys.has("arrowup")) fz += 1;
-  if (keys.has("s") || keys.has("arrowdown")) fz -= 1;
-  if (keys.has("a") || keys.has("arrowleft")) fx -= 1;
-  if (keys.has("d") || keys.has("arrowright")) fx += 1;
-  if (keys.has("q")) cam.depthT = clamp(cam.depthT - 260 * dt, -DEPTH - 60, -2);
-  if (keys.has("r")) cam.depthT = clamp(cam.depthT + 260 * dt, -DEPTH - 60, -2);
+  if (!held()) {
+    if (keys.has("w") || keys.has("arrowup")) fz += 1;
+    if (keys.has("s") || keys.has("arrowdown")) fz -= 1;
+    if (keys.has("a") || keys.has("arrowleft")) fx -= 1;
+    if (keys.has("d") || keys.has("arrowright")) fx += 1;
+    if (keys.has("q")) cam.depthT = clamp(cam.depthT - 260 * dt, -DEPTH - 60, -2);
+    if (keys.has("r")) cam.depthT = clamp(cam.depthT + 260 * dt, -DEPTH - 60, -2);
+  }
 
   const sinY = Math.sin(cam.yaw), cosY = Math.cos(cam.yaw);
   const want = new Vector3(
@@ -1657,6 +2075,7 @@ function frame(nowMs) {
      hard cartoon line at the surface to invisible in the abyss */
   ink.setRGB(0.030 + water.r * 0.22, 0.048 + water.g * 0.22, 0.062 + water.b * 0.22);
   postMat.uniforms.uInk.value.copy(ink);
+  guidePostMat.uniforms.uInk.value.copy(ink);
   surfMat.uniforms.uTime.value = t;
   surfMat.uniforms.uWater.value.copy(water).lerp(new Color(0x2f89a8), 0.5);
   for (const m of rayMats) m.uniforms.uTime.value = t;
@@ -1672,6 +2091,48 @@ function frame(nowMs) {
       a.array[i * 3 + 2] = snowPos[i * 3 + 2] + cam.pos.z;
     }
     a.needsUpdate = true;
+  }
+
+  /* --- kelp ------------------------------------------------------------- */
+  if (guide.root.visible) {
+    guideMat.uniforms.uTime.value = t;
+    guideMat.uniforms.uFog.value = fog;
+    /* two swells at unrelated periods, so the raft never obviously loops */
+    guide.root.position.y = GUIDE_Y + Math.sin(t * 0.8) * 0.055 + Math.sin(t * 1.37) * 0.025;
+    guide.root.rotation.z = Math.sin(t * 0.61) * 0.012;
+    guide.root.rotation.x = Math.sin(t * 0.83 + 1.1) * 0.010;
+    guideMat.uniforms.uDeck.value = guide.root.position.y;
+    const saying = !!talkMode && !lineDone;
+    guide.head.rotation.x = saying ? Math.sin(t * 9.5) * 0.05 : Math.sin(t * 0.9) * 0.02;
+    guide.head.rotation.y = saying ? Math.sin(t * 3.1) * 0.07 : Math.sin(t * 0.55) * 0.11;
+    /* the jaw runs off the same animalese cadence the voice does, which is
+       what stops him looking dubbed */
+    const flap = saying ? 0.45 + Math.abs(Math.sin(t * 16)) * 1.9 : 0.4;
+    guide.mouth.scale.set(1, flap, saying ? 1.3 : 1);
+    const idle = 0.13 + Math.sin(t * 1.1) * 0.06;
+    const want = nowMs < waveUntil ? 2.16 + Math.sin(t * 9) * 0.34 : idle;
+    guide.armR.rotation.z += (want - guide.armR.rotation.z) * (1 - Math.exp(-dt * 9));
+    guide.armL.rotation.z = -(0.13 + Math.sin(t * 1.1 + 2) * 0.06);
+  }
+  if (talkMode && !lineDone) {
+    /* charge the typewriter in beats, not characters: a full stop is worth
+       three and a half of them in the voice, so it has to be worth three and
+       a half here too */
+    charge += dt / Math.max(0.008, SND.voice.step);
+    while (cursor < line.length) {
+      const cost = beats(line[cursor]);
+      if (charge < cost) break;
+      charge -= cost; cursor++;
+    }
+    renderLine();
+    if (cursor >= line.length) endLine(false);
+  }
+  if (talkMode === "chat" && lineDone && closeAt && nowMs > closeAt) closeTalk();
+  /* come back up to the raft and he has something to say, the way a villager
+     does when you stand next to one */
+  if (world && !talkMode && guide.root.visible && nowMs - lastChat > 20000 &&
+      cam.pos.distanceTo(guide.root.position) < 15) {
+    chat(TIPS[(Math.random() * TIPS.length) | 0]);
   }
 
   if (world) {
@@ -1745,11 +2206,18 @@ function frame(nowMs) {
   /* 1. the animals, alone, at PX-to-one with their own depth buffer, so they
         still occlude each other */
   const anyFish = !!world && nearSet.length > 0;
+  const showGuide = guide.root.visible;
   if (anyFish) {
     renderer.setRenderTarget(fishRT);
     renderer.setClearColor(0x000000, 0);
     renderer.clear();
     renderer.render(fishScene, camera);
+  }
+  if (showGuide) {                             // kelp, at his own finer grain
+    renderer.setRenderTarget(guideRT);
+    renderer.setClearColor(0x000000, 0);
+    renderer.clear();
+    renderer.render(guideScene, camera);
   }
   /* 2. the water, full res, untouched */
   renderer.setRenderTarget(null);
@@ -1758,10 +2226,11 @@ function frame(nowMs) {
   renderer.render(scene, camera);
   /* 3. dither + ink, upscaled nearest, over the top */
   if (anyFish) renderer.render(postScene, postCam);
+  if (showGuide) renderer.render(guidePostScene, postCam);
 }
 
 /* ============================================================ entry */
-const elScan = $("#scan"), elIntro = $("#intro");
+const elScan = $("#scan");
 function progress(n, path) {
   $("#scan-n").textContent = fmtCount(n);
   $("#scan-now").textContent = path;
@@ -1779,13 +2248,13 @@ async function openReal() {
       canDelete = perm === "granted" ||
         (await root.requestPermission({ mode: "readwrite" })) === "granted";
     } catch (e) { canDelete = false; }
-    elIntro.hidden = true; elScan.hidden = false;
+    leaveIntro(); elScan.hidden = false;
     /* setTimeout, not rAF: rAF never fires in a background tab, so a scan
        started and then tabbed away from would hang forever */
     await new Promise(r => setTimeout(r, 30));
     const files = await scanHandle(root, progress);
     elScan.hidden = true;
-    if (!files.length) { elIntro.hidden = false; return; }
+    if (!files.length) { openIntro(false); return; }
     buildWorld(files, root.name);
     say(canDelete ? "net a fish, then let it go for good" : "read only · nothing can be deleted");
   } else {
@@ -1795,7 +2264,7 @@ async function openReal() {
 
 $("#open-real").addEventListener("click", openReal);
 $("#open-demo").addEventListener("click", () => {
-  elIntro.hidden = true;
+  leaveIntro();
   canDelete = false;
   buildWorld(buildDemo(), "demo drive");
 });
@@ -1808,7 +2277,7 @@ $("#open-demo").addEventListener("click", () => {
   document.body.appendChild(inp);
   inp.addEventListener("change", async () => {
     if (!inp.files || !inp.files.length) return;
-    elIntro.hidden = true; elScan.hidden = false;
+    leaveIntro(); elScan.hidden = false;
     /* setTimeout, not rAF: rAF never fires in a background tab, so a scan
        started and then tabbed away from would hang forever */
     await new Promise(r => setTimeout(r, 30));
@@ -1817,15 +2286,11 @@ $("#open-demo").addEventListener("click", () => {
     elScan.hidden = true;
     canDelete = false;
     inp.value = "";
-    if (!files.length) { elIntro.hidden = false; return; }
+    if (!files.length) { openIntro(false); return; }
     buildWorld(files, label);
     say("read only · this browser cannot delete");
   });
 }
-
-$("#cap-note").textContent = canPick
-  ? "chromium can also delete what you net · up to " + fmtCount(MAX_FILES) + " files"
-  : "this browser is read only · chrome or edge can also delete what you net";
 
 /* live handle: tweak TUNE in the console, or fly the camera somewhere. */
 /* pick and camera are exposed so aiming can be tested without depending on the
@@ -1834,10 +2299,12 @@ $("#cap-note").textContent = canPick
 window.ocean = {
   TUNE, cam, camera, get world() { return world; },
   buildWorld, buildDemo, ARCH, net, syncNet, pick,
+  guide, openIntro, advance, get line() { return line; },
 };
 
 if (/[?&]demo\b/.test(location.search)) {
-  elIntro.hidden = true;
   buildWorld(buildDemo(), "demo drive");
+} else {
+  openIntro(true);
 }
 requestAnimationFrame(frame);
