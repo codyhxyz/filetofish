@@ -81,6 +81,9 @@ button{font:inherit; color:inherit; background:none; border:0; cursor:pointer; p
   color:rgba(214,238,244,.34);
 }
 #keys kbd{font:inherit; border:1px solid rgba(214,238,244,.24); padding:.05rem .3rem; margin-left:.25rem;}
+/* the one control the whole scheme hangs off gets to be legible */
+#keys .lead{color:rgba(255,196,154,.85);}
+#keys .lead kbd{border-color:rgba(255,196,154,.5);}
 
 #cross{left:50%; top:50%; transform:translate(-50%,-50%); width:16px; height:16px; opacity:.24;}
 #cross::before,#cross::after{content:""; position:absolute; background:#EAF6F8;}
@@ -109,6 +112,30 @@ body.aimed #card{opacity:1;}
 }
 #card.netted .act{color:#8FE0C0;}
 
+/* one contextual verb carries the dock: talk first, then jump. A real button
+   keeps the prompt clickable and focusable as well as being an E-key hint. */
+#action{
+  position:fixed; z-index:4; left:50%; bottom:clamp(2.2rem,8vh,5rem);
+  transform:translateX(-50%); padding:.65rem 1rem;
+  font-family:var(--f-mono); font-size:.62rem; letter-spacing:.16em; text-transform:uppercase;
+  color:#12222A; background:#FFC49A; border:1px solid rgba(255,255,255,.55);
+  animation:actionPulse 2.2s ease-in-out infinite;
+}
+#action[hidden]{display:none;}
+#action kbd{font:inherit; margin-right:.55rem; padding:.08rem .32rem; border:1px solid rgba(18,34,42,.45);}
+@keyframes actionPulse{
+  0%,100%{opacity:.68; transform:translateX(-50%) translateY(0);}
+  50%{opacity:1; transform:translateX(-50%) translateY(-3px);}
+}
+body.dock #stats,body.dock #legend,body.dock #keys,body.dock #depth,
+body.dock #cross,body.dock #card,body.jumping #stats,body.jumping #legend,
+body.jumping #keys,body.jumping #depth,body.jumping #cross,body.jumping #card{opacity:0;}
+body.dock #tint,body.jumping #tint{
+  background:radial-gradient(ellipse at 50% 42%, rgba(8,45,57,0) 28%, rgba(5,26,34,.42) 100%);
+}
+body.splash #tint{animation:splashFlash .52s ease-out both;}
+@keyframes splashFlash{0%{background-color:rgba(225,250,255,.72);}100%{background-color:transparent;}}
+
 /* ---------------------------------------------------------------- the net */
 #net{
   position:fixed; z-index:5; left:50%; transform:translateX(-50%);
@@ -127,8 +154,32 @@ body.hasnet #net{opacity:1; pointer-events:auto;}
   transition:background .15s, color .15s, border-color .15s;
 }
 #net button:hover{background:#EAF7FA; color:#08181E; border-color:#EAF7FA;}
+/* the thing you actually want to do with a full net is look in it */
+#net button.prime{border-color:rgba(255,196,154,.75); color:#FFC49A;}
+#net button.prime:hover{background:#FFC49A; border-color:#FFC49A; color:#12222A;}
 #net button.danger{border-color:rgba(255,138,110,.5); color:#FFAE96;}
 #net button.danger:hover{background:#FF7A5C; border-color:#FF7A5C; color:#150604;}
+
+/* ------------------------------------------------------------- the haul */
+#haul .big{
+  font-family:var(--f-display); font-size:clamp(1.4rem,3.4vw,2.1rem); letter-spacing:-.01em;
+  color:#FFC49A; margin-top:.5rem;
+}
+#haul .species{
+  margin:1.4rem auto 0; max-width:min(88vw,44rem); text-align:left;
+  display:grid; grid-template-columns:repeat(auto-fill,minmax(13rem,1fr)); gap:.1rem 1.6rem;
+  font-family:var(--f-mono); font-size:.62rem; letter-spacing:.06em; line-height:2.1;
+  color:rgba(226,242,248,.82); max-height:42vh; overflow-y:auto;
+}
+#haul .species div{display:flex; align-items:center; gap:.5rem; white-space:nowrap;}
+#haul .species i{
+  flex:none; width:.45rem; height:.45rem; border-radius:50%;
+}
+#haul .species b{font-weight:400; color:#fff; min-width:2.2rem; text-align:right;}
+#haul .species u{text-decoration:none; flex:1; overflow:hidden; text-overflow:ellipsis;}
+#haul .species s{text-decoration:none; color:rgba(214,238,244,.42); font-size:.54rem;}
+#haul .fine{margin-top:1.3rem; line-height:2.1;}
+#haul .fine em{font-style:normal; color:rgba(238,250,252,.9);}
 
 /* ------------------------------------------------------------- overlays */
 .sheet{
@@ -253,7 +304,8 @@ body.talking #depth,body.talking #cross,body.talking #card{opacity:0;}
   #box{padding:.85rem 1rem 1rem;}
 }
 @media (prefers-reduced-motion:reduce){
-  #talk-more{animation:none; opacity:.8;}
+  #talk-more,#action{animation:none; opacity:.9;}
+  body.splash #tint{animation:none;}
 }
 </style>
 
@@ -261,7 +313,7 @@ body.talking #depth,body.talking #cross,body.talking #card{opacity:0;}
 <div id="tint"></div>
 
 <div class="hud" id="depth">
-  <div id="gauge"><div id="you"><i>today</i><s>surface</s></div></div>
+  <div id="gauge"><div id="you"><i>0 B</i><s>surface</s></div></div>
 </div>
 
 <div class="hud" id="place"><b id="place-n">the ocean</b><s id="place-s"></s></div>
@@ -277,11 +329,13 @@ body.talking #depth,body.talking #cross,body.talking #card{opacity:0;}
 
 <div class="hud" id="keys">
   <div>look<kbd>drag</kbd></div>
-  <div>drift<kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></div>
-  <div>descend<kbd>scroll</kbd></div>
+  <div>swim<kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></div>
+  <div class="lead">take me there<kbd>space</kbd></div>
+  <div>size band<kbd>scroll</kbd></div>
+  <div>straight up / down<kbd>&#8593;</kbd><kbd>&#8595;</kbd></div>
   <div>faster<kbd>shift</kbd></div>
   <div>net a fish<kbd>E</kbd></div>
-  <div>surface<kbd>F</kbd></div>
+  <div>back to kelp<kbd>F</kbd></div>
 </div>
 
 <div class="hud" id="cross"></div>
@@ -292,11 +346,28 @@ body.talking #depth,body.talking #cross,body.talking #card{opacity:0;}
   <div class="act" id="c-act"></div>
 </div>
 
+<button id="action" type="button" aria-live="polite" hidden><kbd>E</kbd><span></span></button>
+
 <div id="net">
   <div class="n"><b id="net-n">0</b> in the net<s id="net-b"></s></div>
-  <button id="net-copy">copy paths</button>
+  <button id="net-haul" class="prime">let's see what we got</button>
   <button id="net-clear">let them go</button>
   <button id="net-del" class="danger">delete for good</button>
+</div>
+
+<!-- the tally. The delete sheet is a path list on purpose; this is the other
+     half of that -- what you actually caught, by species. -->
+<div class="sheet" id="haul" hidden>
+  <div>
+    <h1>let's see what we got</h1>
+    <div class="big" id="haul-sum"></div>
+    <div class="species" id="haul-species"></div>
+    <div class="fine" id="haul-note"></div>
+    <div class="row">
+      <button class="ghost" id="haul-copy">copy paths</button>
+      <button class="go" id="haul-close">back to the water</button>
+    </div>
+  </div>
 </div>
 
 <div id="intro" hidden>

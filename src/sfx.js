@@ -11,10 +11,12 @@ export const P = {
   land: { root: 523.25, step: 0.082, dur: 0.26, sqGain: 0.20, subGain: 0.24, rareGain: 0.18 },
   sparkle: { f0: 1046.5, step: 0.055, dur: 0.20, gain: 0.26, rise: 1.5 },
   tick: { hp: 3000, hissGain: 0.24, toneF0: 880, toneF1: 660, toneGain: 0.13 },
-  voice: { step: 0.054, dur: 0.088, gain: 0.30, pitch: 430, rise: 1.18,
-           f1: 620, f2: 1750, q: 5.5, hissGain: 0.22 },
+  voice: { step: 0.056, gain: 0.40, pitch: 306, rise: 1.055,
+           f1: 620, f2: 1750, f3: 2740, q: 2.6, tilt: 3400,
+           glide: 0.013, fall: 0.13, ask: 0.20, hissGain: 0.17 },
 };
 const BASE = JSON.parse(JSON.stringify(P));
+const clamp01 = v => (v < 0 ? 0 : v > 1 ? 1 : v);
 
 /* the audition page can push a tuning here without a rebuild */
 export function loadOverrides() {
@@ -99,16 +101,45 @@ function hiss(c, t, dur, peak, type, f0, f1, q, dest) {
    vowel in the letter's English NAME -- "b" is "bee", "k" is "kay", "r" is
    "ar" -- and the consonant those names start with survives as a transient.
 
-   So that is what is synthesised here, per letter: a sawtooth glottal buzz
-   through two parallel bandpass formants placed at that vowel, with a noise
-   onset for the letters whose name begins with one. Two formants is the
-   whole of it -- F1/F2 is what the ear uses to tell one vowel from another.
+   THE MOUTH NEVER CLOSES BETWEEN LETTERS. That is the whole design, and the
+   first version got it wrong: it built a fresh oscillator and a fresh pair of
+   filters per letter, which is a row of separate little instruments rather
+   than one throat. Three things went audibly wrong with that, and all three
+   are why it sat in the uncanny valley.
 
-   VOW holds each vowel as a multiple of P.voice.f1/f2, so the pair of
-   sliders moves the whole mouth without flattening the vowels into each
-   other. At the shipped 620/1750 they land on the textbook formants:
+     1. The fundamental was 430 Hz and the formant filters had Q 5.5, which is
+        a 113 Hz-wide window looking at harmonics spaced 430 Hz apart. F1 fell
+        *between* two harmonics as often as on one, so its level lurched
+        around as the pitch swept -- an inharmonic warble the ear reads as
+        out-of-tune. A voice needs harmonics dense enough for a formant to
+        always catch two or three: hence 306 Hz and Q 2.6.
+     2. Every letter got an independent random pitch (+/-6%, a whole semitone)
+        and letters overlapped. Two overlapping detuned tones is a beat
+        frequency. That is not speech, that is a chorus pedal.
+     3. Discrete letters cannot coarticulate. Real vowels slide into each
+        other; cut them apart and you get Morse with a filter on it.
+
+   So this is one oscillator and one formant bank for the whole line, running
+   continuously from the first letter to the last. What makes a syllable is
+   the amplitude envelope dipping and rising; what makes a consonant is *how
+   far* it dips (a plosive shuts the throat almost completely, a fricative
+   half, a nasal barely) plus a noise transient on top. Formant frequencies
+   glide between vowels instead of jumping, which is coarticulation, and it is
+   the single thing that stops a formant synth sounding like a modem.
+
+   Three formants, not two. F1/F2 carry the vowel, but F3 is most of what
+   makes a buzz sound like it came out of a head. The parallel branches
+   alternate polarity, as in a Klatt synth, so they sum instead of notching
+   each other where they overlap.
+
+   VOW holds each vowel as a multiple of P.voice.f1/f2/f3, so the sliders move
+   the whole mouth without flattening the vowels into each other. At the
+   shipped 620/1750 they land on the textbook formants:
    a 806/1085, e 558/1837, i 298/2292, o 601/840, u 322/875. */
-const VOW = { a: [1.30, 0.62], e: [0.90, 1.05], i: [0.48, 1.31], o: [0.97, 0.48], u: [0.52, 0.50] };
+const VOW = {
+  a: [1.30, 0.62, 0.96], e: [0.90, 1.05, 1.02], i: [0.48, 1.31, 1.06],
+  o: [0.97, 0.48, 0.94], u: [0.52, 0.50, 0.93],
+};
 /* letter -> [vowel of its name, how that name starts: p plosive, f fricative,
    n nasal or liquid, "" straight in on the vowel] */
 const LETTER = {
@@ -129,41 +160,22 @@ export function beats(ch) {
   return LETTER[ch.toLowerCase()] ? 1 : 0.35;
 }
 
-function syllable(c, t, dest, f, vowel, onset) {
-  const p = P.voice, V = VOW[vowel] || VOW.e;
-  const dur = p.dur * (onset === "p" ? 0.82 : 1);
-  /* the transient. A plosive is a click before the voice; a fricative is a
-     longer wash of air that overlaps the front of it. */
-  if (onset === "p") hiss(c, t, 0.020, p.gain * p.hissGain * 1.7, "highpass", 2400, 2400, 0.7, dest);
-  else if (onset === "f") hiss(c, t, dur * 0.62, p.gain * p.hissGain, "bandpass", 4400, 2800, 0.9, dest);
-  const t0 = t + (onset ? 0.014 : 0);
-  const o = c.createOscillator();
-  o.type = "sawtooth";
-  /* every syllable lifts and settles: flat pitch here is what makes a formant
-     synth sound like a modem instead of a mouth */
-  o.frequency.setValueAtTime(Math.max(1, f * 0.86), t0);
-  o.frequency.linearRampToValueAtTime(Math.max(1, f * p.rise), t0 + dur * 0.34);
-  o.frequency.exponentialRampToValueAtTime(Math.max(1, f * 0.90), t0 + dur);
-  const env = c.createGain();
-  env.gain.setValueAtTime(0.0001, t0);
-  env.gain.exponentialRampToValueAtTime(p.gain, t0 + 0.012);
-  env.gain.setValueAtTime(p.gain, t0 + dur * 0.55);
-  env.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-  o.connect(env);
-  for (const [cf, amp] of [[p.f1 * V[0], 1], [p.f2 * V[1], 0.62]]) {
-    const bp = c.createBiquadFilter(), g = c.createGain();
-    bp.type = "bandpass"; bp.frequency.value = Math.max(80, cf); bp.Q.value = Math.max(0.2, p.q);
-    g.gain.value = amp;
-    env.connect(bp); bp.connect(g); g.connect(dest);
-  }
-  o.start(t0); o.stop(t0 + dur + 0.03);
-}
+/* how far the throat shuts on the way into a letter. This is the consonant:
+   a plosive is a stop, so it goes almost silent and then bursts; a fricative
+   is half-open behind a wash of air; a nasal barely dips at all. */
+const DIP = { p: 0.05, f: 0.17, n: 0.52, "": 0.58 };
+/* a deterministic wobble per letter -- life, but the same life every time, so
+   a line does not shimmer differently on each reading */
+const wob = i => {
+  const x = Math.sin(i * 12.9898 + 1.3) * 43758.5453;
+  return x - Math.floor(x);
+};
 
 const SILENT = { on: false, dur: 0, stop() { } };
 
-/* Say a line. Everything is scheduled up front on one gain node, so stopping
-   mid-sentence is a single ramp rather than a pile of cancelled timers.
-   Returns { on, dur, stop() }. */
+/* Say a line. One oscillator, one formant bank, everything scheduled up front,
+   so stopping mid-sentence is a single ramp rather than a pile of cancelled
+   timers. Returns { on, dur, stop() }. */
 export function speak(text, opt) {
   if (!ON) return SILENT;
   const c = audio();
@@ -175,31 +187,105 @@ export function speak(text, opt) {
   const out = c.createGain();
   out.gain.value = o.gain === undefined ? 1 : o.gain;
   out.connect(BUS);
+
   const s = String(text).toLowerCase();
-  const base = p.pitch * (o.pitch || 1);
+  const base = Math.max(40, p.pitch * (o.pitch || 1));
   const ask = /\?\s*$/.test(s);
-  const t0 = c.currentTime + 0.03;
-  let t = t0, said = 0;
-  for (let i = 0; i < s.length && said < 120; i++) {
-    const L = LETTER[s[i]];
-    if (!L) { t += p.step * beats(s[i]); continue; }
-    const k = i / Math.max(1, s.length);
-    /* a phrase falls as it runs, and a question turns back up at the very end */
-    let bend = 1.06 - k * 0.16;
-    if (ask) bend += Math.pow(k, 6) * 0.55;
-    syllable(c, t, out, base * bend * (0.94 + Math.random() * 0.12), L[0], L[1]);
-    t += p.step * (0.86 + Math.random() * 0.28);
-    said++;
+  const t0 = c.currentTime + 0.05, pre = t0 - 0.02;
+
+  /* --- the throat: saw -> envelope -> spectral tilt -> three formants ----- */
+  const osc = c.createOscillator();
+  osc.type = "sawtooth";
+  osc.frequency.setValueAtTime(base, pre);
+  const env = c.createGain();
+  env.gain.setValueAtTime(0.0001, pre);
+  /* a raw sawtooth is all fizz above the formants; rolling the top off is what
+     the difference between a buzzer and a mouth mostly is */
+  const tilt = c.createBiquadFilter();
+  tilt.type = "lowpass"; tilt.frequency.value = Math.max(700, p.tilt); tilt.Q.value = 0.5;
+  osc.connect(env); env.connect(tilt);
+
+  const first = VOW[(LETTER[[...s].find(ch => LETTER[ch])] || ["e"])[0]] || VOW.e;
+  const CF = [p.f1, p.f2, p.f3 || 2740];
+  /* alternating polarity so the branches sum where they overlap instead of
+     notching each other -- the parallel-branch trick out of Klatt */
+  const AMP = [1, -0.55, 0.24];
+  const bands = CF.map((cf, i) => {
+    const bp = c.createBiquadFilter(), g = c.createGain();
+    bp.type = "bandpass";
+    bp.Q.setValueAtTime(Math.max(0.4, p.q * (i ? 1.2 : 1)), pre);
+    bp.frequency.setValueAtTime(Math.max(80, cf * first[i]), pre);
+    g.gain.value = AMP[i] * p.gain;
+    tilt.connect(bp); bp.connect(g); g.connect(out);
+    return bp;
+  });
+
+  let t = t0, said = 0, word = true;
+  const n = Math.max(1, s.length);
+  for (let i = 0; i < s.length && said < 140; i++) {
+    const ch = s[i], L = LETTER[ch], cost = p.step * beats(ch);
+    if (!L) {
+      /* a space or a full stop is the one place the mouth actually shuts */
+      if (said) env.gain.linearRampToValueAtTime(0.0001, t + Math.min(0.05, cost * 0.5));
+      t += cost; word = true;
+      continue;
+    }
+    const next = t + cost, span = next - t;
+    const V = VOW[L[0]] || VOW.e;
+
+    /* --- pitch. One contour over the whole line, not a value per letter.
+       It falls as the phrase runs, each syllable lifts and settles inside
+       that, and a question turns back up over its last third. */
+    const k = i / n;
+    let bend = 1 + p.fall * 0.35 - p.fall * k;
+    if (ask) bend += p.ask * Math.pow(clamp01((k - 0.62) / 0.38), 2);
+    const f = base * bend * (0.985 + wob(i) * 0.03);
+    osc.frequency.setTargetAtTime(f * p.rise, t, 0.012);
+    osc.frequency.setTargetAtTime(f * 0.975, t + span * 0.45, 0.030);
+
+    /* --- the mouth moves to the next vowel instead of arriving at it. A nasal
+       or a liquid passes through a murmur on the way, which is what tells l m
+       n r apart from a bare vowel. */
+    if (L[1] === "n") {
+      bands[0].frequency.setTargetAtTime(310, t, 0.008);
+      bands[1].frequency.setTargetAtTime(1180, t, 0.008);
+      bands.forEach((bp, j) =>
+        bp.frequency.setTargetAtTime(Math.max(80, CF[j] * V[j]), t + span * 0.38, p.glide));
+    } else {
+      bands.forEach((bp, j) =>
+        bp.frequency.setTargetAtTime(Math.max(80, CF[j] * V[j]), t, p.glide));
+    }
+
+    /* --- the transient. A plosive is a click released into the voice; a
+       fricative is a longer wash of air across the front of it. */
+    const hg = p.gain * p.hissGain;
+    if (L[1] === "p") hiss(c, t - 0.004, 0.018, hg * 1.8, "highpass", 2200, 2200, 0.7, out);
+    else if (L[1] === "f") hiss(c, t - 0.006, span * 0.72, hg, "bandpass", 4200, 3000, 0.9, out);
+
+    /* --- the syllable itself is a dip and a rise in one continuous gain */
+    const dip = DIP[L[1]] * (word ? 0.45 : 1);
+    const atk = Math.min(0.016, span * 0.3);
+    env.gain.linearRampToValueAtTime(dip, t);
+    env.gain.linearRampToValueAtTime(1, t + atk);
+    env.gain.linearRampToValueAtTime(0.80, next - Math.min(0.014, span * 0.25));
+    t = next; said++; word = false;
   }
+  env.gain.linearRampToValueAtTime(0.0001, t + 0.06);
+  osc.start(pre); osc.stop(t + 0.14);
+
+  let stopped = false;
   return {
     on: said > 0,
     dur: t - t0,
     stop() {
+      if (stopped) return;
+      stopped = true;
       const now = c.currentTime;
       out.gain.cancelScheduledValues(now);
       out.gain.setValueAtTime(out.gain.value, now);
       out.gain.linearRampToValueAtTime(0.0001, now + 0.05);
-      setTimeout(() => { try { out.disconnect(); } catch (e) { } }, 200);
+      try { osc.stop(now + 0.09); } catch (e) { }
+      setTimeout(() => { try { out.disconnect(); } catch (e) { } }, 250);
     },
   };
 }

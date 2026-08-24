@@ -1,8 +1,9 @@
 /* ocean -- a file viewer.
 
-   Every file is a fish. Depth is age, lateral position is folder, colour is
-   type, size is size. Four draw tiers hand off inside the turbidity, so the
-   fog is the render budget rather than an apology for it.
+   Every file is a fish. Depth is size, lateral position is folder, colour is
+   type, and how faded it is is how long since you touched it. Four draw tiers
+   hand off inside the turbidity, so the fog is the render budget rather than
+   an apology for it.
 
    Reads a real folder off your disk, in your browser, and never sends a byte
    anywhere. See OCEAN.md for why each default is what it is. */
@@ -13,14 +14,16 @@ import {
   Mesh, Points, ShaderMaterial, Color, NearestFilter,
   Vector3, Object3D, PlaneGeometry, DoubleSide, AdditiveBlending, Vector2,
 } from "three";
-import { P as SND, speak, beats, isOn, setOn, audio } from "./sfx.js";
+import { P as SND, speak, beats, isOn, setOn, audio, sfx } from "./sfx.js";
 
 const TUNE = {
   /* --- the two axes that carry meaning --------------------------------- */
   depth: 900,             // world units from surface to abyss
-  /* how far back the abyss reaches is not a knob: the column is fitted to the
-     folder's own p01..p99 age range, so any drive fills the water */
-  ageCurve: 0.52,         // <1 gives recent files more room; the past compresses
+  /* what the top and bottom of the water weigh is not a knob: the column is
+     fitted to the drive's own p01..p99 of log2(bytes), so any drive fills it */
+  sizeCurve: 1.0,         // 1.0 is linear in log2 -- one doubling, one step down
+  bandJitter: 6,          // world units of scatter, so a size band is a shoal
+                          //    with thickness rather than a sheet of paper
   lateral: 760,           // radius of the whole packed field
 
   /* --- what a file looks like ------------------------------------------ */
@@ -28,6 +31,8 @@ const TUNE = {
   schoolTight: 0.34,      // how hard same-species-same-size files clump
   deepFrom: 0.62,         // fraction of the column below which deep-sea forms start
   deepTo: 0.86,           // ...and past which everything down there is one
+  bleach: 0.62,           // how much colour a file at p99 age has lost
+  languor: 0.52,          // ...and how much of its swim
 
   /* --- the four tiers -------------------------------------------------- */
   hazeFrom: 240,          // haze starts fading in beyond this
@@ -47,10 +52,18 @@ const TUNE = {
   snow: 2600,
 
   /* --- feel -------------------------------------------------------------- */
-  driftSpeed: 46,
-  boost: 3.2,
-  descendSpeed: 0.9,
-  damp: 4.2,
+  swimSpeed: 52,
+  boost: 3.4,
+  wheelSpeed: 0.85,       // world units of dive per notch of wheel
+  settle: 0.14,           // seconds of stillness after which the dial detents
+  damp: 5.0,              // how fast the body catches up to the intent
+  lookDamp: 26,           // ...and how fast the head does. Nearly instant.
+  glideTime: 0.85,        // seconds to be carried to what you are looking at
+  standoff: 3.4,          // ...and where it puts you down, in body lengths
+  chaseBack: 8.0,         // third-person camera: distance behind the diver
+  chaseRise: 2.1,         // ...height above the diver
+  chaseSide: 1.35,        // ...shoulder offset, so the crosshair stays clear
+  chaseDamp: 8.0,         // ...how quickly the camera catches the body
 };
 
 const MAX_FILES = 250000;      // past this the layout stops being comprehensible
@@ -382,20 +395,48 @@ function placeWorld(place, cx, cz, out) {
 }
 
 /* ============================================================ layout */
-/* Depth is age, but the column is fitted to the data rather than to a fixed
-   number of years. A folder made this morning and a drive going back to 2009
-   both fill the water; otherwise a young folder is a flat sheet at the surface
-   and an old one piles up against the floor. p01..p99, so one ancient stray
-   cannot flatten everything else. */
-let AGE_LO = 0, AGE_HI = 3650;
+/* DEPTH IS SIZE. The one decision the whole view hangs off.
+
+   An ocean already sorts its animals by mass: krill in the light, whales
+   sounding, and the genuinely enormous and strange down where the pressure
+   is. Putting bytes on the vertical makes the metaphor stop being a mapping
+   and start being the same fact said twice -- the taxonomy already grades fry
+   to leviathan, so form and depth finally agree instead of arguing.
+
+   It pays for itself four more times. Every horizontal layer holds animals of
+   one size, so they are all the same handful of pixels across and aiming at
+   one of them is the same gesture everywhere; a whale can no longer be parked
+   in a cloud of dotfiles. The dive gets the destination it never had -- "where
+   did the disk go" is the question people actually open a disk viewer to ask,
+   and here you answer it by sinking. Nothing has to float above the surface
+   any more, because the things that need room are the deep ones. And the
+   column is a ruler in real units, so 1 GB is at the same depth on every drive
+   you ever open.
+
+   In log2(bytes), because that is the only honest scale for a quantity that
+   runs from a 0-byte .gitkeep to a 90 GB disc image: one step down the water
+   is one doubling. Fitted to the drive's own p01..p99 so any folder fills the
+   frame -- percentiles, or one stray archive flattens everything else into the
+   surface. */
+let LB_LO = 0, LB_HI = 38;
 /* the ocean is scaled uniformly to the size of the drive, so a small folder is
    a small sea rather than a few specks lost in a big one. Physical size means
    nothing; only the ratios do. */
 let DEPTH = TUNE.depth;
-const ageToY = d =>
-  -DEPTH * Math.pow(clamp((d - AGE_LO) / (AGE_HI - AGE_LO), 0, 1), TUNE.ageCurve);
-const yToAge = y =>
-  AGE_LO + (AGE_HI - AGE_LO) * Math.pow(clamp(-y / DEPTH, 0, 1), 1 / TUNE.ageCurve);
+const sizeToY = lb =>
+  -DEPTH * Math.pow(clamp((lb - LB_LO) / (LB_HI - LB_LO), 0, 1), TUNE.sizeCurve);
+const yToSize = y =>
+  LB_LO + (LB_HI - LB_LO) * Math.pow(clamp(-y / DEPTH, 0, 1), 1 / TUNE.sizeCurve);
+
+/* AGE moved off the vertical, but it did not stop mattering -- it just stopped
+   being a place and became a condition. A file you touched this morning keeps
+   its family colour and swims like it means it; one you have not opened in
+   four years is bleached and slow. That reads at a glance with no scale to
+   consult, and a folder you have abandoned turns grey as a whole, which is the
+   bit of the old age axis actually worth keeping. Fitted p01..p99, same as
+   the water column, so it means the same thing on any drive. */
+let AGE_LO = 0, AGE_HI = 3650;
+const ageFade = d => clamp((d - AGE_LO) / (AGE_HI - AGE_LO), 0, 1);
 /* SIZE IS SIZE, and at the top end that has to mean something. One smooth
    curve makes a 20 GB video a slightly bigger perch, so the ladder is
    piecewise instead: log2(bytes) -> world units, with the classes landing on
@@ -438,6 +479,7 @@ function footprint(b) {
   return Math.max(1, s * s);
 }
 
+const hsl = { h: 0, s: 0, l: 0 };
 function layout(places) {
   for (const p of places) {
     /* schooling comes from similarity, not from the folder: same family, same
@@ -470,23 +512,28 @@ function layout(places) {
       const th = r() * TAU, rad = Math.sqrt(r()) * spread;
       f.x = p.cx + s.x + Math.cos(th) * rad;
       f.z = p.cz + s.z + Math.sin(th) * rad;
-      /* nothing floats above the surface, and a whale needs its whole back
-         under it */
-      f.y = Math.min(-0.6 - f.scale * 0.75, ageToY(f.ageDays) + (r() - 0.5) * 11);
-      /* the creature is a reading of the file. Depth is age, so where a file
-         sits in the column is exactly the light it lives in -- and that is
-         what decides whether it is a surface animal or a deep-sea one. */
+      /* the band gets thickness so a shoal is a shoal and not a sheet, but
+         much less than one doubling of size, or the ordering stops reading.
+         Nothing floats above the surface. */
+      f.y = Math.min(-0.6 - f.scale * 0.75,
+                     sizeToY(f.lb) + (r() - 0.5) * TUNE.bandJitter * 2);
+      /* the creature is a reading of the file, and now that depth is size the
+         two rules that used to fight each other are one rule: what lives down
+         where the light stops is what is big enough to be down there. */
       const depthT = clamp(-f.y / DEPTH, 0, 1);
       const deep = depthT > lerp(TUNE.deepFrom, TUNE.deepTo, r());
       f.arch = archOf(f, deep);
       /* behaviour follows size: a whale that darts like a minnow is wrong. Big
-         things beat slowly, turn on a much wider arc, and barely bob. */
+         things beat slowly, turn on a much wider arc, and barely bob -- and an
+         old file, whatever its size, has less of a hurry about it. */
       const sT = clamp((f.lb - 14) / 19, 0, 1);
+      f.fade = ageFade(f.ageDays);
+      const slow = 1 - TUNE.languor * f.fade;
       f.phase = s.phase + r() * 1.4;
-      f.speed = (0.35 + r() * 0.5) * lerp(1.45, 0.16, sT);
+      f.speed = (0.35 + r() * 0.5) * lerp(1.45, 0.16, sT) * slow;
       f.orbit = lerp(0.80, 2.10, sT);
-      f.bob = lerp(0.16, 0.022, sT);
-      f.roll = lerp(0.11, 0.016, sT);
+      f.bob = lerp(0.16, 0.022, sT) * lerp(1, 0.62, f.fade);
+      f.roll = lerp(0.11, 0.016, sT) * slow;
       /* the individuality that used to live in per-file geometry now lives in
          a non-uniform scale and a colour nudge -- 200 tris x 50,000 files is
          not a thing you can build */
@@ -495,6 +542,14 @@ function layout(places) {
       f.sz = 0.82 + r() * 0.40;
       const c = famColor[f.fam].clone();
       c.offsetHSL((r() - 0.5) * 0.055, (r() - 0.5) * 0.20, (r() - 0.5) * 0.16);
+      /* age is bleach. Hue is left alone -- family has to stay readable across
+         the whole ocean -- so what goes is a proportion of the chroma and a
+         little of the light, and an untouched folder greys out as one thing.
+         Proportional, not a flat subtraction: taking 0.6 off a saturation of
+         0.62 does not wash a colour out, it deletes it, and a reef of grey is
+         a worse read than a reef of one green. */
+      c.getHSL(hsl);
+      c.setHSL(hsl.h, hsl.s * (1 - TUNE.bleach * f.fade), hsl.l * (1 - 0.16 * f.fade));
       f.cr = c.r; f.cg = c.g; f.cb = c.b;
       /* plain / bands / spots / stripe, as a per-instance pair rather than a
          uniform -- one draw call covers a thousand fish. 4 is the ghost. */
@@ -515,9 +570,10 @@ function layout(places) {
    The creature is a reading of the file, not of its hash.
 
    SIZE CLASS decides the silhouette -- fry, fish, big fish, leviathan.
-   DEPTH, which is age, overrides it below the light: an ancient file is a
-   deep-sea animal, because that is where it lives. Leviathans stay leviathans
-   at any depth, they just change species.
+   DEPTH, which is also size, decides whether it is a lit-water form or a
+   deep-sea one. Those two used to be different variables pulling in different
+   directions, which is how you got a 2 KB dotfile as an anglerfish; now they
+   are the same variable and the abyss is exactly as strange as it is heavy.
    FAMILY nudges the body plan inside whichever pool a file lands in (video as
    long torpedoes, images as flat discs and rays, archives as armoured blocks)
    while colour keeps carrying family as the primary channel.
@@ -566,7 +622,12 @@ const ARCH = [
 
   /* the leviathans. Horizontal flukes instead of a caudal fin is the one cue
      that says "not a fish" from half an ocean away, so both get them. */
-  { key: "whale", pools: { lev: 3 }, seg: 12, ring: 8,
+  /* the rorqual has to be in the deep pool as well as the lit one. It was in
+     `lev` alone, which was fine when depth meant age -- but depth means size
+     now, so a leviathan is almost always below the light by definition, and
+     leaving him out of `levdeep` retired the best model in the set to one
+     animal on a fifty-thousand-file drive. */
+  { key: "whale", pools: { lev: 3, levdeep: 2 }, seg: 12, ring: 8,
     pF: .34, pB: .76, dep: .30, gir: .27, stretch: 1.55, tail: "fluke",
     dor: .07, dorA: .58, dorB: .74, nose: .44, noseP: 1.7,
     eyeK: .40, eyeT: .12, eyeY: .05, pect: .55, pectLen: -2.0, pectRot: .85, pectT: .30,
@@ -578,8 +639,8 @@ const ARCH = [
     eyeK: .38, eyeT: .30, eyeY: -.10, pect: .5, pectLen: -1.4, pectRot: .80, pectT: .38,
     nouns: ["Cachalot", "Bowhead", "Behemoth", "Sea Bull"] },
 
-  /* the deep. These only exist below the light, which is to say only for the
-     oldest files on the drive. */
+  /* the deep. These only exist below the light, which -- now that depth is
+     size -- is to say only for the heavy files on the drive. */
   { key: "angler", pools: { deep: 3 }, fam: "code",
     pF: .34, pB: 1.20, dep: .52, gir: .32, stretch: .92, tail: "round", dor: .12,
     lure: 1, eyeK: 1.25, nouns: ["Angler", "Monkfish", "Sea Devil", "Toadfish"] },
@@ -1065,7 +1126,12 @@ void main(){
     alb = vec3(1.00, 0.86, 0.58) * (1.0 + 0.16 * sin(uTime * 2.4) + 0.07 * sin(uTime * 7.3)); }
   else if (vPart < 5.5) alb = vec3(0.55, 0.39, 0.24);              // deck plank
   else if (vPart < 6.5) alb = vec3(0.30, 0.21, 0.14);              // piling, batten, rail
-  else                  { alb = vec3(0.95, 0.58, 0.50); unlit = 1.0; }  // cheeks
+  else if (vPart < 7.5) { alb = vec3(0.95, 0.58, 0.50); unlit = 1.0; }  // cheeks
+  else if (vPart < 8.5) alb = vec3(0.12, 0.40, 0.44);              // diver suit
+  else if (vPart < 9.5) alb = vec3(0.76, 0.48, 0.31);              // diver skin
+  else if (vPart < 10.5) alb = vec3(0.10, 0.075, 0.08);            // diver hair
+  else if (vPart < 11.5) { alb = vec3(0.48, 0.82, 0.88); unlit = 1.0; } // mask glass
+  else                  alb = vec3(0.95, 0.48, 0.30);              // fins and trim
   vec3 col = alb;
   if (unlit + glow < 0.5) {
     vec3 N = normalize(vN);
@@ -1085,6 +1151,7 @@ void main(){
      below the deck dissolves, so the platform rises out of the dark instead
      of dangling from something */
   float deep = clamp((uDeck - vW.y) / 12.0, 0.0, 1.0);
+  deep *= 1.0 - step(7.5, vPart);                 // the diver is not part of the pier
   col = mix(col, uWater, deep * 0.7);
   vis *= 1.0 - deep * deep;
   gl_FragColor = vec4(col, ${A_FLOOR.toFixed(2)} + ${(1 - A_FLOOR).toFixed(2)} * vis);
@@ -1235,6 +1302,7 @@ const rayMats = [];
    and the material is DoubleSide, so a backwards quad shades correctly
    anyway. */
 const FUR = 0, CREAM = 1, WHITE = 2, INK = 3, LAMP = 4, PLANK = 5, POST = 6, BLUSH = 7;
+const SUIT = 8, SKIN = 9, HAIR = 10, GLASS = 11, CORAL = 12;
 
 function kit() {
   const v = [], p = [];
@@ -1331,14 +1399,18 @@ function buildGuide() {
     r.tube([-0.94, -2.35, sz * 0.83], [0.94, -0.95, sz * 0.72], 0.05, 0.05, POST, 4);
     r.tube([0.94, -2.35, sz * 0.83], [-0.94, -0.95, sz * 0.72], 0.05, 0.05, POST, 4);
   }
-  /* the deck */
+  /* the deck, with a short approach behind Kelp so the intro is a place the
+     protagonist can actually walk through rather than a model-sized plinth */
   r.box(0, -0.09, 0, 2.34, 0.18, 1.94, PLANK);
-  for (const x of [-0.88, -0.30, 0.30, 0.88])            // the plank lines
+  r.box(0, -0.09, 2.02, 2.34, 0.18, 2.18, PLANK);
+  for (const x of [-0.88, -0.30, 0.30, 0.88]) {          // the plank lines
     r.box(x, 0.016, 0, 0.05, 0.05, 1.94, POST);
-  r.box(0, -0.25, 0.88, 2.34, 0.14, 0.18, POST);
+    r.box(x, 0.016, 2.02, 0.05, 0.05, 2.18, POST);
+  }
   r.box(0, -0.25, -0.88, 2.34, 0.14, 0.18, POST);
-  r.box(1.08, -0.25, 0, 0.18, 0.14, 1.94, POST);
-  r.box(-1.08, -0.25, 0, 0.18, 0.14, 1.94, POST);
+  r.box(0, -0.25, 3.02, 2.34, 0.14, 0.18, POST);
+  r.box(1.08, -0.25, 1.08, 0.18, 0.14, 4.08, POST);
+  r.box(-1.08, -0.25, 1.08, 0.18, 0.14, 4.08, POST);
   for (const x of [-1.02, 1.02]) r.tube([x, 0, -0.84], [x, 0.74, -0.84], 0.075, 0.06, POST, 6);
   r.box(0, 0.68, -0.84, 2.14, 0.09, 0.09, POST);
   /* the lamp stands out on the near corner, well to his left: close enough to
@@ -1408,10 +1480,61 @@ function buildGuide() {
   return { root, kelp, head, mouth, armR, armL };
 }
 const guide = buildGuide();
-/* fixed depth, moving berth: only x and z ever change, so the mooring lines
-   stay exactly as long as the water above him is deep */
-const GUIDE_Y = -13;
-guide.root.position.set(0, GUIDE_Y, TUNE.lateral * 1.72 - 8.6);
+
+/* A small procedural diver, built out of the same coarse kit as Kelp and sent
+   through his finer dither/ink target. The transform is the player: the camera
+   follows it rather than standing in for it. Dock/jump/ocean phase ownership is
+   deliberately left to the flow layer. */
+function buildPlayer() {
+  const M = g => new Mesh(g, guideMat);
+  const root = new Object3D();
+  root.rotation.order = "YXZ";
+
+  const body = kit();
+  body.ball(0, 0.52, 0, 0.31, 0.47, 0.22, SUIT, 9, 6);
+  body.box(0, 0.56, 0.25, 0.36, 0.48, 0.16, HAIR);       // air tank
+  body.box(0, 0.44, 0.345, 0.13, 0.29, 0.07, CORAL);    // tank stripe
+  root.add(M(body.geo()));
+
+  const head = kit();
+  head.ball(0, 1.10, 0, 0.27, 0.29, 0.25, SKIN, 10, 7);
+  head.ball(0, 1.19, 0.04, 0.28, 0.22, 0.25, HAIR, 9, 5);
+  head.box(0, 1.10, -0.235, 0.38, 0.14, 0.055, GLASS);
+  head.box(0, 1.01, -0.26, 0.10, 0.09, 0.07, HAIR);
+  root.add(M(head.geo()));
+
+  const limb = kit();
+  limb.tube([0, 0, 0], [0.10, -0.58, 0], 0.105, 0.075, SUIT, 6);
+  limb.ball(0.11, -0.63, 0, 0.095, 0.105, 0.08, SKIN, 7, 5);
+  const armGeo = limb.geo(), armR = new Object3D(), armL = new Object3D();
+  armR.position.set(0.29, 0.80, 0); armL.position.set(-0.29, 0.80, 0);
+  armL.scale.x = -1;
+  armR.add(M(armGeo)); armL.add(M(armGeo));
+  root.add(armR, armL);
+
+  const kick = kit();
+  kick.tube([0, 0, 0], [0, -0.62, 0], 0.13, 0.09, SUIT, 7);
+  kick.box(0, -0.78, -0.05, 0.23, 0.42, 0.075, CORAL);
+  const legGeo = kick.geo(), legR = new Object3D(), legL = new Object3D();
+  legR.position.set(0.16, 0.16, 0); legL.position.set(-0.16, 0.16, 0);
+  legL.scale.x = -1;
+  legR.add(M(legGeo)); legL.add(M(legGeo));
+  root.add(legR, legL);
+
+  root.visible = false;
+  guideScene.add(root);
+  return { root, armR, armL, legR, legL, vel: new Vector3() };
+}
+const player = buildPlayer();
+
+/* Three phases are enough: walk and talk on the dock, one deterministic water
+   crossing, then the existing ocean controller. ?demo keeps its direct-ocean
+   shortcut for tuning and screenshots. */
+const AUTO_DEMO = /[?&]demo\b/.test(location.search);
+const DOCK_Y = 1.0, GUIDE_Y = -13;
+let phase = AUTO_DEMO ? "ocean" : "dock";
+let jump = null;
+guide.root.position.set(0, phase === "dock" ? DOCK_Y : GUIDE_Y, 0);
 
 /* ============================================================ the world
    Everything that depends on the file set. Rebuilt wholesale when a new
@@ -1423,6 +1546,13 @@ const ARCH_GEO = ARCH.map(archGeometry);
    about 1.8 MB of instance buffer, and only the used prefix is ever uploaded. */
 const CAP = TUNE.meshBudget;
 let world = null;
+
+function setWorldVisible(visible) {
+  if (!world) return;
+  world.points.visible = visible;
+  world.haze.visible = visible;
+  for (const mesh of world.insts) mesh.visible = visible;
+}
 
 function disposeWorld() {
   if (!world) return;
@@ -1437,11 +1567,31 @@ function disposeWorld() {
 function buildWorld(files, label) {
   disposeWorld();
 
-  /* fit the water column to the data's own age range */
+  /* Fit the water column to the drive's own weight range, and the bleach to
+     its own age range.
+
+     The two fits are NOT the same shape, and getting that wrong is what a p99
+     on both ends buys you: the top 1% of a drive by size is the entire reason
+     to look at it, and clipping it stacks every video, disc image and backup
+     into one indistinguishable pancake on the floor. Ages need the trim
+     because one file from 1998 stretches the axis by a decade; sizes do not,
+     because log2 has already done the compressing -- one stray 90 GB image
+     only ever costs a few doublings of empty water, and empty water at the
+     bottom is itself the true statement that nothing else comes close.
+     So: trimmed at the shallow end, honest to the largest file at the deep. */
+  const pct = (arr, q) => arr[clamp(Math.floor(arr.length * q), 0, arr.length - 1)];
+  const lbs = files.map(f => clamp(Math.log2(f.size + 1), 0, 38)).sort((a, b) => a - b);
+  LB_LO = lbs.length ? pct(lbs, 0.02) : 0;
+  LB_HI = lbs.length ? lbs[lbs.length - 1] : 38;
+  /* a folder of files that are all one size is still an ocean, not a plate:
+     hold the column open to at least six doublings and centre it on the data */
+  if (LB_HI - LB_LO < 6) {
+    const mid = (LB_HI + LB_LO) / 2;
+    LB_LO = Math.max(0, mid - 3); LB_HI = LB_LO + 6;
+  }
   const ages = files.map(f => f.ageDays).sort((a, b) => a - b);
-  const at = q => ages[clamp(Math.floor(ages.length * q), 0, ages.length - 1)];
-  AGE_LO = ages.length ? Math.max(0, at(0.01)) : 0;
-  AGE_HI = ages.length ? at(0.99) : 3650;
+  AGE_LO = ages.length ? Math.max(0, pct(ages, 0.01)) : 0;
+  AGE_HI = ages.length ? pct(ages, 0.99) : 3650;
   if (AGE_HI - AGE_LO < 0.02) AGE_HI = AGE_LO + 0.02;   // a folder written in one go
 
   const root = toPlaces(buildTree(files));
@@ -1492,7 +1642,10 @@ function buildWorld(files, label) {
       let e = bins.get(b);
       if (!e) bins.set(b, e = { p, y: 0, n: 0, r: 0, g: 0, bl: 0 });
       e.y += f.y; e.n++;
-      const c = hazeColor[f.fam]; e.r += c.r; e.g += c.g; e.bl += c.b;
+      /* the nebula bleaches too, so a folder you abandoned reads as grey from
+         four hundred metres away -- which is where you actually see it from */
+      const c = hazeColor[f.fam], w = 1 - TUNE.bleach * 0.62 * f.fade, m = 0.36 * f.fade;
+      e.r += c.r * w + m; e.g += c.g * w + m; e.bl += c.b * w + m;
     }
     for (const e of bins.values()) if (e.n >= 3) allBins.push(e);
   }
@@ -1587,36 +1740,239 @@ function buildWorld(files, label) {
      to be driven by the depth of the water, not the width of the field. */
   const back = Math.max(radius * 1.8, DEPTH * 0.80) + 100;
   const eye = -DEPTH * 0.40;
-  cam.pos.set(0, eye, back);
-  cam.depthT = eye; cam.yaw = cam.yawT = 0; cam.pitch = cam.pitchT = -0.03;
+  world.entry = { back, eye };
   nearSet = []; nearAt = 0;
-  /* kelp re-moors above where you arrive, so `f` -- surface -- always puts
-     him back in front of you rather than somewhere off the last drive's map */
-  guide.root.position.set(0, GUIDE_Y, back - 34);
+  /* A scan may finish while the player is still standing on the dock. Move
+     the entire dock/camera tableau together to its berth so nothing appears
+     to snap, and keep the generated ocean hidden until the jump crosses it. */
+  if (phase === "dock") {
+    moorDock(back - 34);
+    setWorldVisible(false);
+  } else enterOceanAt(back, eye);
   guide.root.visible = true;
   lastChat = performance.now() + 4000;
   return world;
 }
 
 /* ============================================================ camera
-   Two degrees of freedom, not six. Free horizontal drift at whatever depth
-   you are at, plus a deliberate descend. You can never be lost or seasick. */
+   A DIVER, NOT A SUBMARINE -- and not a camera either.
+
+   The old rule was two degrees of freedom: drift flat, sink on the wheel, look
+   wherever you like. It kept you from getting lost or seasick, and it was
+   almost unusable for the thing you actually want to do, which is go and look
+   at one particular animal. Looking and going were separate mechanisms, so
+   reaching a fish above you meant aiming at it, then *not* moving toward it,
+   then finding its depth on a second control, then finding its column on a
+   third. Three inputs to approach one object.
+
+   So the rule is now one sentence: YOU SWIM WHERE YOU LOOK, AND THE WATER
+   CARRIES YOU THE REST OF THE WAY.
+
+     - Forward is your real gaze, pitch included. Look down at the deep and
+       swim down into it. This is still not six degrees of freedom -- there is
+       no roll, ever, the horizon cannot tilt, and pitch is clamped well short
+       of vertical -- which is where the nausea actually lives. Every diving
+       game on earth does this and none of them make anyone ill.
+     - The head is nearly instant (lookDamp) and the body is heavy (damp).
+       The old build damped both at 4.2, so the view lagged a quarter-second
+       behind the mouse, which is most of why aiming felt like steering a bus.
+     - The wheel is a dial with detents, not a throttle: let go and it settles
+       on the nearest doubling of file size, so "the layer I am in" is an
+       actual place you can return to rather than a number you hold by hand.
+     - And space is the whole point. Look at something, press it, and you are
+       carried there and set down alongside it. You should never have to fly
+       accurately, because flying accurately is not a thing this is about. */
+player.root.position.set(0, -190, TUNE.lateral * 1.72);
 const cam = {
-  pos: new Vector3(0, -190, TUNE.lateral * 1.72),
-  vel: new Vector3(),
+  /* pos/vel are aliases to the protagonist's logical transform. Keeping the
+     familiar controller name makes every existing picker, glide and depth
+     rule continue to use one authority while the visible body owns the pose. */
+  pos: player.root.position,
+  vel: player.vel,
+  eye: new Vector3(0, -188, TUNE.lateral * 1.72 + TUNE.chaseBack),
   yaw: 0, pitch: -0.06, yawT: 0, pitchT: -0.06, depthT: -190,
 };
 const keys = new Set();
 let dragging = false, lastX = 0, lastY = 0, moved = 0;
+/* where the wheel last moved, so the dial can find its notch once you let go */
+let wheelAt = 0;
+
+/* the water carrying you somewhere: a creature to come alongside, or a berth
+   to arrive at. Null the instant you take the controls back. */
+let glide = null;
+const SWIM_KEYS = ["w", "a", "s", "d", "arrowup", "arrowdown", "arrowleft", "arrowright"];
+const letGo = () => { glide = null; };
+
+/* one notch of the dial is one doubling of file size, which is exactly one
+   size band -- so settling always leaves you level with a single shoal */
+const detent = y => clamp(sizeToY(Math.round(yToSize(y))), -DEPTH - 60, -2);
+const forwardOf = (yaw, pitch) => {
+  const cp = Math.cos(pitch);
+  return new Vector3(-Math.sin(yaw) * cp, Math.sin(pitch), -Math.cos(yaw) * cp);
+};
+const chaseWant = new Vector3(), chaseForward = new Vector3(), chaseRight = new Vector3();
+function updateChaseCamera(dt, snap) {
+  const cp = Math.cos(cam.pitch);
+  chaseForward.set(-Math.sin(cam.yaw) * cp, Math.sin(cam.pitch), -Math.cos(cam.yaw) * cp);
+  chaseRight.set(Math.cos(cam.yaw), 0, -Math.sin(cam.yaw));
+  chaseWant.copy(cam.pos)
+    .addScaledVector(chaseForward, -TUNE.chaseBack)
+    .addScaledVector(chaseRight, TUNE.chaseSide);
+  chaseWant.y += TUNE.chaseRise;
+  if (snap) cam.eye.copy(chaseWant);
+  else cam.eye.lerp(chaseWant, 1 - Math.exp(-dt * TUNE.chaseDamp));
+}
+
+/* ============================================================ player flow */
+const DOCK_X = 0.78, DOCK_NEAR = -0.58, DOCK_FAR = 2.84;
+const elAction = $("#action");
+let actionLabel = "", introSeen = false;
+
+function moorDock(z) {
+  const oldX = guide.root.position.x, oldZ = guide.root.position.z;
+  guide.root.position.set(0, DOCK_Y, z);
+  if (phase === "dock") {
+    cam.pos.x += guide.root.position.x - oldX;
+    cam.pos.z += guide.root.position.z - oldZ;
+    cam.pos.y = cam.depthT = DOCK_Y;
+    updateChaseCamera(0, true);
+  }
+}
+function enterOceanAt(back, eye) {
+  phase = "ocean";
+  document.body.classList.remove("dock", "jumping", "splash");
+  setWorldVisible(true);
+  cam.pos.set(0, eye, back);
+  cam.depthT = eye; cam.yaw = cam.yawT = 0; cam.pitch = cam.pitchT = -0.03;
+  cam.vel.set(0, 0, 0);
+  guide.root.position.set(0, GUIDE_Y, back - 34);
+  updateChaseCamera(0, true);
+}
+function stageDock() {
+  phase = "dock";
+  document.body.classList.add("dock");
+  document.body.classList.remove("jumping");
+  guide.root.position.set(0, DOCK_Y, 0);
+  guide.root.rotation.set(0, 0, 0);
+  guide.root.visible = true;
+  cam.pos.set(-0.45, DOCK_Y, 2.45);
+  cam.depthT = DOCK_Y; cam.yaw = cam.yawT = 0; cam.pitch = cam.pitchT = -0.10;
+  cam.vel.set(0, 0, 0);
+  player.root.visible = true;
+  setWorldVisible(false);
+  updateChaseCamera(0, true);
+  elPlaceN.textContent = "the dock";
+  elPlaceS.textContent = "walk over to kelp";
+}
+const nearKelp = () => phase === "dock" &&
+  Math.hypot(cam.pos.x - guide.root.position.x - 0.16,
+             cam.pos.z - guide.root.position.z - 0.10) < 2.65;
+const atDockEdge = () => phase === "dock" && world &&
+  cam.pos.z - guide.root.position.z < -0.32;
+function syncAction() {
+  let label = "";
+  if (phase === "dock" && !talkMode) {
+    if (atDockEdge()) label = "jump in";
+    else if (nearKelp()) label = introSeen ? "talk to kelp" : "say hello to kelp";
+  }
+  if (label === actionLabel) return;
+  actionLabel = label;
+  elAction.hidden = !label;
+  elAction.setAttribute("aria-label", label ? "Press E to " + label : "");
+  elAction.querySelector("span").textContent = label;
+}
+function dockAction() {
+  if (atDockEdge()) { beginJump(); return; }
+  if (nearKelp()) { introSeen = true; openIntro(true); }
+}
+function beginJump() {
+  if (phase !== "dock" || !world) return;
+  audio();
+  closeTalk();
+  keys.clear(); cam.vel.set(0, 0, 0); glide = null;
+  phase = "jump";
+  document.body.classList.remove("dock");
+  document.body.classList.add("jumping");
+  jump = {
+    at: performance.now(), from: cam.pos.clone(),
+    to: new Vector3(guide.root.position.x, -6.5, guide.root.position.z - 4.2),
+    splashed: false,
+  };
+  actionLabel = ""; elAction.hidden = true;
+}
+function stepJump(nowMs) {
+  if (!jump) return;
+  const u = clamp((nowMs - jump.at) / 1250, 0, 1);
+  const e = u * u * (3 - 2 * u);
+  cam.pos.lerpVectors(jump.from, jump.to, e);
+  cam.pos.y += Math.sin(u * Math.PI) * 2.8;
+  cam.depthT = cam.pos.y;
+  cam.yawT = nearestYaw(0, cam.yaw);
+  cam.pitchT = lerp(-0.10, -0.42, e);
+  if (!jump.splashed && cam.pos.y < 0.5) {
+    jump.splashed = true;
+    guide.root.position.y = GUIDE_Y;
+    document.body.classList.add("splash");
+    sfx("splash");
+    setTimeout(() => document.body.classList.remove("splash"), 520);
+  }
+  if (u < 1) return;
+  phase = "ocean";
+  jump = null;
+  document.body.classList.remove("jumping", "dock");
+  setWorldVisible(true);
+  guide.root.position.y = GUIDE_Y;
+  cam.depthT = cam.pos.y;
+  cam.pitch = cam.pitchT = -0.18;
+  cam.vel.set(0, 0, 0);
+  updateChaseCamera(0, false);
+  lastChat = performance.now() + 4000;
+  elPlaceN.textContent = "the ocean";
+  say("swim where you look");
+}
+elAction.addEventListener("click", dockAction);
+
+/* yaw accumulates without bound as you drag, so an absolute heading has to be
+   expressed in the turn you are already in or the view spins the long way */
+const nearestYaw = (want, cur) =>
+  cur + Math.atan2(Math.sin(want - cur), Math.cos(want - cur));
+
+/* Carry me to that animal. The target is recomputed every frame from where it
+   actually is this instant, so you chase it and pull alongside rather than
+   arriving at a spot it left. */
+function glideTo(f) {
+  glide = { f, until: performance.now() + 9000 };
+}
+function glideBerth(x, y, z, yaw, pitch) {
+  glide = { p: new Vector3(x, y, z), yaw, pitch, until: performance.now() + 9000 };
+}
+/* nothing in the crosshair: push off and coast, so the key is never dead */
+function kick() {
+  const d = forwardOf(cam.yaw, cam.pitch).multiplyScalar(150);
+  glideBerth(cam.pos.x + d.x, clamp(cam.pos.y + d.y, -DEPTH - 60, -2), cam.pos.z + d.z,
+             cam.yawT, cam.pitchT);
+}
 
 addEventListener("keydown", e => {
   if (e.target && /INPUT|TEXTAREA/.test(e.target.tagName)) return;
-  if (e.code === "Space") e.preventDefault();
-  if (talkMode && (e.code === "Space" || e.key === "Enter")) { advance(); return; }
+  if (e.key === "Escape") { closeHaul(); return; }
+  /* a sheet is open: it owns the keyboard, and swimming behind it is nonsense */
+  if (!$("#haul").hidden || !$("#confirm").hidden) return;
+  if (e.code === "Space" || /^Arrow/.test(e.code)) e.preventDefault();
   const k = e.key.toLowerCase();
+  if (talkMode && (e.code === "Space" || e.key === "Enter" || (phase === "dock" && k === "e"))) {
+    advance(); return;
+  }
   keys.add(k);
   if (held()) return;                         // he is talking; stay put and listen
-  if (k === "f") cam.depthT = -18;
+  if (phase === "dock") { if (k === "e") dockAction(); return; }
+  if (phase === "jump") return;
+  if (SWIM_KEYS.includes(k)) letGo();         // your hands are on it again
+  /* look at something and be taken to it; look at nothing and push off */
+  if (e.code === "Space") {
+    if (aimed && !aimed.dead) glideTo(aimed); else kick();
+  }
+  if (k === "f") toKelp();
   if (k === "e") toggleNet();
 });
 addEventListener("keyup", e => keys.delete(e.key.toLowerCase()));
@@ -1627,19 +1983,23 @@ canvas.addEventListener("pointerdown", e => {
 canvas.addEventListener("pointerup", e => {
   dragging = false;
   try { canvas.releasePointerCapture(e.pointerId); } catch (err) { }
-  if (moved < 5) toggleNet();               // a click, not a drag
+  if (phase === "ocean" && moved < 5) toggleNet(); // a click, not a drag
 });
 canvas.addEventListener("pointermove", e => {
   if (!dragging) return;
-  moved += Math.abs(e.clientX - lastX) + Math.abs(e.clientY - lastY);
-  cam.yawT -= (e.clientX - lastX) * 0.0042;
-  cam.pitchT = clamp(cam.pitchT - (e.clientY - lastY) * 0.0035, -1.25, 1.25);
+  const dx = e.clientX - lastX, dy = e.clientY - lastY;
+  moved += Math.abs(dx) + Math.abs(dy);
+  if (moved > 5) glide = null;              // turning your head is taking over
+  cam.yawT -= dx * 0.0042;
+  cam.pitchT = clamp(cam.pitchT - dy * 0.0035, -1.22, 1.22);
   lastX = e.clientX; lastY = e.clientY;
 });
 addEventListener("wheel", e => {
   e.preventDefault();
-  if (held()) return;
-  cam.depthT = clamp(cam.depthT - e.deltaY * TUNE.descendSpeed, -DEPTH - 60, -2);
+  if (held() || phase !== "ocean") return;
+  letGo();
+  cam.depthT = clamp(cam.depthT - e.deltaY * TUNE.wheelSpeed, -DEPTH - 60, -2);
+  wheelAt = performance.now();
 }, { passive: false });
 
 /* ============================================================ near set */
@@ -1688,6 +2048,7 @@ function syncNet() {
   $("#net-b").textContent = net.size ? fmtBytes(bytes) : "";
   document.body.classList.toggle("hasnet", net.size > 0);
   $("#net-del").hidden = !canDelete;
+  if (!net.size) closeHaul();          // an empty net has nothing to show you
 }
 function setState(f, v) {
   if (!world) return;
@@ -1706,8 +2067,59 @@ $("#net-clear").addEventListener("click", () => {
   for (const f of net) { f.netted = false; setState(f, 1); }
   net.clear(); syncNet(); updateCard();
 });
-$("#net-copy").addEventListener("click", e => {
-  const txt = [...net].map(f => (f.path ? f.path + "/" : "") + f.name).join("\n");
+/* ------------------------------------------------------------- the haul
+   The delete sheet is a flat path list on purpose -- it has to be the least
+   playful thing on the page. This is the other half of that, and it should be
+   the most: what you actually caught, counted by species, the way you would
+   tip a net out on a dock and see what is in it. The path list is still here,
+   demoted to where it belongs -- a button inside the tally. */
+const esc = s => s.replace(/[<&]/g, c => (c === "<" ? "&lt;" : "&amp;"));
+const fullPath = f => (f.path ? f.path + "/" : "") + f.name;
+
+function openHaul() {
+  if (!net.size) return;
+  const list = [...net];
+  let bytes = 0;
+  for (const f of list) bytes += f.size;
+  $("#haul-sum").textContent =
+    `${fmtCount(list.length)} fish  ·  ${fmtBytes(bytes)}`;
+
+  /* group by the species actually printed on the card, not by archetype --
+     "two Bonito and a Marlin" is a haul; "three torpedoes" is a histogram */
+  const sp = new Map();
+  for (const f of list) {
+    const a = ARCH[f.arch];
+    const name = a.key === "ghost" ? "Ghost Minnow" : a.nouns[(f.hash >>> 19) % a.nouns.length];
+    let e = sp.get(name);
+    if (!e) sp.set(name, e = { n: 0, b: 0, fam: f.fam });
+    e.n++; e.b += f.size;
+  }
+  const rows = [...sp.entries()].sort((a, b) => b[1].n - a[1].n || b[1].b - a[1].b);
+  const shown = rows.slice(0, 18);
+  $("#haul-species").innerHTML = shown.map(([name, e]) =>
+    `<div><i style="background:${famColor[e.fam].getStyle()}"></i>` +
+    /* no plural. Three cod, two perch, a dozen bream -- fish names do not take
+       one, and "3 Frys" reads like a spreadsheet wrote it */
+    `<b>${e.n}</b><u>${esc(name)}</u>` +
+    `<s>${fmtBytes(e.b)}</s></div>`).join("") +
+    (rows.length > shown.length
+      ? `<div><i style="background:transparent"></i><b></b><u>&#8230; and ${rows.length - shown.length} more kinds</u></div>`
+      : "");
+
+  /* the two facts you actually want out of a catch */
+  const big = list.reduce((a, f) => (f.size > a.size ? f : a), list[0]);
+  const old = list.reduce((a, f) => (f.ageDays > a.ageDays ? f : a), list[0]);
+  const note = [`biggest &#183; <em>${esc(fishName(big))}</em> &#183; ${esc(big.name)} &#183; ${fmtBytes(big.size)}`];
+  if (old !== big) note.push(`longest down there &#183; <em>${esc(fishName(old))}</em> &#183; ${esc(old.name)} &#183; ${relAge(old.ageDays)}`);
+  $("#haul-note").innerHTML = note.join("<br>");
+  $("#haul").hidden = false;
+}
+const closeHaul = () => { $("#haul").hidden = true; };
+
+$("#net-haul").addEventListener("click", openHaul);
+$("#haul-close").addEventListener("click", closeHaul);
+$("#haul-copy").addEventListener("click", e => {
+  const txt = [...net].map(fullPath).join("\n");
   const t = document.createElement("textarea");
   t.value = txt;
   t.style.cssText = "position:fixed;top:0;left:0;opacity:0";
@@ -1727,8 +2139,7 @@ $("#net-del").addEventListener("click", () => {
   let bytes = 0;
   for (const f of list) bytes += f.size;
   $("#conf-sum").textContent = `${list.length} file${list.length === 1 ? "" : "s"} · ${fmtBytes(bytes)}`;
-  $("#conf-list").innerHTML = list.slice(0, 400)
-    .map(f => `<div>${((f.path ? f.path + "/" : "") + f.name).replace(/[<&]/g, c => c === "<" ? "&lt;" : "&amp;")}</div>`)
+  $("#conf-list").innerHTML = list.slice(0, 400).map(f => `<div>${esc(fullPath(f))}</div>`)
     .join("") + (list.length > 400 ? `<div>&#8230; and ${list.length - 400} more</div>` : "");
   $("#conf-err").textContent = "";
   $("#confirm").hidden = false;
@@ -1770,20 +2181,34 @@ const elYou = $("#you"), elYouT = elYou.querySelector("i"), elYouS = elYou.query
 const elPlaceN = $("#place-n"), elPlaceS = $("#place-s");
 const elCardN = $("#c-nm"), elCardF = $("#c-fn"), elCardP = $("#c-pa"), elCardA = $("#c-act");
 
-/* the gauge is a calendar drawn vertically, and since the column is fitted to
-   the data its labels are relative dates rather than fixed years */
+/* The gauge is a ruler, drawn vertically, in bytes.
+
+   This is the one place the new axis pays a dividend the old one could not:
+   ages had to be labelled relatively ("3 years ago") because the column was
+   fitted to the data and had no fixed marks. Sizes have canonical marks, so
+   the water gets a real scale printed down the side of it -- and 1 GB is at
+   the same place on every drive you will ever open. */
+const MARKS = [0, 10, 13, 16, 18, 20, 23, 26, 28, 30, 33, 36, 38];
+function fmtMark(lb) {
+  const b = Math.pow(2, lb);
+  if (b < 1024) return Math.round(b) + " B";
+  const u = ["KB", "MB", "GB", "TB"]; let i = -1, v = b;
+  while (v >= 1024 && i < 3) { v /= 1024; i++; }
+  return (v < 10 ? +v.toFixed(1) : Math.round(v)) + " " + u[i];
+}
 function buildGauge() {
   const g = $("#gauge");
   [...g.querySelectorAll(".tick")].forEach(t => t.remove());
-  let prev = "";
-  for (const frac of [0, 0.12, 0.28, 0.46, 0.66, 0.85, 1]) {
-    const label = frac === 0 ? "now" : relAge(yToAge(-frac * DEPTH));
-    if (label === prev) continue;                 // a narrow range repeats itself
-    prev = label;
+  let lastF = -1;
+  for (const lb of MARKS) {
+    if (lb < LB_LO - 0.4 || lb > LB_HI + 0.4) continue;
+    const frac = clamp(-sizeToY(lb) / DEPTH, 0, 1);
+    if (lastF >= 0 && frac - lastF < 0.085) continue;   // no stacked labels
+    lastF = frac;
     const d = document.createElement("div");
     d.className = "tick";
     d.style.top = (frac * 100).toFixed(2) + "%";
-    d.innerHTML = "<b>" + label + "</b>";
+    d.innerHTML = "<b>" + fmtMark(lb) + "</b>";
     g.appendChild(d);
   }
 }
@@ -1819,19 +2244,22 @@ const elIntro = $("#intro"), elTalkT = $("#talk-t"), elMore = $("#talk-more"),
   elChoice = $("#talk-choice"), elMute = $("#talk-mute");
 
 const LINES = [
-  "oh! hello. i didn't hear you come down.",
-  "welcome to the water. this is your drive, as an ocean.",
-  "every file down here is a fish, and how deep it swims is how old it is.",
+  "oh! hello. i didn't hear you come along the dock.",
+  "below us, your drive becomes an ocean.",
+  "every file down there is a fish, and how deep it swims is how much it weighs.",
   "folders are places in the water. the same file is always the same fish.",
   "nothing you open leaves this machine. i only read the water, i never carry it.",
   "so then. whose water are we swimming in today?",
 ];
 const TIPS = [
   "still here. still wet.",
-  "the deep ones are the old ones. mind the whale.",
+  "the deep ones are the heavy ones. mind the whale.",
   "net whatever you like. you can always let it all go again.",
   "a leviathan down there is only a very large file, you know.",
-  "the colour is what a thing is. the depth is how long you've kept it.",
+  "the colour is what a thing is. the depth is what it weighs.",
+  "look at something and press space. i'll take you to it.",
+  "the pale ones are the ones you haven't touched in years.",
+  "if you want the big stuff, just keep going down.",
   "if you get lost, press f and come back up to me.",
 ];
 
@@ -1893,13 +2321,32 @@ function closeTalk() {
 }
 /* the framing: he has to clear the dialogue box, so a narrow window is
    answered by standing further back rather than by cropping him */
+const guideBack = () =>
+  6.9 * clamp(1.55 / Math.max(0.45, innerWidth / Math.max(1, innerHeight)), 1, 2.1);
 function frameGuide() {
-  const back = 6.9 * clamp(1.55 / Math.max(0.45, innerWidth / Math.max(1, innerHeight)), 1, 2.1);
-  cam.pos.set(guide.root.position.x, GUIDE_Y + 0.30, guide.root.position.z + back);
+  cam.vel.set(0, 0, 0); glide = null;
+  if (phase === "dock") {
+    cam.depthT = cam.pos.y = DOCK_Y;
+    player.root.visible = true;
+    updateChaseCamera(0, true);
+    return;
+  }
+  cam.pos.set(guide.root.position.x, GUIDE_Y + 0.30, guide.root.position.z + guideBack());
   cam.depthT = cam.pos.y;
   cam.yaw = cam.yawT = 0;
   cam.pitch = cam.pitchT = 0.11;
-  cam.vel.set(0, 0, 0);
+  cam.eye.copy(cam.pos);                         // intro keeps its exact close framing
+  player.root.visible = false;
+}
+/* `f` is the way home. It used to snap your depth to -18 and leave you
+   wherever you were, which put you at the surface but rarely near him; now it
+   is the same carry as everything else, and it ends looking him in the face. */
+function toKelp() {
+  if (!guide.root.visible) { cam.depthT = -18; return; }
+  /* the berth belongs to the diver now; the chase camera supplies the old
+     stand-back distance without putting the protagonist inside Kelp. */
+  glideBerth(guide.root.position.x, GUIDE_Y + 0.30,
+             guide.root.position.z + 3.2, 0, 0.11);
 }
 function openIntro(first) {
   talkMode = "intro";
@@ -1915,9 +2362,9 @@ function openIntro(first) {
   startLine(first ? LINES[0] : "hm. nothing in there but water. try another?");
 }
 function leaveIntro() {
-  waveUntil = performance.now() + 1700;      // he waves you off as you sink
+  waveUntil = performance.now() + 1700;
   closeTalk();
-  elPlaceN.textContent = "the ocean";
+  elPlaceN.textContent = phase === "dock" ? "the dock" : "the ocean";
 }
 /* swim back up to the raft and he says something, the way a villager does.
    Mid-dive the HUD stays put, so the box steps up out of the net bar's way
@@ -1956,9 +2403,18 @@ addEventListener("pointerdown", e => {
 
    Testing the crosshair against each near fish directly is also cheaper -- a
    few hundred dot products instead of a quarter of a million triangles -- and
-   far kinder to aim with, since a 0.2 unit fry is a pixel and a half. */
+   far kinder to aim with, since a 0.2 unit fry is a pixel and a half.
+
+   Two things make it feel like aiming rather than like fishing for a tooltip.
+   The cone has a fixed angular grace on top of the animal's own size, so a
+   mote is still a target you can hit; and whatever you already have is scored
+   at a discount, so the label stops flickering between two fish in a shoal the
+   instant your hand moves a pixel. Hysteresis is most of what "responsive"
+   means for a picker. */
 let aimed = null, aimAt = 0;
 const fwd = new Vector3();
+const AIM_GRACE = 0.016;     // radians of slack past the silhouette, ~1 degree
+const AIM_STICK = 0.70;      // what the fish you are already on is scored at
 
 function pick() {
   if (!world) return null;
@@ -1975,9 +2431,10 @@ function pick() {
     /* how far the crosshair sits from the animal, in world units, against how
        big the animal is: aiming stays honest at every size class */
     const perp = dist * Math.sqrt(Math.max(0, 1 - along * along));
-    const reach = f.scale * 1.15 + dist * 0.006;       // a small angular grace
+    const reach = f.scale * 1.30 + dist * AIM_GRACE;
     if (perp > reach) continue;
-    const score = dist * (0.35 + perp / reach);        // nearest and most centred
+    let score = dist * (0.35 + perp / reach);          // nearest and most centred
+    if (f === aimed) score *= AIM_STICK;
     if (score < bestScore) { bestScore = score; best = f; }
   }
   return best;
@@ -2033,33 +2490,124 @@ function frame(nowMs) {
   }
 
   const k = 1 - Math.exp(-dt * TUNE.damp);
-  cam.yaw += (cam.yawT - cam.yaw) * k;
-  cam.pitch += (cam.pitchT - cam.pitch) * k;
+  /* the head is quick and the body is heavy. Damping them together is what
+     made aiming feel like steering something with a rudder. */
+  const kl = 1 - Math.exp(-dt * TUNE.lookDamp);
+  cam.yaw += (cam.yawT - cam.yaw) * kl;
+  cam.pitch += (cam.pitchT - cam.pitch) * kl;
 
   const boost = keys.has("shift") ? TUNE.boost : 1;
-  let fx = 0, fz = 0;
-  if (!held()) {
-    if (keys.has("w") || keys.has("arrowup")) fz += 1;
-    if (keys.has("s") || keys.has("arrowdown")) fz -= 1;
+  let fx = 0, fz = 0, fy = 0;
+  if (!held() && phase !== "jump") {
+    if (keys.has("w")) fz += 1;
+    if (keys.has("s")) fz -= 1;
     if (keys.has("a") || keys.has("arrowleft")) fx -= 1;
     if (keys.has("d") || keys.has("arrowright")) fx += 1;
-    if (keys.has("q")) cam.depthT = clamp(cam.depthT - 260 * dt, -DEPTH - 60, -2);
-    if (keys.has("r")) cam.depthT = clamp(cam.depthT + 260 * dt, -DEPTH - 60, -2);
+    /* the arrows keep the deliberate axis underwater; on the dock they are
+       simply alternate walking keys and cannot lift the player off the deck */
+    if (phase === "ocean" && keys.has("arrowup")) fy += 1;
+    if (phase === "ocean" && keys.has("arrowdown")) fy -= 1;
   }
 
   const sinY = Math.sin(cam.yaw), cosY = Math.cos(cam.yaw);
+  const cp = phase === "dock" ? 1 : Math.cos(cam.pitch);
   const want = new Vector3(
-    (-sinY * fz + cosY * fx) * TUNE.driftSpeed * boost, 0,
-    (-cosY * fz - sinY * fx) * TUNE.driftSpeed * boost);
-  cam.vel.lerp(want, k);
-  cam.pos.x += cam.vel.x * dt;
-  cam.pos.z += cam.vel.z * dt;
-  cam.pos.y += (cam.depthT - cam.pos.y) * (1 - Math.exp(-dt * 2.6));
-  const rad = Math.hypot(cam.pos.x, cam.pos.z);
-  const lim = (world ? world.radius : TUNE.lateral) * 1.9 + 200;
-  if (rad > lim) { cam.pos.x *= lim / rad; cam.pos.z *= lim / rad; }
+    -sinY * cp * fz + cosY * fx,
+    phase === "dock" ? 0 : Math.sin(cam.pitch) * fz + fy * 0.8,
+    -cosY * cp * fz - sinY * fx);
+  if (want.lengthSq() > 1) want.normalize();          // diagonals are not faster
+  want.multiplyScalar((phase === "dock" ? 2.8 : TUNE.swimSpeed) * boost);
 
-  camera.position.copy(cam.pos);
+  if (phase === "jump") {
+    cam.vel.set(0, 0, 0);
+    stepJump(nowMs);
+  } else {
+    cam.vel.lerp(want, k);
+    if (phase === "dock") {
+      cam.pos.x += cam.vel.x * dt;
+      cam.pos.z += cam.vel.z * dt;
+      cam.pos.x = clamp(cam.pos.x, guide.root.position.x - DOCK_X, guide.root.position.x + DOCK_X);
+      cam.pos.z = clamp(cam.pos.z, guide.root.position.z + DOCK_NEAR, guide.root.position.z + DOCK_FAR);
+      cam.pos.y = cam.depthT = DOCK_Y;
+      glide = null; wheelAt = 0;
+    } else {
+      /* --- being carried ------------------------------------------------- */
+      if (glide) {
+        if (nowMs > glide.until || (glide.f && glide.f.dead)) glide = null;
+        else {
+          let tx, ty, tz, ax, ay, az;
+          if (glide.f) {
+            const f = glide.f;
+            ax = f.px === undefined ? f.x : f.px;
+            ay = f.py === undefined ? f.y : f.py;
+            az = f.pz === undefined ? f.z : f.pz;
+            let dx = cam.pos.x - ax, dy = cam.pos.y - ay, dz = cam.pos.z - az;
+            const d = Math.hypot(dx, dy, dz) || 1;
+            const stand = Math.max(2.4, f.scale * TUNE.standoff);
+            tx = ax + dx / d * stand; ty = ay + dy / d * stand; tz = az + dz / d * stand;
+            cam.yawT = nearestYaw(Math.atan2(-(ax - cam.pos.x), -(az - cam.pos.z)), cam.yaw);
+            cam.pitchT = clamp(Math.atan2(ay - cam.pos.y,
+              Math.hypot(ax - cam.pos.x, az - cam.pos.z)), -1.22, 1.22);
+          } else {
+            tx = glide.p.x; ty = glide.p.y; tz = glide.p.z;
+            cam.yawT = nearestYaw(glide.yaw, cam.yaw); cam.pitchT = glide.pitch;
+          }
+          const g = 1 - Math.exp(-dt / Math.max(0.05, TUNE.glideTime) * 2.6);
+          cam.pos.x += (tx - cam.pos.x) * g;
+          cam.pos.z += (tz - cam.pos.z) * g;
+          cam.depthT = clamp(cam.depthT + (ty - cam.depthT) * g, -DEPTH - 60, -2);
+          cam.vel.multiplyScalar(1 - g);
+          if (Math.hypot(tx - cam.pos.x, ty - cam.pos.y, tz - cam.pos.z) < 0.8) glide = null;
+        }
+      }
+      cam.pos.x += cam.vel.x * dt;
+      cam.pos.z += cam.vel.z * dt;
+      if (Math.abs(cam.vel.y) > 0.01) {
+        cam.depthT = clamp(cam.depthT + cam.vel.y * dt, -DEPTH - 60, -2);
+        wheelAt = 0;
+      }
+      if (wheelAt && nowMs - wheelAt > TUNE.settle * 1000) {
+        cam.depthT = detent(cam.depthT); wheelAt = 0;
+      }
+      cam.pos.y += (cam.depthT - cam.pos.y) * (1 - Math.exp(-dt * 5.0));
+      const rad = Math.hypot(cam.pos.x, cam.pos.z);
+      const lim = (world ? world.radius : TUNE.lateral) * 1.9 + 200;
+      if (rad > lim) { cam.pos.x *= lim / rad; cam.pos.z *= lim / rad; }
+    }
+  }
+
+  /* The same body walks upright, commits to the jump, then becomes the
+     swimmer. Keeping one transform through all three phases is what prevents
+     the transition from reading as a camera cut. */
+  player.root.visible = phase !== "ocean" || (!!world && !held());
+  if (player.root.visible) {
+    if (phase === "dock") {
+      const moving = clamp(cam.vel.length() / 2.8, 0, 1);
+      const step = Math.sin(t * 8.0) * moving;
+      player.root.rotation.set(0, cam.yaw, 0);
+      player.armR.rotation.x = step * 0.45;
+      player.armL.rotation.x = -step * 0.45;
+      player.legR.rotation.x = -step * 0.38;
+      player.legL.rotation.x = step * 0.38;
+    } else if (phase === "jump") {
+      const dive = clamp((DOCK_Y - cam.pos.y + 0.2) / 4.0, 0, 1);
+      player.root.rotation.set(-Math.PI * 0.48 * dive, cam.yaw, 0);
+      player.armR.rotation.x = player.armL.rotation.x = -1.0 * dive;
+      player.legR.rotation.x = player.legL.rotation.x = 0.18;
+    } else {
+      const moving = Math.max(clamp(cam.vel.length() / TUNE.swimSpeed, 0, 1), glide ? 0.55 : 0.08);
+      const stroke = Math.sin(t * (2.2 + moving * 4.8));
+      player.root.rotation.set(-Math.PI / 2 + cam.pitch * 0.88, cam.yaw, stroke * 0.025 * moving);
+      player.armR.rotation.x = 0.18 + stroke * 0.72 * moving;
+      player.armL.rotation.x = 0.18 - stroke * 0.72 * moving;
+      player.legR.rotation.x = stroke * 0.26 * moving;
+      player.legL.rotation.x = -stroke * 0.26 * moving;
+    }
+  }
+
+  syncAction();
+  if (!held()) updateChaseCamera(dt, false);
+  camera.position.copy(cam.eye);
   camera.rotation.set(0, 0, 0);
   camera.rotateY(cam.yaw);
   camera.rotateX(cam.pitch);
@@ -2080,7 +2628,8 @@ function frame(nowMs) {
   surfMat.uniforms.uWater.value.copy(water).lerp(new Color(0x2f89a8), 0.5);
   for (const m of rayMats) m.uniforms.uTime.value = t;
 
-  {
+  snow.visible = phase === "ocean";
+  if (snow.visible) {
     const a = snow.geometry.attributes.position;
     for (let i = 0; i < TUNE.snow; i++) {
       let y = snowPos[i * 3 + 1] - dt * 1.4;
@@ -2093,21 +2642,36 @@ function frame(nowMs) {
     a.needsUpdate = true;
   }
 
-  /* --- kelp ------------------------------------------------------------- */
-  if (guide.root.visible) {
+  /* --- the dithered actors ---------------------------------------------- */
+  if (guide.root.visible || player.root.visible) {
     guideMat.uniforms.uTime.value = t;
     guideMat.uniforms.uFog.value = fog;
-    /* two swells at unrelated periods, so the raft never obviously loops */
-    guide.root.position.y = GUIDE_Y + Math.sin(t * 0.8) * 0.055 + Math.sin(t * 1.37) * 0.025;
-    guide.root.rotation.z = Math.sin(t * 0.61) * 0.012;
-    guide.root.rotation.x = Math.sin(t * 0.83 + 1.1) * 0.010;
+  }
+  if (guide.root.visible) {
+    const underwater = phase === "ocean" || (phase === "jump" && jump && jump.splashed);
+    if (underwater) {
+      /* two swells at unrelated periods, so the underwater berth never
+         obviously loops; above water it is a fixed dock, not a raft. */
+      guide.root.position.y = GUIDE_Y + Math.sin(t * 0.8) * 0.055 + Math.sin(t * 1.37) * 0.025;
+      guide.root.rotation.z = Math.sin(t * 0.61) * 0.012;
+      guide.root.rotation.x = Math.sin(t * 0.83 + 1.1) * 0.010;
+    } else {
+      guide.root.position.y = DOCK_Y;
+      guide.root.rotation.x = guide.root.rotation.z = 0;
+    }
     guideMat.uniforms.uDeck.value = guide.root.position.y;
     const saying = !!talkMode && !lineDone;
     guide.head.rotation.x = saying ? Math.sin(t * 9.5) * 0.05 : Math.sin(t * 0.9) * 0.02;
     guide.head.rotation.y = saying ? Math.sin(t * 3.1) * 0.07 : Math.sin(t * 0.55) * 0.11;
     /* the jaw runs off the same animalese cadence the voice does, which is
-       what stops him looking dubbed */
-    const flap = saying ? 0.45 + Math.abs(Math.sin(t * 16)) * 1.9 : 0.4;
+       what stops him looking dubbed -- literally the same clock: `charge` is
+       how far through the current character both the typewriter and the
+       scheduler are, so the mouth opens once per letter and shuts on a space */
+    const ch = line[Math.min(line.length - 1, Math.floor(cursor))] || " ";
+    const voiced = saying && /[a-z]/i.test(ch);
+    const flap = saying
+      ? (voiced ? 0.42 + Math.sin(clamp(charge, 0, 1) * Math.PI) * 1.85 : 0.30)
+      : 0.4;
     guide.mouth.scale.set(1, flap, saying ? 1.3 : 1);
     const idle = 0.13 + Math.sin(t * 1.1) * 0.06;
     const want = nowMs < waveUntil ? 2.16 + Math.sin(t * 9) * 0.34 : idle;
@@ -2130,12 +2694,12 @@ function frame(nowMs) {
   if (talkMode === "chat" && lineDone && closeAt && nowMs > closeAt) closeTalk();
   /* come back up to the raft and he has something to say, the way a villager
      does when you stand next to one */
-  if (world && !talkMode && guide.root.visible && nowMs - lastChat > 20000 &&
+  if (phase === "ocean" && world && !talkMode && guide.root.visible && nowMs - lastChat > 20000 &&
       cam.pos.distanceTo(guide.root.position) < 15) {
     chat(TIPS[(Math.random() * TIPS.length) | 0]);
   }
 
-  if (world) {
+  if (world && phase === "ocean") {
     if (nowMs - nearAt > 130) { nearAt = nowMs; rebuildNear(); }
     const counts = new Array(ARCH.length).fill(0);
     for (const m of world.insts) m.userData.ids.fill(-1);
@@ -2181,39 +2745,52 @@ function frame(nowMs) {
 
   const depthPct = clamp(-cam.pos.y / DEPTH, 0, 1);
   elYou.style.top = (depthPct * 100).toFixed(2) + "%";
-  const ageDays = yToAge(cam.pos.y);
-  elYouT.textContent = ageDays < 1 ? "today" : relAge(ageDays);
+  /* what the water weighs at this depth. Metres stay the small grey line,
+     because metres are the fiction and the byte is the truth. */
+  elYouT.textContent = fmtMark(yToSize(cam.pos.y));
   elYouS.textContent = Math.round(-cam.pos.y) + " m";
 
-  if (world && nowMs > sayUntil) {
-    let bestP = null, bestD = 1e9;
+  if (phase === "ocean" && world && nowMs > sayUntil) {
+    /* "where am I" is the SMALLEST circle you are standing inside, not the
+       nearest edge -- ranking by (distance - radius) hands it to whichever
+       circle is biggest, which is always the root, which is why this used to
+       say "the root" no matter where you swam. Outside everything, fall back
+       to the nearest edge so it still points at something. */
+    let bestP = null, bestR = Infinity, nearP = null, nearD = 1e9;
     for (const p of world.places) {
       if (!p.files.length) continue;
-      const d = Math.hypot(p.cx - cam.pos.x, p.cz - cam.pos.z) - p.r;
-      if (d < bestD) { bestD = d; bestP = p; }
+      const d = Math.hypot(p.cx - cam.pos.x, p.cz - cam.pos.z);
+      if (d < p.r && p.r < bestR) { bestR = p.r; bestP = p; }
+      if (d - p.r < nearD) { nearD = d - p.r; nearP = p; }
     }
+    const inside = !!bestP;
+    bestP = bestP || nearP;
     if (bestP) {
-      elPlaceN.textContent = bestD < 0 ? (bestP.name || "the root") : "—";
-      elPlaceS.textContent = bestD < 0
+      elPlaceN.textContent = inside ? (bestP.name || "the root") : "—";
+      elPlaceS.textContent = inside
         ? fmtCount(bestP.files.length) + " files · " +
           fmtBytes(bestP.files.reduce((a, f) => a + f.size, 0))
         : "open water";
     }
   }
 
-  if (nowMs - aimAt > 90) { aimAt = nowMs; aimed = pick(); updateCard(); }
+  if (phase === "ocean" && nowMs - aimAt > 45) {
+    aimAt = nowMs; aimed = pick(); updateCard();
+  } else if (phase !== "ocean" && aimed) {
+    aimed = null; updateCard();
+  }
 
   /* 1. the animals, alone, at PX-to-one with their own depth buffer, so they
         still occlude each other */
-  const anyFish = !!world && nearSet.length > 0;
-  const showGuide = guide.root.visible;
+  const anyFish = phase === "ocean" && !!world && nearSet.length > 0;
+  const showGuide = guide.root.visible || player.root.visible;
   if (anyFish) {
     renderer.setRenderTarget(fishRT);
     renderer.setClearColor(0x000000, 0);
     renderer.clear();
     renderer.render(fishScene, camera);
   }
-  if (showGuide) {                             // kelp, at his own finer grain
+  if (showGuide) {                             // Kelp and the diver, at a finer grain
     renderer.setRenderTarget(guideRT);
     renderer.setClearColor(0x000000, 0);
     renderer.clear();
@@ -2221,7 +2798,7 @@ function frame(nowMs) {
   }
   /* 2. the water, full res, untouched */
   renderer.setRenderTarget(null);
-  renderer.setClearColor(water, 1);
+  renderer.setClearColor((phase === "dock" || (phase === "jump" && cam.pos.y > 0.5)) ? 0x72aebb : water, 1);
   renderer.clear();
   renderer.render(scene, camera);
   /* 3. dither + ink, upscaled nearest, over the top */
@@ -2256,7 +2833,8 @@ async function openReal() {
     elScan.hidden = true;
     if (!files.length) { openIntro(false); return; }
     buildWorld(files, root.name);
-    say(canDelete ? "net a fish, then let it go for good" : "read only · nothing can be deleted");
+    say(phase === "dock" ? "the water is ready · walk to the edge"
+      : (canDelete ? "net a fish, then let it go for good" : "read only · nothing can be deleted"));
   } else {
     $("#dirinput").click();
   }
@@ -2267,6 +2845,7 @@ $("#open-demo").addEventListener("click", () => {
   leaveIntro();
   canDelete = false;
   buildWorld(buildDemo(), "demo drive");
+  if (phase === "dock") say("the water is ready · walk to the edge");
 });
 
 /* the everywhere-else path: no handles, so no deleting, but it is fast */
@@ -2288,7 +2867,8 @@ $("#open-demo").addEventListener("click", () => {
     inp.value = "";
     if (!files.length) { openIntro(false); return; }
     buildWorld(files, label);
-    say("read only · this browser cannot delete");
+    say(phase === "dock" ? "the water is ready · walk to the edge"
+      : "read only · this browser cannot delete");
   });
 }
 
@@ -2297,14 +2877,11 @@ $("#open-demo").addEventListener("click", () => {
    rAF cadence -- headless browsers run a handful of frames, which is not
    enough for the picker's own timer to ever fire */
 window.ocean = {
-  TUNE, cam, camera, get world() { return world; },
-  buildWorld, buildDemo, ARCH, net, syncNet, pick,
-  guide, openIntro, advance, get line() { return line; },
+  TUNE, cam, camera, player, updateChaseCamera, get world() { return world; },
+  get phase() { return phase; }, buildWorld, buildDemo, beginJump,
+  ARCH, net, syncNet, pick, guide, openIntro, advance, get line() { return line; },
 };
 
-if (/[?&]demo\b/.test(location.search)) {
-  buildWorld(buildDemo(), "demo drive");
-} else {
-  openIntro(true);
-}
+if (AUTO_DEMO) buildWorld(buildDemo(), "demo drive");
+else stageDock();
 requestAnimationFrame(frame);

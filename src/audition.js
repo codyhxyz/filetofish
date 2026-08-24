@@ -13,14 +13,16 @@ const CUES = [
   ["land", "The payoff. Square arpeggio doubled an octave down in sine; extra notes when rare."],
   ["sparkle", "Only on a species you have never seen. Three rising triangles."],
   ["tick", "UI. Opening the dex, toggling sound."],
-  ["voice", "Animalese. One formant blip per letter, coloured by the vowel in that letter's name."],
+  ["voice", "Animalese. One continuous throat for the whole line — three formants gliding between the vowels of the letters' English names, syllables cut into it by the envelope."],
 ];
 
 /* slider range guessed from the name, so adding a param needs no UI work */
 function range(key, v) {
   if (key === "clicks") return [3, 48, 1];
   if (/gain|master/i.test(key)) return [0, Math.max(0.6, v * 2), 0.005];
+  if (key === "glide") return [0.002, 0.06, 0.001];                      // formant slew, seconds
   if (/dur|step/i.test(key)) return [0.01, Math.max(0.4, v * 2.5), 0.005];
+  if (/fall|ask/i.test(key)) return [0, Math.max(0.5, v * 2.5), 0.005];  // pitch bends, in ratio
   if (/ease|rise|q$/i.test(key)) return [0.2, Math.max(3, v * 2.5), 0.01];
   return [Math.max(20, v * 0.25), v * 2.6, 1];          // frequencies
 }
