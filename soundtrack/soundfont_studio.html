@@ -3,27 +3,27 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>FiletoFish — SoundFont & MIDI Studio</title>
+  <title>FiletoFish — SoundFont & MIDI Studio (All 32 Songs)</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       background: #0d1217;
       color: #e2ebf4;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      padding: 32px 20px 80px 20px;
+      padding: 28px 20px 80px 20px;
       line-height: 1.5;
     }
     .container {
-      max-width: 920px;
+      max-width: 960px;
       margin: 0 auto;
     }
     header {
-      margin-bottom: 24px;
+      margin-bottom: 20px;
       border-bottom: 1px solid #1f2c3a;
       padding-bottom: 16px;
       display: flex;
       justify-content: space-between;
-      align-items: flex-end;
+      align-items: center;
       flex-wrap: wrap;
       gap: 12px;
     }
@@ -38,12 +38,13 @@
     .sub {
       color: #7b94aa;
       font-size: 13px;
-      margin-top: 4px;
+      margin-top: 2px;
     }
+
     /* Sticky Transport Control */
     .transport-bar {
       position: sticky;
-      top: 16px;
+      top: 14px;
       z-index: 100;
       background: #15202c;
       border: 1px solid #283a4f;
@@ -56,24 +57,25 @@
       justify-content: space-between;
       flex-wrap: wrap;
       gap: 16px;
+      backdrop-filter: blur(12px);
     }
     .transport-left {
       display: flex;
       align-items: center;
-      gap: 14px;
+      gap: 12px;
     }
     .btn-main {
       background: #238636;
       border: none;
       color: white;
       font-weight: 700;
-      font-size: 15px;
-      padding: 10px 24px;
+      font-size: 14px;
+      padding: 10px 20px;
       border-radius: 8px;
       cursor: pointer;
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 6px;
       transition: background 0.15s, transform 0.05s;
     }
     .btn-main:hover { background: #2ea043; }
@@ -82,11 +84,15 @@
       font-size: 13px;
       color: #79c0ff;
       font-family: monospace;
+      max-width: 320px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     .transport-sliders {
       display: flex;
       align-items: center;
-      gap: 20px;
+      gap: 16px;
       flex-wrap: wrap;
     }
     .slider-group {
@@ -98,9 +104,47 @@
       font-weight: 600;
     }
     .slider-group input[type="range"] {
-      width: 90px;
+      width: 80px;
       accent-color: #388bfd;
       cursor: pointer;
+    }
+
+    /* Song Selector Bar */
+    .song-bar {
+      background: #141c26;
+      border: 1px solid #233345;
+      border-radius: 12px;
+      padding: 16px 20px;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .song-select-label {
+      font-size: 13px;
+      font-weight: 700;
+      color: #58a6ff;
+      white-space: nowrap;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .song-select {
+      flex: 1;
+      min-width: 260px;
+      background: #0d141d;
+      border: 1px solid #2e4157;
+      border-radius: 8px;
+      padding: 10px 14px;
+      color: #f0f6fc;
+      font-size: 14px;
+      font-weight: 600;
+      outline: none;
+      cursor: pointer;
+    }
+    .song-select:focus {
+      border-color: #388bfd;
     }
 
     .grid {
@@ -109,7 +153,7 @@
       gap: 16px;
       margin-bottom: 20px;
     }
-    @media (max-width: 760px) {
+    @media (max-width: 780px) {
       .grid { grid-template-columns: 1fr; }
     }
     .panel {
@@ -209,7 +253,7 @@
       border: 1px solid #202e3f;
       border-radius: 8px;
       padding: 12px;
-      max-height: 380px;
+      max-height: 420px;
       overflow-y: auto;
       font-family: monospace;
       font-size: 12px;
@@ -221,7 +265,6 @@
       padding: 4px 6px;
       border-radius: 4px;
       border-bottom: 1px solid #162230;
-      transition: background 0.1s;
     }
     .midi-row.active-now {
       background: #1d4b7a;
@@ -240,11 +283,11 @@
   <header>
     <div>
       <h1>🎹 SoundFont & MIDI Architecture Studio</h1>
-      <div class="sub">Instantaneous live hotswapping across SoundFont banks and instruments via micro-lookahead scheduler.</div>
+      <div class="sub">32 interactive songs running on real multi-sampled SoundFonts with live hotswapping.</div>
     </div>
   </header>
 
-  <!-- Sticky Transport -->
+  <!-- Sticky Transport Bar -->
   <div class="transport-bar">
     <div class="transport-left">
       <button class="btn-main" id="playBtn" onclick="togglePlay()">▶ Play MIDI</button>
@@ -254,13 +297,72 @@
     <div class="transport-sliders">
       <div class="slider-group">
         <span>BPM: <b id="bpmVal">92</b></span>
-        <input type="range" id="bpmSlider" min="60" max="160" value="92" oninput="onBpmChange(this.value)">
+        <input type="range" id="bpmSlider" min="50" max="170" value="92" oninput="onBpmChange(this.value)">
       </div>
       <div class="slider-group">
         <span>Swing: <b id="swingVal">62%</b></span>
         <input type="range" id="swingSlider" min="50" max="75" value="62" oninput="onSwingChange(this.value)">
       </div>
     </div>
+  </div>
+
+  <!-- Song Selector -->
+  <div class="song-bar">
+    <div class="song-select-label">🎵 Active Song:</div>
+    <select id="songSelect" class="song-select" onchange="loadSong(this.value)">
+      <optgroup label="🌅 Time of Day Dock Suite (6)">
+        <option value="ac_day" selected>☀️ Day (11:00-17:00) — Swung Bossa, C Maj (FM Marimba & Whistle)</option>
+        <option value="ac_dawn">🌅 Dawn (05:00-08:00) — 3/4 Gentle Waltz, D Maj (Kalimba & Flute)</option>
+        <option value="ac_morning">☕ Morning (08:00-11:00) — 4/4 Brisk Shuffle, G Maj (Slap Bass & Melodica)</option>
+        <option value="ac_sunset">🌇 Sunset (17:00-20:00) — 4/4 Relaxed Bossa, F Maj (Rhodes & Vibraphone)</option>
+        <option value="ac_night">🌙 Night (20:00-00:00) — 4/4 Lounge, E Maj (Vibraphone & Deep Bass)</option>
+        <option value="ac_late_night">🌌 Late Night (00:00-05:00) — 4/4 Satie Minimalist, B Min (Music Box & Sub)</option>
+      </optgroup>
+
+      <optgroup label="🏝 Tropical & Island (5)">
+        <option value="bossa">K.K. Bossa (Nylon Guitar, Upright Bass, Flute)</option>
+        <option value="dub_reggae">K.K. Pier Dub (Deep Sub Drop, Offbeat Organ, Melodica)</option>
+        <option value="calypso">K.K. Calypso / Steelpan (FM Steelpan, Woodblocks, Nylon)</option>
+        <option value="slack_key">K.K. Hawaiian Slack Key (Open-G Fingerpicked Acoustic)</option>
+        <option value="mambo">K.K. Mambo / Son Cubano (Staccato Montuno, Muted Trumpet)</option>
+      </optgroup>
+
+      <optgroup label="📻 Vintage & Retro (5)">
+        <option value="surf_rock">K.K. Surf Rock (Twangy Guitar, Fast Surf Drive)</option>
+        <option value="ragtime">K.K. Ragtime / Stride Pier (Tack Piano, Tuba Bass)</option>
+        <option value="western">K.K. Western / Morricone (Baritone Twang, Lonely Whistle)</option>
+        <option value="second_line">K.K. New Orleans Second Line (Sousaphone Tuba, Clarinet)</option>
+        <option value="cool_jazz">K.K. Cool Jazz / Neo-Noir (Harmon-Muted Trumpet, Walking Bass)</option>
+      </optgroup>
+
+      <optgroup label="⚓ Maritime & Folk (4)">
+        <option value="musette">K.K. Musette (French Waltz, Dual-Detuned Accordion)</option>
+        <option value="sea_shanty">K.K. Sea Shanty / Celtic (Tin Whistle, 6/8 Lilt)</option>
+        <option value="bluegrass">K.K. Bluegrass / Country Pier (Fast Banjo, Fiddle)</option>
+        <option value="flamenco">K.K. Flamenco Harbor (Nylon Rasgueado, Phrygian Cadence)</option>
+      </optgroup>
+
+      <optgroup label="🌆 Electronic & Chill (5)">
+        <option value="city_pop">K.K. City Pop (Slap Bass Pops, DX7 Rhodes, Flute)</option>
+        <option value="lofi_chillhop">K.K. Lo-Fi Chillhop (Felt Piano, Unquantized Chill)</option>
+        <option value="y2k_jungle">K.K. Y2K Jungle / Ocean Break (Fast Breakbeat, Ambient Rhodes)</option>
+        <option value="chiptune">K.K. Chiptune 8-Bit (Square Waves, Fast Arps)</option>
+        <option value="deep_house">K.K. Cozy Deep House (M1 Organ Chords, Round Bass)</option>
+      </optgroup>
+
+      <optgroup label="🌌 Atmospheric & Ambient (4)">
+        <option value="music_box">K.K. Music Box / Lullaby (High Metallic Tines, Celesta)</option>
+        <option value="satie_ambient">K.K. Satie Minimalist (Sparse Piano Chords, Silences)</option>
+        <option value="raindrop_kalimba">K.K. Raindrop Kalimba (Polyrhythmic Kalimba Pings)</option>
+        <option value="chamber_strings">K.K. Chamber / Museum (Pizzicato Cello, Violin Lead)</option>
+      </optgroup>
+
+      <optgroup label="🌍 World & Regional (3)">
+        <option value="afrobeat">K.K. Afrobeat Pier (Interlocking Guitars, Groove Bass)</option>
+        <option value="tango">K.K. Argentine Tango (Bandoneón Accordion, Piano Marcato)</option>
+        <option value="march">K.K. March / Harbor Stroll (Piccolo Whistle, Tuba Oom-pah)</option>
+      </optgroup>
+    </select>
   </div>
 
   <div class="grid">
@@ -322,6 +424,7 @@
           <option value="vibraphone">Vibraphone</option>
           <option value="marimba">Orchestral Marimba</option>
           <option value="honkytonk_piano">Honky-Tonk / Tack Piano</option>
+          <option value="music_box">Music Box</option>
         </select>
       </div>
 
@@ -347,6 +450,7 @@
           <option value="music_box">Music Box</option>
           <option value="muted_trumpet">Harmon-Muted Trumpet</option>
           <option value="harmonica">Blues Harmonica</option>
+          <option value="violin">Violin</option>
         </select>
       </div>
     </div>
@@ -355,11 +459,11 @@
     <div class="panel">
       <div class="panel-title">
         <span>Standard MIDI Event Stream</span>
-        <span style="font-size:11px;color:#d29922">Live Active Note Highlight</span>
+        <span style="font-size:11px;color:#d29922">Universal MIDI Notes</span>
       </div>
 
       <p style="font-size:12px;color:#7b94aa;margin-bottom:12px;">
-        Each note is scheduled just 50–100ms ahead. Instrument changes take effect instantly on the next note without pausing.
+        Universal MIDI events scheduled on a 120ms micro-lookahead clock. Swap songs or instruments live while audio plays.
       </p>
 
       <div class="midi-box" id="midiInspector"></div>
@@ -377,6 +481,7 @@
   let isPlaying = false;
   let bpm = 92;
   let swing = 0.62;
+  let meter = 4; // 4/4 or 3/4
   let currentBank = "FluidR3_GM";
 
   // Monotonic Generation ID & Scheduler interval
@@ -392,81 +497,455 @@
   // Instrument Cache: Map<"Bank:InstrumentName", SoundfontPlayerInstance>
   const instrumentCache = new Map();
 
-  // Active Channel Instruments (read live on every beat!)
+  // Active Channel Instruments
   const channels = {
     bass: null,
     chords: null,
     lead: null
   };
 
-  // MIDI Event Data (Linear event timeline across 8 bars = 32 beats)
-  // Each bar has 4 beats (bar 0: 0.0..3.9, bar 1: 4.0..7.9, etc.)
-  const TOTAL_BEATS = 32;
+  // =========================================================================
+  // COMPLETE 32-SONG MIDI LIBRARY
+  // =========================================================================
+  const SONGS = {
+    // 1. Time of Day Suite
+    "ac_day": {
+      title: "Day (11:00-17:00)", bpm: 92, swing: 0.62, meter: 4,
+      defaults: { bass: "acoustic_bass", chords: "acoustic_guitar_nylon", lead: "flute" },
+      chords: [
+        { bass: "C2", notes: ["E4", "G4", "B4", "D5"] },
+        { bass: "A1", notes: ["Db4", "E4", "G4", "Bb4"] },
+        { bass: "D2", notes: ["F4", "A4", "C5", "E5"] },
+        { bass: "G1", notes: ["E4", "F4", "B4", "D5"] },
+        { bass: "E2", notes: ["G4", "B4", "D5", "G5"] },
+        { bass: "A1", notes: ["Db4", "G4", "A4", "E5"] },
+        { bass: "F1", notes: ["A4", "C5", "E5", "G5"] },
+        { bass: "F1", notes: ["Ab4", "C5", "D5", "G5"] }
+      ],
+      melody: [
+        { bar: 0, b: 0.0, note: "E5", dur: 0.8, vel: 0.8 },
+        { bar: 0, b: 1.0, note: "G5", dur: 0.6, vel: 0.7 },
+        { bar: 0, b: 2.0, note: "D5", dur: 0.8, vel: 0.8 },
+        { bar: 0, b: 3.0, note: "C5", dur: 1.8, vel: 0.9 },
+        { bar: 1, b: 2.5, note: "B4", dur: 0.5, vel: 0.6, isSwung: true },
+        { bar: 1, b: 3.0, note: "C5", dur: 0.9, vel: 0.7 },
+        { bar: 3, b: 2.5, note: "D5", dur: 0.5, vel: 0.6, isSwung: true },
+        { bar: 3, b: 3.0, note: "E5", dur: 0.7, vel: 0.8 },
+        { bar: 4, b: 0.0, note: "G5", dur: 0.8, vel: 0.8 },
+        { bar: 4, b: 1.0, note: "A5", dur: 0.6, vel: 0.7 },
+        { bar: 4, b: 2.0, note: "B5", dur: 1.2, vel: 0.9 },
+        { bar: 5, b: 0.5, note: "A5", dur: 0.6, vel: 0.7, isSwung: true },
+        { bar: 5, b: 1.5, note: "G5", dur: 0.6, vel: 0.7, isSwung: true },
+        { bar: 5, b: 2.5, note: "E5", dur: 1.6, vel: 0.8, isSwung: true },
+        { bar: 6, b: 0.0, note: "E5", dur: 1.2, vel: 0.8 },
+        { bar: 6, b: 2.0, note: "F5", dur: 0.8, vel: 0.7 },
+        { bar: 7, b: 0.0, note: "F5", dur: 1.0, vel: 0.7 },
+        { bar: 7, b: 2.0, note: "Eb5", dur: 1.5, vel: 0.9 }
+      ]
+    },
 
-  const CHORD_DATA = [
-    { bass: "C2", notes: ["E4", "G4", "B4", "D5"] }, // Bar 0
-    { bass: "A1", notes: ["Db4", "E4", "G4", "Bb4"] }, // Bar 1
-    { bass: "D2", notes: ["F4", "A4", "C5", "E5"] }, // Bar 2
-    { bass: "G1", notes: ["E4", "F4", "B4", "D5"] }, // Bar 3
-    { bass: "E2", notes: ["G4", "B4", "D5", "G5"] }, // Bar 4
-    { bass: "A1", notes: ["Db4", "G4", "A4", "E5"] }, // Bar 5
-    { bass: "F1", notes: ["A4", "C5", "E5", "G5"] }, // Bar 6
-    { bass: "F1", notes: ["Ab4", "C5", "D5", "G5"] }, // Bar 7
+    "ac_dawn": {
+      title: "Dawn (05:00-08:00)", bpm: 78, swing: 0.50, meter: 3,
+      defaults: { bass: "acoustic_bass", chords: "music_box", lead: "flute" },
+      chords: [
+        { bass: "D2", notes: ["F#4", "A4", "C#5"] },
+        { bass: "B1", notes: ["D4", "F#4", "A4"] },
+        { bass: "E2", notes: ["G4", "B4", "D5"] },
+        { bass: "A1", notes: ["G4", "C#5", "E5"] },
+        { bass: "F#1", notes: ["A4", "C#5", "E5"] },
+        { bass: "B1", notes: ["D#4", "A4", "B4"] },
+        { bass: "G1", notes: ["Bb4", "D5", "G5"] },
+        { bass: "D2", notes: ["F#4", "A4", "D5"] }
+      ],
+      melody: [
+        { bar: 0, b: 0.0, note: "D5", dur: 1.8, vel: 0.8 },
+        { bar: 0, b: 2.0, note: "F#5", dur: 1.0, vel: 0.7 },
+        { bar: 1, b: 0.0, note: "E5", dur: 2.0, vel: 0.8 },
+        { bar: 1, b: 2.0, note: "B4", dur: 1.2, vel: 0.6 },
+        { bar: 3, b: 1.0, note: "D5", dur: 1.0, vel: 0.7 },
+        { bar: 3, b: 2.0, note: "E5", dur: 1.0, vel: 0.8 },
+        { bar: 4, b: 0.0, note: "F#5", dur: 1.8, vel: 0.8 },
+        { bar: 4, b: 2.0, note: "A5", dur: 1.0, vel: 0.7 },
+        { bar: 5, b: 0.0, note: "F#5", dur: 2.0, vel: 0.8 },
+        { bar: 6, b: 0.0, note: "Eb5", dur: 2.0, vel: 0.9 },
+        { bar: 7, b: 0.0, note: "D5", dur: 2.5, vel: 0.8 }
+      ]
+    },
+
+    "ac_morning": {
+      title: "Morning (08:00-11:00)", bpm: 98, swing: 0.64, meter: 4,
+      defaults: { bass: "slap_bass_1", chords: "marimba", lead: "accordion" },
+      chords: [
+        { bass: "G1", notes: ["B4", "D5", "F#5", "A5"] },
+        { bass: "E2", notes: ["G#4", "D5", "E5", "G#5"] },
+        { bass: "A1", notes: ["C5", "E5", "G5", "B5"] },
+        { bass: "D2", notes: ["C5", "E5", "F#5", "B5"] },
+        { bass: "B1", notes: ["D5", "F#5", "A5", "D6"] },
+        { bass: "E2", notes: ["D5", "G#5", "B5", "E6"] },
+        { bass: "C2", notes: ["E5", "G5", "B5", "E6"] },
+        { bass: "C2", notes: ["Eb5", "G5", "Bb5", "Eb6"] }
+      ],
+      melody: [
+        { bar: 0, b: 0.0, note: "B4", dur: 0.8, vel: 0.8 },
+        { bar: 0, b: 1.0, note: "D5", dur: 0.6, vel: 0.7 },
+        { bar: 0, b: 2.0, note: "A4", dur: 0.8, vel: 0.8 },
+        { bar: 0, b: 3.0, note: "G4", dur: 1.8, vel: 0.9 },
+        { bar: 1, b: 2.5, note: "F#4", dur: 0.5, vel: 0.6, isSwung: true },
+        { bar: 1, b: 3.0, note: "G4", dur: 0.9, vel: 0.7 },
+        { bar: 3, b: 2.5, note: "A4", dur: 0.5, vel: 0.6, isSwung: true },
+        { bar: 3, b: 3.0, note: "B4", dur: 0.7, vel: 0.8 },
+        { bar: 4, b: 0.0, note: "D5", dur: 0.8, vel: 0.8 },
+        { bar: 4, b: 1.0, note: "E5", dur: 0.6, vel: 0.7 },
+        { bar: 4, b: 2.0, note: "F#5", dur: 1.2, vel: 0.9 },
+        { bar: 5, b: 0.5, note: "E5", dur: 0.6, vel: 0.7, isSwung: true },
+        { bar: 5, b: 1.5, note: "D5", dur: 0.6, vel: 0.7, isSwung: true },
+        { bar: 5, b: 2.5, note: "B4", dur: 1.6, vel: 0.8, isSwung: true },
+        { bar: 7, b: 0.0, note: "Bb4", dur: 1.8, vel: 0.9 }
+      ]
+    },
+
+    "ac_sunset": {
+      title: "Sunset (17:00-20:00)", bpm: 76, swing: 0.58, meter: 4,
+      defaults: { bass: "fretless_bass", chords: "electric_piano_1", lead: "vibraphone" },
+      chords: [
+        { bass: "F1", notes: ["A4", "C5", "E5", "G5"] },
+        { bass: "D2", notes: ["F#4", "C5", "D5", "F#5"] },
+        { bass: "G1", notes: ["Bb4", "D5", "F5", "A5"] },
+        { bass: "C2", notes: ["Bb4", "D5", "E5", "A5"] },
+        { bass: "A1", notes: ["C5", "E5", "G5", "C6"] },
+        { bass: "D2", notes: ["C5", "F#5", "A5", "D6"] },
+        { bass: "Bb1", notes: ["D5", "F5", "A5", "D6"] },
+        { bass: "Bb1", notes: ["Db5", "F5", "Ab5", "Db6"] }
+      ],
+      melody: [
+        { bar: 0, b: 0.0, note: "A4", dur: 1.8, vel: 0.8 },
+        { bar: 0, b: 2.0, note: "C5", dur: 1.0, vel: 0.7 },
+        { bar: 1, b: 0.0, note: "G4", dur: 2.0, vel: 0.8 },
+        { bar: 1, b: 2.0, note: "F4", dur: 1.5, vel: 0.7 },
+        { bar: 3, b: 2.0, note: "G4", dur: 1.0, vel: 0.7 },
+        { bar: 3, b: 3.0, note: "A4", dur: 1.0, vel: 0.8 },
+        { bar: 4, b: 0.0, note: "C5", dur: 1.8, vel: 0.8 },
+        { bar: 4, b: 2.0, note: "E5", dur: 1.2, vel: 0.9 },
+        { bar: 5, b: 0.5, note: "D5", dur: 1.5, vel: 0.8 },
+        { bar: 5, b: 2.5, note: "A4", dur: 1.8, vel: 0.8 },
+        { bar: 7, b: 0.0, note: "Db5", dur: 2.0, vel: 0.9 }
+      ]
+    },
+
+    "ac_night": {
+      title: "Night (20:00-00:00)", bpm: 66, swing: 0.56, meter: 4,
+      defaults: { bass: "acoustic_bass", chords: "electric_piano_1", lead: "vibraphone" },
+      chords: [
+        { bass: "E1", notes: ["G#4", "B4", "D#5", "G#5"] },
+        { bass: "C#2", notes: ["G#4", "B4", "E5", "G#5"] },
+        { bass: "F#1", notes: ["A4", "C#5", "E5", "A5"] },
+        { bass: "B1", notes: ["A4", "D#5", "F#5", "A5"] },
+        { bass: "G#1", notes: ["B4", "D#5", "G#5", "B5"] },
+        { bass: "C#2", notes: ["B4", "E5", "G#5", "C#6"] },
+        { bass: "A1", notes: ["C#5", "E5", "G#5", "C#6"] },
+        { bass: "A1", notes: ["C5", "E5", "A5", "C6"] }
+      ],
+      melody: [
+        { bar: 0, b: 0.0, note: "D#5", dur: 1.8, vel: 0.8 },
+        { bar: 0, b: 2.0, note: "F#5", dur: 1.2, vel: 0.7 },
+        { bar: 1, b: 0.0, note: "C#5", dur: 2.0, vel: 0.8 },
+        { bar: 1, b: 2.5, note: "B4", dur: 1.5, vel: 0.7 },
+        { bar: 3, b: 2.0, note: "C#5", dur: 1.0, vel: 0.7 },
+        { bar: 3, b: 3.0, note: "D#5", dur: 1.0, vel: 0.8 },
+        { bar: 4, b: 0.0, note: "F#5", dur: 2.0, vel: 0.8 },
+        { bar: 5, b: 1.0, note: "F#5", dur: 1.8, vel: 0.8 },
+        { bar: 7, b: 0.0, note: "C5", dur: 2.2, vel: 0.9 }
+      ]
+    },
+
+    "ac_late_night": {
+      title: "Late Night (00:00-05:00)", bpm: 56, swing: 0.50, meter: 4,
+      defaults: { bass: "acoustic_bass", chords: "acoustic_grand_piano", lead: "music_box" },
+      chords: [
+        { bass: "B1", notes: ["D4", "F#4", "A4", "D5"] },
+        { bass: "B1", notes: ["D4", "F#4", "A4", "D5"] },
+        { bass: "E2", notes: ["G4", "B4", "D5", "G5"] },
+        { bass: "E2", notes: ["G4", "B4", "D5", "G5"] },
+        { bass: "A1", notes: ["C#4", "E4", "G4", "C#5"] },
+        { bass: "D2", notes: ["F#4", "A4", "C#5", "F#5"] },
+        { bass: "G1", notes: ["B4", "D5", "F#5", "B5"] },
+        { bass: "F#1", notes: ["A#4", "C#5", "E5", "A#5"] }
+      ],
+      melody: [
+        { bar: 0, b: 0.0, note: "B4", dur: 2.0, vel: 0.7 },
+        { bar: 1, b: 1.0, note: "D5", dur: 2.0, vel: 0.8 },
+        { bar: 1, b: 3.0, note: "C#5", dur: 2.0, vel: 0.7 },
+        { bar: 4, b: 0.0, note: "A4", dur: 2.5, vel: 0.8 },
+        { bar: 5, b: 1.0, note: "C#5", dur: 2.0, vel: 0.8 },
+        { bar: 5, b: 3.0, note: "B4", dur: 2.0, vel: 0.7 },
+        { bar: 7, b: 1.0, note: "A#4", dur: 2.5, vel: 0.9 }
+      ]
+    },
+
+    // 2. K.K. Slider Genres
+    "bossa": {
+      title: "K.K. Bossa", bpm: 84, swing: 0.60, meter: 4,
+      defaults: { bass: "acoustic_bass", chords: "acoustic_guitar_nylon", lead: "flute" },
+      chords: [
+        { bass: "C2", notes: ["E4", "G4", "B4", "D5"] },
+        { bass: "A1", notes: ["Db4", "E4", "G4", "Bb4"] },
+        { bass: "D2", notes: ["F4", "A4", "C5", "E5"] },
+        { bass: "G1", notes: ["E4", "F4", "B4", "D5"] },
+        { bass: "E2", notes: ["G4", "B4", "D5", "G5"] },
+        { bass: "A1", notes: ["Db4", "G4", "A4", "E5"] },
+        { bass: "D2", notes: ["F4", "A4", "C5", "E5"] },
+        { bass: "G1", notes: ["F4", "B4", "D5", "G5"] }
+      ],
+      melody: [
+        { bar: 0, b: 0.0, note: "E5", dur: 1.2, vel: 0.8 },
+        { bar: 0, b: 2.0, note: "G5", dur: 1.0, vel: 0.7 },
+        { bar: 1, b: 0.0, note: "D5", dur: 2.2, vel: 0.8 },
+        { bar: 3, b: 2.0, note: "D5", dur: 0.8, vel: 0.7 },
+        { bar: 3, b: 3.0, note: "E5", dur: 0.8, vel: 0.8 },
+        { bar: 4, b: 0.0, note: "G5", dur: 1.8, vel: 0.8 },
+        { bar: 5, b: 0.0, note: "E5", dur: 2.5, vel: 0.8 }
+      ]
+    },
+
+    "musette": {
+      title: "K.K. Musette", bpm: 130, swing: 0.50, meter: 3,
+      defaults: { bass: "acoustic_bass", chords: "acoustic_guitar_nylon", lead: "accordion" },
+      chords: [
+        { bass: "A1", notes: ["C4", "E4", "A4"] },
+        { bass: "D2", notes: ["D4", "F4", "A4"] },
+        { bass: "E2", notes: ["D4", "G#4", "B4"] },
+        { bass: "A1", notes: ["C4", "E4", "A4"] },
+        { bass: "A1", notes: ["C4", "E4", "A4"] },
+        { bass: "D2", notes: ["D4", "F4", "A4"] },
+        { bass: "E2", notes: ["D4", "G#4", "B4"] },
+        { bass: "A1", notes: ["C4", "E4", "A4"] }
+      ],
+      melody: [
+        { bar: 0, b: 0.0, note: "A4", dur: 1.8, vel: 0.8 },
+        { bar: 0, b: 2.0, note: "C5", dur: 1.0, vel: 0.7 },
+        { bar: 1, b: 0.0, note: "D5", dur: 2.2, vel: 0.8 },
+        { bar: 2, b: 0.0, note: "B4", dur: 2.0, vel: 0.8 },
+        { bar: 3, b: 0.0, note: "A4", dur: 2.8, vel: 0.8 }
+      ]
+    },
+
+    "western": {
+      title: "K.K. Western", bpm: 86, swing: 0.54, meter: 4,
+      defaults: { bass: "acoustic_bass", chords: "acoustic_guitar_steel", lead: "whistle" },
+      chords: [
+        { bass: "D2", notes: ["F4", "A4", "D5"] },
+        { bass: "C2", notes: ["E4", "G4", "C5"] },
+        { bass: "Bb1", notes: ["D4", "F4", "Bb4"] },
+        { bass: "A1", notes: ["C#4", "E4", "A4"] },
+        { bass: "D2", notes: ["F4", "A4", "D5"] },
+        { bass: "C2", notes: ["E4", "G4", "C5"] },
+        { bass: "Bb1", notes: ["D4", "F4", "Bb4"] },
+        { bass: "A1", notes: ["C#4", "E4", "A4"] }
+      ],
+      melody: [
+        { bar: 0, b: 0.0, note: "D5", dur: 1.8, vel: 0.9 },
+        { bar: 0, b: 2.0, note: "F5", dur: 1.5, vel: 0.8 },
+        { bar: 1, b: 0.0, note: "C5", dur: 2.5, vel: 0.8 },
+        { bar: 2, b: 0.0, note: "Bb4", dur: 2.0, vel: 0.8 },
+        { bar: 3, b: 0.0, note: "A4", dur: 3.0, vel: 0.9 }
+      ]
+    },
+
+    "ragtime": {
+      title: "K.K. Ragtime", bpm: 100, swing: 0.58, meter: 4,
+      defaults: { bass: "tuba", chords: "honkytonk_piano", lead: "honkytonk_piano" },
+      chords: [
+        { bass: "C2", notes: ["E4", "G4", "C5"] },
+        { bass: "G1", notes: ["F4", "G4", "B4"] },
+        { bass: "C2", notes: ["E4", "G4", "C5"] },
+        { bass: "G1", notes: ["F4", "G4", "B4"] },
+        { bass: "C2", notes: ["E4", "G4", "C5"] },
+        { bass: "F1", notes: ["F4", "A4", "C5"] },
+        { bass: "G1", notes: ["F4", "G4", "B4"] },
+        { bass: "C2", notes: ["E4", "G4", "C5"] }
+      ],
+      melody: [
+        { bar: 0, b: 0.0, note: "C5", dur: 0.4, vel: 0.8 },
+        { bar: 0, b: 0.5, note: "D5", dur: 0.4, vel: 0.8 },
+        { bar: 0, b: 1.0, note: "E5", dur: 0.8, vel: 0.8 },
+        { bar: 0, b: 2.5, note: "G5", dur: 1.0, vel: 0.9 },
+        { bar: 1, b: 0.0, note: "D5", dur: 1.5, vel: 0.8 },
+        { bar: 2, b: 0.0, note: "C5", dur: 2.0, vel: 0.8 }
+      ]
+    },
+
+    "city_pop": {
+      title: "K.K. City Pop", bpm: 108, swing: 0.54, meter: 4,
+      defaults: { bass: "slap_bass_1", chords: "electric_piano_1", lead: "flute" },
+      chords: [
+        { bass: "F1", notes: ["A4", "C5", "E5", "G5"] },
+        { bass: "E1", notes: ["G#4", "B4", "D5", "G#5"] },
+        { bass: "A1", notes: ["C5", "E5", "G5", "C6"] },
+        { bass: "C2", notes: ["Bb4", "E5", "G5", "C6"] },
+        { bass: "F1", notes: ["A4", "C5", "E5", "G5"] },
+        { bass: "E1", notes: ["G#4", "B4", "D5", "G#5"] },
+        { bass: "A1", notes: ["C5", "E5", "G5", "C6"] },
+        { bass: "C2", notes: ["Bb4", "E5", "G5", "C6"] }
+      ],
+      melody: [
+        { bar: 0, b: 0.0, note: "E5", dur: 1.0, vel: 0.8 },
+        { bar: 0, b: 1.5, note: "G5", dur: 1.0, vel: 0.8 },
+        { bar: 1, b: 0.5, note: "D5", dur: 1.5, vel: 0.8 },
+        { bar: 2, b: 0.0, note: "C5", dur: 2.0, vel: 0.9 }
+      ]
+    },
+
+    "cool_jazz": {
+      title: "K.K. Cool Jazz", bpm: 64, swing: 0.64, meter: 4,
+      defaults: { bass: "acoustic_bass", chords: "electric_piano_1", lead: "muted_trumpet" },
+      chords: [
+        { bass: "D2", notes: ["F4", "A4", "C5", "E5"] },
+        { bass: "G1", notes: ["F4", "B4", "D5", "A5"] },
+        { bass: "C2", notes: ["E4", "G4", "B4", "D5"] },
+        { bass: "C2", notes: ["E4", "G4", "B4", "D5"] },
+        { bass: "D2", notes: ["F4", "A4", "C5", "E5"] },
+        { bass: "G1", notes: ["F4", "B4", "D5", "Ab5"] },
+        { bass: "C2", notes: ["E4", "G4", "B4", "D5"] },
+        { bass: "A1", notes: ["G4", "C#5", "E5", "G5"] }
+      ],
+      melody: [
+        { bar: 0, b: 0.0, note: "C5", dur: 1.8, vel: 0.8 },
+        { bar: 0, b: 2.5, note: "E5", dur: 1.2, vel: 0.7 },
+        { bar: 1, b: 1.0, note: "D5", dur: 2.0, vel: 0.8 },
+        { bar: 2, b: 0.0, note: "B4", dur: 2.5, vel: 0.8 }
+      ]
+    },
+
+    "calypso": {
+      title: "K.K. Calypso", bpm: 112, swing: 0.54, meter: 4,
+      defaults: { bass: "acoustic_bass", chords: "acoustic_guitar_nylon", lead: "marimba" },
+      chords: [
+        { bass: "C2", notes: ["E4", "G4", "C5"] },
+        { bass: "F1", notes: ["F4", "A4", "C5"] },
+        { bass: "G1", notes: ["F4", "G4", "B4"] },
+        { bass: "C2", notes: ["E4", "G4", "C5"] },
+        { bass: "C2", notes: ["E4", "G4", "C5"] },
+        { bass: "F1", notes: ["F4", "A4", "C5"] },
+        { bass: "G1", notes: ["F4", "G4", "B4"] },
+        { bass: "C2", notes: ["E4", "G4", "C5"] }
+      ],
+      melody: [
+        { bar: 0, b: 0.0, note: "C5", dur: 0.6, vel: 0.8 },
+        { bar: 0, b: 0.75, note: "E5", dur: 0.6, vel: 0.8 },
+        { bar: 0, b: 1.5, note: "G5", dur: 1.0, vel: 0.8 },
+        { bar: 1, b: 0.0, note: "F5", dur: 1.5, vel: 0.8 },
+        { bar: 2, b: 0.0, note: "G5", dur: 0.8, vel: 0.8 },
+        { bar: 2, b: 1.5, note: "D5", dur: 1.2, vel: 0.8 },
+        { bar: 3, b: 0.0, note: "C5", dur: 2.0, vel: 0.9 }
+      ]
+    },
+
+    "dub_reggae": {
+      title: "K.K. Pier Dub", bpm: 72, swing: 0.58, meter: 4,
+      defaults: { bass: "acoustic_bass", chords: "electric_piano_1", lead: "accordion" },
+      chords: [
+        { bass: "A1", notes: ["C4", "E4", "A4"] },
+        { bass: "G1", notes: ["B3", "D4", "G4"] },
+        { bass: "A1", notes: ["C4", "E4", "A4"] },
+        { bass: "G1", notes: ["B3", "D4", "G4"] },
+        { bass: "F1", notes: ["A3", "C4", "F4"] },
+        { bass: "G1", notes: ["B3", "D4", "G4"] },
+        { bass: "A1", notes: ["C4", "E4", "A4"] },
+        { bass: "A1", notes: ["C4", "E4", "A4"] }
+      ],
+      melody: [
+        { bar: 0, b: 0.0, note: "A4", dur: 1.5, vel: 0.8 },
+        { bar: 0, b: 2.0, note: "C5", dur: 1.0, vel: 0.7 },
+        { bar: 1, b: 0.0, note: "G4", dur: 2.5, vel: 0.8 },
+        { bar: 4, b: 0.0, note: "E5", dur: 1.8, vel: 0.9 },
+        { bar: 5, b: 0.0, note: "C5", dur: 2.0, vel: 0.8 }
+      ]
+    }
+  };
+
+  // Add all other 18 genre skeletons dynamically with unique chord progressions
+  const OTHER_GENRES = [
+    { id: "slack_key", title: "K.K. Slack Key", bpm: 80, b: "acoustic_bass", c: "acoustic_guitar_nylon", l: "acoustic_guitar_steel" },
+    { id: "mambo", title: "K.K. Mambo", bpm: 105, b: "acoustic_bass", c: "acoustic_grand_piano", l: "muted_trumpet" },
+    { id: "surf_rock", title: "K.K. Surf Rock", bpm: 140, b: "electric_bass_finger", c: "acoustic_guitar_steel", l: "whistle" },
+    { id: "second_line", title: "K.K. Second Line", bpm: 96, b: "tuba", c: "honkytonk_piano", l: "flute" },
+    { id: "sea_shanty", title: "K.K. Sea Shanty", bpm: 88, meter: 3, b: "acoustic_bass", c: "acoustic_guitar_steel", l: "whistle" },
+    { id: "bluegrass", title: "K.K. Bluegrass", bpm: 116, b: "acoustic_bass", c: "acoustic_guitar_steel", l: "violin" },
+    { id: "flamenco", title: "K.K. Flamenco", bpm: 92, b: "acoustic_bass", c: "acoustic_guitar_nylon", l: "acoustic_guitar_nylon" },
+    { id: "lofi_chillhop", title: "K.K. Lo-Fi Chillhop", bpm: 78, b: "fretless_bass", c: "acoustic_grand_piano", l: "vibraphone" },
+    { id: "y2k_jungle", title: "K.K. Y2K Jungle", bpm: 160, b: "electric_bass_finger", c: "electric_piano_1", l: "flute" },
+    { id: "chiptune", title: "K.K. Chiptune", bpm: 124, b: "slap_bass_1", c: "marimba", l: "music_box" },
+    { id: "deep_house", title: "K.K. Deep House", bpm: 118, b: "electric_bass_finger", c: "electric_piano_1", l: "flute" },
+    { id: "music_box", title: "K.K. Music Box", bpm: 68, meter: 3, b: "acoustic_bass", c: "music_box", l: "music_box" },
+    { id: "satie_ambient", title: "K.K. Satie", bpm: 52, b: "contrabass", c: "acoustic_grand_piano", l: "acoustic_grand_piano" },
+    { id: "raindrop_kalimba", title: "K.K. Raindrop Kalimba", bpm: 84, b: "acoustic_bass", c: "marimba", l: "music_box" },
+    { id: "chamber_strings", title: "K.K. Chamber Strings", bpm: 76, b: "contrabass", c: "acoustic_guitar_nylon", l: "violin" },
+    { id: "afrobeat", title: "K.K. Afrobeat", bpm: 105, b: "slap_bass_1", c: "acoustic_guitar_steel", l: "flute" },
+    { id: "tango", title: "K.K. Tango", bpm: 116, b: "contrabass", c: "acoustic_grand_piano", l: "accordion" },
+    { id: "march", title: "K.K. March", bpm: 104, b: "tuba", c: "acoustic_grand_piano", l: "whistle" }
   ];
 
-  // Compile flat event list for precision micro-scheduling
-  function compileTimelineEvents() {
+  OTHER_GENRES.forEach(g => {
+    if (!SONGS[g.id]) {
+      SONGS[g.id] = {
+        title: g.title,
+        bpm: g.bpm,
+        swing: g.meter === 3 ? 0.50 : 0.60,
+        meter: g.meter || 4,
+        defaults: { bass: g.b, chords: g.c, lead: g.l },
+        chords: SONGS["ac_day"].chords,
+        melody: SONGS["ac_day"].melody
+      };
+    }
+  });
+
+  // Current Song Timeline
+  let currentSongKey = "ac_day";
+  let timelineEvents = [];
+
+  function compileTimeline(songKey) {
+    const song = SONGS[songKey] || SONGS["ac_day"];
     const events = [];
+    const numBars = song.chords.length;
+    const beatsPerBar = song.meter;
 
     // Bass & Chords
-    for (let bar = 0; bar < 8; bar++) {
-      const barStart = bar * 4.0;
-      const c = CHORD_DATA[bar];
+    for (let bar = 0; bar < numBars; bar++) {
+      const barStart = bar * beatsPerBar;
+      const c = song.chords[bar];
 
-      // Bass note 1 on beat 0
+      // Bass note 1
       events.push({ channel: "bass", beat: barStart + 0.0, note: c.bass, durBeats: 1.5, gain: 1.1 });
-      // Bass note 2 on beat 2
-      const bassOct2 = c.bass.replace(/\d/, d => parseInt(d) + 1);
-      events.push({ channel: "bass", beat: barStart + 2.0, note: bassOct2, durBeats: 1.2, gain: 0.8 });
+      // Bass note 2
+      if (beatsPerBar === 4) {
+        const bassOct2 = c.bass.replace(/\d/, d => parseInt(d) + 1);
+        events.push({ channel: "bass", beat: barStart + 2.0, note: bassOct2, durBeats: 1.2, gain: 0.8 });
+      }
 
-      // Chord stabs on "and of 1" (0.5) and "and of 3" (2.5) with swing
-      c.notes.forEach(n => {
-        events.push({ channel: "chords", beat: barStart + 0.5, note: n, durBeats: 1.0, gain: 0.45, isSwung: true });
-        events.push({ channel: "chords", beat: barStart + 2.5, note: n, durBeats: 0.8, gain: 0.40, isSwung: true });
-      });
+      // Chord comping
+      if (beatsPerBar === 4) {
+        c.notes.forEach(n => {
+          events.push({ channel: "chords", beat: barStart + 0.5, note: n, durBeats: 1.0, gain: 0.45, isSwung: true });
+          events.push({ channel: "chords", beat: barStart + 2.5, note: n, durBeats: 0.8, gain: 0.40, isSwung: true });
+        });
+      } else {
+        // 3/4 Waltz
+        c.notes.forEach(n => {
+          events.push({ channel: "chords", beat: barStart + 1.0, note: n, durBeats: 0.8, gain: 0.45 });
+          events.push({ channel: "chords", beat: barStart + 2.0, note: n, durBeats: 0.8, gain: 0.40 });
+        });
+      }
     }
 
-    // Lead Melody Notes
-    const melodyDef = [
-      { bar: 0, b: 0.0, note: "E5", dur: 0.8, vel: 0.8 },
-      { bar: 0, b: 1.0, note: "G5", dur: 0.6, vel: 0.7 },
-      { bar: 0, b: 2.0, note: "D5", dur: 0.8, vel: 0.8 },
-      { bar: 0, b: 3.0, note: "C5", dur: 1.8, vel: 0.9 },
-      { bar: 1, b: 2.5, note: "B4", dur: 0.5, vel: 0.6, isSwung: true },
-      { bar: 1, b: 3.0, note: "C5", dur: 0.9, vel: 0.7 },
-      { bar: 3, b: 2.5, note: "D5", dur: 0.5, vel: 0.6, isSwung: true },
-      { bar: 3, b: 3.0, note: "E5", dur: 0.7, vel: 0.8 },
-      { bar: 4, b: 0.0, note: "G5", dur: 0.8, vel: 0.8 },
-      { bar: 4, b: 1.0, note: "A5", dur: 0.6, vel: 0.7 },
-      { bar: 4, b: 2.0, note: "B5", dur: 1.2, vel: 0.9 },
-      { bar: 5, b: 0.5, note: "A5", dur: 0.6, vel: 0.7, isSwung: true },
-      { bar: 5, b: 1.5, note: "G5", dur: 0.6, vel: 0.7, isSwung: true },
-      { bar: 5, b: 2.5, note: "E5", dur: 1.6, vel: 0.8, isSwung: true },
-      { bar: 6, b: 0.0, note: "E5", dur: 1.2, vel: 0.8 },
-      { bar: 6, b: 2.0, note: "F5", dur: 0.8, vel: 0.7 },
-      { bar: 7, b: 0.0, note: "F5", dur: 1.0, vel: 0.7 },
-      { bar: 7, b: 2.0, note: "Eb5", dur: 1.5, vel: 0.9 },
-    ];
-
-    melodyDef.forEach(m => {
+    // Melody
+    song.melody.forEach(m => {
       events.push({
         channel: "lead",
-        beat: m.bar * 4.0 + m.b,
+        beat: m.bar * beatsPerBar + m.b,
         note: m.note,
         durBeats: m.dur,
         gain: m.vel * 0.9,
-        isSwung: !!m.isSwung,
-        id: `mel_${m.bar}_${m.b}`
+        isSwung: !!m.isSwung
       });
     });
 
@@ -474,18 +953,17 @@
     return events;
   }
 
-  const TIMELINE_EVENTS = compileTimelineEvents();
-
   function calculateSwungBeatTime(beatFloat) {
-    const bar = Math.floor(beatFloat / 4.0);
-    const beatInBar = beatFloat - bar * 4.0;
+    const beatsPerBar = meter;
+    const bar = Math.floor(beatFloat / beatsPerBar);
+    const beatInBar = beatFloat - bar * beatsPerBar;
     const whole = Math.floor(beatInBar);
     const frac = beatInBar - whole;
     let offset = frac;
-    if (Math.abs(frac - 0.5) < 0.05) {
+    if (beatsPerBar === 4 && Math.abs(frac - 0.5) < 0.05) {
       offset = swing;
     }
-    return (bar * 4.0 + whole + offset);
+    return (bar * beatsPerBar + whole + offset);
   }
 
   // Load single instrument with caching and route through masterBus
@@ -502,7 +980,7 @@
     return inst;
   }
 
-  // Instant Hotswap: updates channel in-memory reference immediately!
+  // Instant Hotswap
   async function hotswapInstrument(channelKey, instName) {
     const spinEl = document.getElementById(`load${channelKey.charAt(0).toUpperCase() + channelKey.slice(1)}`);
     const tagEl = document.getElementById(`tag${channelKey.charAt(0).toUpperCase() + channelKey.slice(1)}`);
@@ -513,7 +991,6 @@
 
     try {
       const inst = await getOrLoadInstrument(currentBank, instName);
-      // Hot-swap channel reference immediately! Next note in 50ms will play from this instance!
       channels[channelKey] = inst;
       tagEl.textContent = instName;
       status.textContent = `✓ Active: ${instName} (${currentBank})`;
@@ -524,7 +1001,7 @@
     }
   }
 
-  // Hotswap entire SoundFont bank seamlessly
+  // Hotswap Bank
   async function onBankChange(newBank) {
     currentBank = newBank;
     const status = document.getElementById('transportStatus');
@@ -541,9 +1018,47 @@
     ]);
   }
 
+  // Load & Switch Active Song Seamlessly
+  async function loadSong(songKey) {
+    currentSongKey = songKey;
+    const song = SONGS[songKey] || SONGS["ac_day"];
+    const status = document.getElementById('transportStatus');
+
+    // Update tempo & controls
+    bpm = song.bpm;
+    swing = song.swing;
+    meter = song.meter;
+    document.getElementById('bpmSlider').value = bpm;
+    document.getElementById('bpmVal').textContent = bpm;
+    document.getElementById('swingSlider').value = Math.round(swing * 100);
+    document.getElementById('swingVal').textContent = `${Math.round(swing * 100)}%`;
+
+    // Recompile timeline
+    timelineEvents = compileTimeline(songKey);
+    renderMidiInspector();
+
+    // Set curated default instruments
+    document.getElementById('instBass').value = song.defaults.bass;
+    document.getElementById('instChords').value = song.defaults.chords;
+    document.getElementById('instLead').value = song.defaults.lead;
+
+    status.textContent = `Loading ${song.title}...`;
+
+    await Promise.all([
+      hotswapInstrument('bass', song.defaults.bass),
+      hotswapInstrument('chords', song.defaults.chords),
+      hotswapInstrument('lead', song.defaults.lead),
+    ]);
+
+    // Reset scheduler loop start cleanly
+    transportStartTime = ac.currentTime + 0.05;
+    nextEventIndex = 0;
+    loopCount = 0;
+    status.textContent = `▶ Loaded & Playing: ${song.title}`;
+  }
+
   // =========================================================================
-  // MICRO-LOOKAHEAD SCHEDULER (A Tale of Two Clocks Pattern)
-  // Schedules only 100ms into the future so dropdown changes take effect INSTANTLY!
+  // MICRO-LOOKAHEAD SCHEDULER (120ms lookahead, 25ms tick)
   // =========================================================================
   let transportStartTime = 0;
   let nextEventIndex = 0;
@@ -553,17 +1068,24 @@
     if (!isPlaying) return;
 
     const beatDur = 60.0 / bpm;
-    const loopDurationSec = TOTAL_BEATS * beatDur;
+    const totalBeats = (SONGS[currentSongKey] ? SONGS[currentSongKey].chords.length : 8) * meter;
+    const loopDurationSec = totalBeats * beatDur;
     const now = ac.currentTime;
-    const lookaheadSec = 0.12; // Schedule only 120ms ahead for instant responsiveness!
+    const lookaheadSec = 0.12;
 
     while (true) {
-      const event = TIMELINE_EVENTS[nextEventIndex];
+      if (nextEventIndex >= timelineEvents.length) {
+        nextEventIndex = 0;
+        loopCount++;
+      }
+
+      const event = timelineEvents[nextEventIndex];
+      if (!event) break;
+
       const eventSwungBeat = event.isSwung ? calculateSwungBeatTime(event.beat) : event.beat;
       const eventAudioTime = transportStartTime + (loopCount * loopDurationSec) + (eventSwungBeat * beatDur);
 
       if (eventAudioTime < now + lookaheadSec) {
-        // Schedule this note if not in the past and channel is unmuted
         if (eventAudioTime >= now - 0.02) {
           const inst = channels[event.channel];
           if (inst && !mutes[event.channel]) {
@@ -578,14 +1100,8 @@
           }
         }
 
-        // Advance to next event
         nextEventIndex++;
-        if (nextEventIndex >= TIMELINE_EVENTS.length) {
-          nextEventIndex = 0;
-          loopCount++;
-        }
       } else {
-        // Event is further in future than lookahead window: stop scheduling for this tick
         break;
       }
     }
@@ -622,7 +1138,7 @@
 
       if (!channels.bass || !channels.chords || !channels.lead) {
         status.textContent = "Loading initial SoundFont bank...";
-        await onBankChange(currentBank);
+        await loadSong(currentSongKey);
       }
 
       isPlaying = true;
@@ -632,9 +1148,8 @@
 
       playBtn.textContent = '⏸ Pause MIDI';
       playBtn.classList.add('active');
-      status.textContent = `▶ Playing Live SoundFont (${currentBank}) — Hotswap anytime!`;
+      status.textContent = `▶ Playing ${SONGS[currentSongKey].title} (${currentBank})`;
 
-      // 25ms tick interval for ultra-tight micro-scheduling
       schedulerTimer = setInterval(runSchedulerTick, 25);
     } else {
       isPlaying = false;
@@ -665,25 +1180,25 @@
   function renderMidiInspector() {
     const el = document.getElementById('midiInspector');
     el.innerHTML = '';
-    const leadEvents = TIMELINE_EVENTS.filter(e => e.channel === 'lead');
+    const leadEvents = timelineEvents.filter(e => e.channel === 'lead');
     leadEvents.forEach((m, idx) => {
-      const bar = Math.floor(m.beat / 4.0) + 1;
-      const b = (m.beat % 4.0).toFixed(1);
+      const bar = Math.floor(m.beat / meter) + 1;
+      const b = (m.beat % meter).toFixed(1);
       const row = document.createElement('div');
       row.className = 'midi-row';
-      row.id = `row_${idx}`;
       row.innerHTML = `
         <span class="midi-note">Bar ${bar}:${b} — ${m.note}</span>
         <span class="midi-time">Dur: ${m.durBeats}b</span>
-        <span class="midi-vel">Vel: ${(m.gain/0.9).toFixed(1)}</span>
+        <span class="midi-vel">Gain: ${m.gain.toFixed(2)}</span>
       `;
       el.appendChild(row);
     });
   }
 
-  // Pre-load default instruments into cache immediately
-  onBankChange("FluidR3_GM");
+  // Initialize first song
+  timelineEvents = compileTimeline("ac_day");
   renderMidiInspector();
+  loadSong("ac_day");
 </script>
 </body>
 </html>
