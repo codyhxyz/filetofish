@@ -458,7 +458,7 @@ export async function setMusicTrack(indexOrSlug) {
     channels.lead = l;
   } catch (e) {}
 
-  if (request === trackRequest && (wasPlaying || !isPlaying) && isSoundOn && AC && AC.state !== "suspended") {
+  if (request === trackRequest && (wasPlaying || !isPlaying) && isSoundOn && AC && AC.state === "running") {
     startPlayback();
   }
 
@@ -504,7 +504,7 @@ export function setMusicSoundOn(enabled) {
   isSoundOn = !!enabled;
   if (!isSoundOn) {
     stopPlayback();
-  } else if (!isPlaying && AC && AC.state !== "suspended") {
+  } else if (!isPlaying && AC && AC.state === "running" && Object.values(channels).every(Boolean)) {
     startPlayback();
   }
 }
@@ -562,7 +562,7 @@ function runSchedulerTick() {
 }
 
 function startPlayback() {
-  if (isPlaying || !isSoundOn || !AC) return;
+  if (isPlaying || !isSoundOn || !AC || !Object.values(channels).every(Boolean)) return;
   isPlaying = true;
   playbackGen++;
   const now = AC.currentTime;
