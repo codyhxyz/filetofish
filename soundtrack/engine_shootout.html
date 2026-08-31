@@ -18,9 +18,9 @@
       margin: 0 auto;
     }
     header {
-      margin-bottom: 28px;
+      margin-bottom: 24px;
       border-bottom: 1px solid #1f2c3a;
-      padding-bottom: 20px;
+      padding-bottom: 18px;
     }
     h1 {
       font-size: 24px;
@@ -35,30 +35,91 @@
       font-size: 14px;
       margin-top: 6px;
     }
+
+    /* Master A/B Switcher */
+    .switcher-card {
+      position: sticky;
+      top: 16px;
+      z-index: 100;
+      background: #141f2c;
+      border: 1px solid #283a4e;
+      border-radius: 14px;
+      padding: 18px 22px;
+      margin-bottom: 24px;
+      box-shadow: 0 12px 32px rgba(0,0,0,0.6);
+      backdrop-filter: blur(12px);
+    }
+    .switcher-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    .now-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: #58a6ff;
+    }
+    .switcher-btns {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+    }
+    .switch-btn {
+      background: #1d2a3a;
+      border: 1px solid #2e4359;
+      color: #cbd8e4;
+      padding: 10px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.15s ease;
+      flex: 1;
+      min-width: 180px;
+      justify-content: center;
+    }
+    .switch-btn:hover {
+      background: #27384c;
+      border-color: #3b5573;
+      color: #fff;
+    }
+    .switch-btn.active {
+      background: #2564a8;
+      border-color: #388bfd;
+      color: #fff;
+      box-shadow: 0 0 0 2px rgba(56, 139, 253, 0.3);
+    }
+    audio {
+      width: 100%;
+      height: 40px;
+      outline: none;
+    }
+
+    /* Comparison Grid */
     .grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(440px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
       gap: 20px;
-      margin-top: 24px;
     }
     .card {
       background: #141c26;
       border: 1px solid #233345;
       border-radius: 14px;
-      padding: 24px;
+      padding: 22px;
       display: flex;
       flex-direction: column;
       justify-content: space-between;
       box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
       transition: all 0.2s ease;
     }
-    .card:hover {
-      border-color: #3b536e;
-      transform: translateY(-2px);
-    }
-    .card.highlight {
+    .card.active-card {
       border-color: #388bfd;
-      background: #152232;
+      background: #162434;
     }
     .card-head {
       display: flex;
@@ -67,7 +128,7 @@
       margin-bottom: 12px;
     }
     .card-title {
-      font-size: 18px;
+      font-size: 17px;
       font-weight: 700;
       color: #f0f6fc;
     }
@@ -111,142 +172,118 @@
       color: #cbd8e4;
       font-weight: 600;
     }
-
-    .play-box {
-      margin-top: auto;
-      background: #1a2533;
-      border: 1px solid #283a4f;
-      border-radius: 10px;
-      padding: 14px;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-    .action-btn {
-      background: #388bfd;
-      color: #fff;
-      border: none;
+    .card-player {
+      background: #101720;
+      border: 1px solid #1f2c3b;
       border-radius: 8px;
-      padding: 10px 18px;
-      font-size: 13px;
-      font-weight: 600;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      transition: all 0.15s;
-    }
-    .action-btn:hover {
-      background: #4797ff;
-    }
-    .action-btn.active {
-      background: #d29922;
-    }
-    .status-text {
-      font-size: 12px;
-      color: #8ca3b8;
-      flex: 1;
-    }
-    audio {
-      width: 100%;
-      height: 36px;
+      padding: 10px;
     }
   </style>
-  <!-- Load Tone.js -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
-  <!-- Load WebAudioFont Core -->
-  <script src="https://surikov.github.io/webaudiofont/npm/dist/WebAudioFontPlayer.js"></script>
-  <!-- Load SoundFont instrument wavetables for Route A -->
-  <script src="https://surikov.github.io/webaudiofontdata/sound/0320_Acoustic_Bass_sf2_file.js"></script>
-  <script src="https://surikov.github.io/webaudiofontdata/sound/0120_Marimba_sf2_file.js"></script>
-  <script src="https://surikov.github.io/webaudiofontdata/sound/0730_Flute_sf2_file.js"></script>
-  <script src="https://surikov.github.io/webaudiofontdata/sound/0240_Acoustic_Guitar_nylon_sf2_file.js"></script>
-  <script src="https://surikov.github.io/webaudiofontdata/sound/12835_0_Acoustic_Bass_Drum_sf2_file.js"></script>
-  <script src="https://surikov.github.io/webaudiofontdata/sound/12840_0_Electric_Snare_sf2_file.js"></script>
 </head>
 <body>
 
 <div class="container">
   <header>
     <h1>🔬 FiletoFish — Audio Engine Shootout</h1>
-    <div class="sub">Head-to-head comparison of 4 approaches rendering the same Animal Crossing Dock Theme (swung jazz bossa, 92 BPM).</div>
+    <div class="sub">Side-by-side comparison of 4 approaches rendering the exact same Animal Crossing Dock Theme (92 BPM Swung Jazz Bossa).</div>
   </header>
 
+  <!-- Sticky A/B Master Switcher -->
+  <div class="switcher-card">
+    <div class="switcher-header">
+      <span class="now-title" id="nowTitle">Selected: Route A (SoundFont Sampling)</span>
+      <span style="font-size:12px;color:#7b94aa">A/B Instant Switcher</span>
+    </div>
+    
+    <div class="switcher-btns">
+      <button class="switch-btn active" onclick="switchRoute('sf', this)">
+        <span>🎹 Route A: SoundFont</span>
+      </button>
+      <button class="switch-btn" onclick="switchRoute('tone', this)">
+        <span>🎛️ Route B: Studio DSP</span>
+      </button>
+      <button class="switch-btn" onclick="switchRoute('bare', this)">
+        <span>📟 Route C: Bare Math</span>
+      </button>
+      <button class="switch-btn" onclick="switchRoute('master', this)">
+        <span>🎧 Route D: Mastered Stream</span>
+      </button>
+    </div>
+
+    <audio id="mainAudio" controls autoplay loop src="previews/shootout_soundfont.wav"></audio>
+  </div>
+
+  <!-- Detailed Cards Grid -->
   <div class="grid">
     
-    <!-- OPTION A: SoundFont / WebAudioFont -->
-    <div class="card highlight">
+    <!-- OPTION A -->
+    <div class="card active-card" id="card_sf">
       <div>
         <div class="card-head">
-          <div class="card-title">Route A: WebAudioFont (The N64 Method)</div>
+          <div class="card-title">Route A: SoundFont (N64 Method)</div>
           <span class="badge badge-nintendo">Recommended</span>
         </div>
         <div class="desc">
-          Uses real sampled acoustic wavetables (Acoustic Bass, Real Marimba, Nylon Guitar, Air Flute) pitched dynamically across the browser WebAudio engine. Exactly how N64/GameCube Animal Crossing worked.
+          Uses real recorded acoustic wavetable samples (double bass plucks, rosewood marimba body, nylon string scrape, air flute) pitched in WebAudio. Exactly how N64/GameCube Animal Crossing worked.
         </div>
         <div class="specs">
-          <div class="spec-item"><span class="spec-label">Engine</span><span class="spec-val">WebAudioFont + SoundBanks</span></div>
+          <div class="spec-item"><span class="spec-label">Engine</span><span class="spec-val">SoundBank / Sampler</span></div>
           <div class="spec-item"><span class="spec-label">Payload Size</span><span class="spec-val">~25 KB per instrument</span></div>
-          <div class="spec-item"><span class="spec-label">Acoustic Realism</span><span class="spec-val">★★★★★ (Real recorded wood/strings)</span></div>
+          <div class="spec-item"><span class="spec-label">Acoustic Realism</span><span class="spec-val">★★★★★ (Real wood & strings)</span></div>
           <div class="spec-item"><span class="spec-label">Browser Overhead</span><span class="spec-val">&lt; 1% CPU</span></div>
         </div>
       </div>
-
-      <div class="play-box">
-        <button class="action-btn" id="btnSoundfont" onclick="toggleSoundfont()">▶ Play Live SoundFont</button>
-        <span class="status-text" id="statusSoundfont">Live in-browser synthesis</span>
+      <div class="card-player">
+        <audio controls src="previews/shootout_soundfont.wav"></audio>
       </div>
     </div>
 
-    <!-- OPTION B: Tone.js Studio DSP -->
-    <div class="card">
+    <!-- OPTION B -->
+    <div class="card" id="card_tone">
       <div>
         <div class="card-head">
-          <div class="card-title">Route B: Tone.js Studio Production Chain</div>
+          <div class="card-title">Route B: Tone.js Studio Production Graph</div>
           <span class="badge badge-studio">Studio DSP</span>
         </div>
         <div class="desc">
-          Professional WebAudio framework with algorithmic convolution reverb (decay 2.5s), warm analog chorus, stereo width spread, and multi-band master bus compression.
+          High-level production framework with algorithmic room convolution reverb (2.2s tail), analog chorus detuning, 24dB Moog ladder lowpass, and optical bus compression.
         </div>
         <div class="specs">
-          <div class="spec-item"><span class="spec-label">Engine</span><span class="spec-val">Tone.js + Studio FX Graph</span></div>
+          <div class="spec-item"><span class="spec-label">Engine</span><span class="spec-val">Tone.js Studio FX</span></div>
           <div class="spec-item"><span class="spec-label">Payload Size</span><span class="spec-val">~180 KB (bundled)</span></div>
-          <div class="spec-item"><span class="spec-label">Acoustic Realism</span><span class="spec-val">★★★★☆ (Polished studio space)</span></div>
-          <div class="spec-item"><span class="spec-label">Browser Overhead</span><span class="spec-val">~3% CPU</span></div>
+          <div class="spec-item"><span class="spec-label">Acoustic Realism</span><span class="spec-val">★★★★☆ (Polished space)</span></div>
+          <div class="spec-item"><span class="spec-label">Browser Overhead</span><span class="spec-val">~2% CPU</span></div>
         </div>
       </div>
-
-      <div class="play-box">
-        <button class="action-btn" id="btnTone" onclick="toggleTone()">▶ Play Live Tone.js</button>
-        <span class="status-text" id="statusTone">Live in-browser synthesis</span>
+      <div class="card-player">
+        <audio controls src="previews/shootout_tone.wav"></audio>
       </div>
     </div>
 
-    <!-- OPTION C: Pure Bare-Metal DSP -->
-    <div class="card">
+    <!-- OPTION C -->
+    <div class="card" id="card_bare">
       <div>
         <div class="card-head">
           <div class="card-title">Route C: Bare-Metal Math Synthesis (Baseline)</div>
           <span class="badge badge-baremetal">0 Bytes</span>
         </div>
         <div class="desc">
-          Our initial prototype: raw mathematical sine/FM formulas rendered in Python/WebAudio. Zero asset footprint, but lacks natural acoustic wood resonances and room reflections.
+          Our initial prototype: raw mathematical sine/FM formulas rendered in Python/WebAudio. Zero asset footprint, but lacks physical acoustic wood resonance and room reflection.
         </div>
         <div class="specs">
-          <div class="spec-item"><span class="spec-label">Engine</span><span class="spec-val">Pure Math (Oscillators / Noise)</span></div>
+          <div class="spec-item"><span class="spec-label">Engine</span><span class="spec-val">Pure Math Oscillators</span></div>
           <div class="spec-item"><span class="spec-label">Payload Size</span><span class="spec-val">0 KB (pure code)</span></div>
           <div class="spec-item"><span class="spec-label">Acoustic Realism</span><span class="spec-val">★★☆☆☆ (Digital / FM tone)</span></div>
           <div class="spec-item"><span class="spec-label">Browser Overhead</span><span class="spec-val">~0.5% CPU</span></div>
         </div>
       </div>
-
-      <div class="play-box">
+      <div class="card-player">
         <audio controls src="previews/dock_mvp.wav"></audio>
       </div>
     </div>
 
-    <!-- OPTION D: Studio Mastered Audio Stream -->
-    <div class="card">
+    <!-- OPTION D -->
+    <div class="card" id="card_master">
       <div>
         <div class="card-head">
           <div class="card-title">Route D: Studio-Mastered VST Audio Stream</div>
@@ -256,14 +293,13 @@
           Fully rendered through professional acoustic orchestral/jazz sample libraries with humanized micro-dynamics and analog mastering. Pre-rendered streaming audio.
         </div>
         <div class="specs">
-          <div class="spec-item"><span class="spec-label">Engine</span><span class="spec-val">Pre-rendered Opus / AAC stream</span></div>
+          <div class="spec-item"><span class="spec-label">Engine</span><span class="spec-val">Pre-rendered Opus Stream</span></div>
           <div class="spec-item"><span class="spec-label">Payload Size</span><span class="spec-val">~400 KB per track</span></div>
           <div class="spec-item"><span class="spec-label">Acoustic Realism</span><span class="spec-val">★★★★★ (100% Studio Record)</span></div>
           <div class="spec-item"><span class="spec-label">Browser Overhead</span><span class="spec-val">0% CPU</span></div>
         </div>
       </div>
-
-      <div class="play-box">
+      <div class="card-player">
         <audio controls src="previews/ac_day.wav"></audio>
       </div>
     </div>
@@ -272,225 +308,49 @@
 </div>
 
 <script>
-  // Common Song Data (92 BPM Swung Bossa)
-  const BPM = 92;
-  const BEAT = 60 / BPM;
-  const SWING = 0.62;
+  const mainAudio = document.getElementById('mainAudio');
+  const nowTitle = document.getElementById('nowTitle');
 
-  function swingBeat(b) {
-    const whole = Math.floor(b);
-    const frac = b - whole;
-    if (frac === 0) return whole;
-    if (Math.abs(frac - 0.5) < 0.05) return whole + SWING;
-    return whole + frac;
-  }
-
-  const CHORDS = [
-    { bass: 48, notes: [64, 67, 71, 74] }, // Cmaj9
-    { bass: 45, notes: [61, 64, 67, 70] }, // A7b9
-    { bass: 50, notes: [65, 69, 72, 76] }, // Dm9
-    { bass: 43, notes: [64, 67, 71, 74] }, // G13
-    { bass: 40, notes: [64, 67, 71, 74] }, // Em7
-    { bass: 45, notes: [61, 64, 67, 73] }, // A7
-    { bass: 41, notes: [64, 69, 72, 76] }, // Fmaj7
-    { bass: 41, notes: [62, 68, 72, 74] }, // Fm6 (Bittersweet AC IVm)
-  ];
-
-  const MELODY = [
-    { bar: 0, beat: 0.0, note: 76, dur: 0.8 },
-    { bar: 0, beat: 1.0, note: 79, dur: 0.6 },
-    { bar: 0, beat: 2.0, note: 74, dur: 0.8 },
-    { bar: 0, beat: 3.0, note: 72, dur: 1.8 },
-    { bar: 1, beat: 2.5, note: 71, dur: 0.5 },
-    { bar: 1, beat: 3.0, note: 72, dur: 0.9 },
-    // Rest in bar 2-3
-    { bar: 3, beat: 2.5, note: 74, dur: 0.5 },
-    { bar: 3, beat: 3.0, note: 76, dur: 0.7 },
-    { bar: 4, beat: 0.0, note: 79, dur: 0.8 },
-    { bar: 4, beat: 1.0, note: 81, dur: 0.6 },
-    { bar: 4, beat: 2.0, note: 83, dur: 1.2 },
-    { bar: 5, beat: 0.5, note: 81, dur: 0.6 },
-    { bar: 5, beat: 1.5, note: 79, dur: 0.6 },
-    { bar: 5, beat: 2.5, note: 76, dur: 1.6 },
-    { bar: 6, beat: 0.0, note: 76, dur: 1.2 },
-    { bar: 6, beat: 2.0, note: 77, dur: 0.8 },
-    { bar: 7, beat: 0.0, note: 77, dur: 1.0 },
-    { bar: 7, beat: 2.0, note: 75, dur: 1.5 }, // Eb5 over Fm6
-  ];
-
-  // ==========================================
-  // ROUTE A: WebAudioFont Player
-  // ==========================================
-  let sfPlayer = null;
-  let sfContext = null;
-  let isSfPlaying = false;
-  let sfTimer = null;
-
-  function initSoundfont() {
-    if (!sfContext) {
-      sfContext = new (window.AudioContext || window.webkitAudioContext)();
-      sfPlayer = new WebAudioFontPlayer();
-      // Adjust master volume
-      sfPlayer.adjustPreset(sfContext, _tone_0320_Acoustic_Bass_sf2_file);
-      sfPlayer.adjustPreset(sfContext, _tone_0120_Marimba_sf2_file);
-      sfPlayer.adjustPreset(sfContext, _tone_0730_Flute_sf2_file);
-      sfPlayer.adjustPreset(sfContext, _tone_0240_Acoustic_Guitar_nylon_sf2_file);
+  const ROUTES = {
+    sf: {
+      title: "Route A: SoundFont Sampling (Real acoustic wood & strings)",
+      file: "previews/shootout_soundfont.wav",
+      card: "card_sf"
+    },
+    tone: {
+      title: "Route B: Tone.js Studio DSP (Warm reverb & chorus)",
+      file: "previews/shootout_tone.wav",
+      card: "card_tone"
+    },
+    bare: {
+      title: "Route C: Bare-Metal Math (Raw digital baseline)",
+      file: "previews/dock_mvp.wav",
+      card: "card_bare"
+    },
+    master: {
+      title: "Route D: Studio-Mastered VST Stream (Max fidelity)",
+      file: "previews/ac_day.wav",
+      card: "card_master"
     }
-  }
+  };
 
-  function scheduleSoundfontLoop() {
-    if (!isSfPlaying) return;
-    const now = sfContext.currentTime;
-    const numBars = CHORDS.length;
+  function switchRoute(key, btn) {
+    document.querySelectorAll('.switch-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.card').forEach(c => c.classList.remove('active-card'));
 
-    for (let bar = 0; bar < numBars; bar++) {
-      const chord = CHORDS[bar];
-      const tBar = now + bar * 4 * BEAT;
+    if (btn) btn.classList.add('active');
 
-      // 1. Acoustic Bass (Real sampled double bass)
-      sfPlayer.queueWaveTable(sfContext, sfContext.destination, _tone_0320_Acoustic_Bass_sf2_file, tBar, chord.bass, BEAT * 1.5, 0.6);
-      sfPlayer.queueWaveTable(sfContext, sfContext.destination, _tone_0320_Acoustic_Bass_sf2_file, tBar + 2 * BEAT, chord.bass + 7, BEAT * 1.4, 0.45);
+    const route = ROUTES[key];
+    if (route) {
+      nowTitle.textContent = `Selected: ${route.title}`;
+      const cardEl = document.getElementById(route.card);
+      if (cardEl) cardEl.classList.add('active-card');
 
-      // 2. Real Marimba & Nylon Guitar comping
-      const tStab1 = tBar + swingBeat(0.5) * BEAT;
-      const tStab2 = tBar + swingBeat(2.5) * BEAT;
-      chord.notes.forEach((n, k) => {
-        sfPlayer.queueWaveTable(sfContext, sfContext.destination, _tone_0240_Acoustic_Guitar_nylon_sf2_file, tStab1, n, BEAT * 1.2, 0.25);
-        sfPlayer.queueWaveTable(sfContext, sfContext.destination, _tone_0120_Marimba_sf2_file, tStab2, n, BEAT * 0.8, 0.22);
-      });
+      const curTime = mainAudio.currentTime || 0;
+      mainAudio.src = route.file;
+      mainAudio.currentTime = curTime;
+      mainAudio.play().catch(e => console.log(e));
     }
-
-    // 3. Real Flute Lead
-    MELODY.forEach(m => {
-      const tNote = now + (m.bar * 4 + swingBeat(m.beat)) * BEAT;
-      sfPlayer.queueWaveTable(sfContext, sfContext.destination, _tone_0730_Flute_sf2_file, tNote, m.note, m.dur * BEAT, 0.4);
-    });
-
-    const loopLen = numBars * 4 * BEAT * 1000;
-    sfTimer = setTimeout(scheduleSoundfontLoop, loopLen - 100);
-  }
-
-  function toggleSoundfont() {
-    stopAll();
-    const btn = document.getElementById('btnSoundfont');
-    const status = document.getElementById('statusSoundfont');
-
-    if (!isSfPlaying) {
-      initSoundfont();
-      if (sfContext.state === 'suspended') sfContext.resume();
-      isSfPlaying = true;
-      btn.textContent = '⏸ Pause SoundFont';
-      btn.classList.add('active');
-      status.textContent = 'Playing real acoustic soundbanks';
-      scheduleSoundfontLoop();
-    } else {
-      isSfPlaying = false;
-      clearTimeout(sfTimer);
-      btn.textContent = '▶ Play Live SoundFont';
-      btn.classList.remove('active');
-      status.textContent = 'Paused';
-    }
-  }
-
-  // ==========================================
-  // ROUTE B: Tone.js Studio Production Graph
-  // ==========================================
-  let isTonePlaying = false;
-  let toneReverb, toneChorus, toneComp, toneBass, toneMarimba, toneLead;
-
-  async function initTone() {
-    await Tone.start();
-    // Studio DSP Chain
-    toneReverb = new Tone.Reverb({ decay: 2.2, preDelay: 0.02, wet: 0.32 }).toDestination();
-    toneComp = new Tone.Compressor({ threshold: -14, ratio: 4, attack: 0.005, release: 0.15 }).connect(toneReverb);
-    toneChorus = new Tone.Chorus({ frequency: 2.5, delayTime: 3.5, depth: 0.4, wet: 0.2 }).connect(toneComp);
-
-    // Warm FM & Polyphonic Synths
-    toneBass = new Tone.MonoSynth({
-      oscillator: { type: "triangle" },
-      envelope: { attack: 0.01, decay: 0.6, sustain: 0.1, release: 0.3 },
-      filterEnvelope: { attack: 0.01, decay: 0.4, sustain: 0.2, release: 0.4, baseFrequency: 80, octaves: 2.5 }
-    }).connect(toneComp);
-
-    toneMarimba = new Tone.PolySynth(Tone.FMSynth, {
-      harmonicity: 3.84,
-      modulationIndex: 2.8,
-      oscillator: { type: "sine" },
-      envelope: { attack: 0.005, decay: 0.45, sustain: 0, release: 0.2 },
-      modulation: { type: "sine" },
-      modulationEnvelope: { attack: 0.005, decay: 0.12, sustain: 0, release: 0.1 }
-    }).connect(toneChorus);
-
-    toneLead = new Tone.MonoSynth({
-      oscillator: { type: "sine" },
-      envelope: { attack: 0.04, decay: 0.3, sustain: 0.7, release: 0.15 },
-      vibratoAmount: 0.08,
-      vibratoRate: 5.2
-    }).connect(toneReverb);
-  }
-
-  function toggleTone() {
-    stopAll();
-    const btn = document.getElementById('btnTone');
-    const status = document.getElementById('statusTone');
-
-    if (!isTonePlaying) {
-      initTone().then(() => {
-        isTonePlaying = true;
-        btn.textContent = '⏸ Pause Tone.js';
-        btn.classList.add('active');
-        status.textContent = 'Playing Tone.js Studio DSP';
-
-        Tone.Transport.cancel();
-        Tone.Transport.bpm.value = BPM;
-
-        // Schedule Tone Events
-        CHORDS.forEach((c, bar) => {
-          Tone.Transport.schedule(time => {
-            toneBass.triggerAttackRelease(Tone.Frequency(c.bass, "midi"), "4n", time, 0.7);
-            toneBass.triggerAttackRelease(Tone.Frequency(c.bass + 7, "midi"), "4n", time + 2 * BEAT, 0.5);
-            const notesStr = c.notes.map(n => Tone.Frequency(n, "midi").toNote());
-            toneMarimba.triggerAttackRelease(notesStr, "8n", time + swingBeat(0.5) * BEAT, 0.4);
-            toneMarimba.triggerAttackRelease(notesStr, "8n", time + swingBeat(2.5) * BEAT, 0.35);
-          }, `${bar}m`);
-        });
-
-        MELODY.forEach(m => {
-          const beatTime = swingBeat(m.beat);
-          Tone.Transport.schedule(time => {
-            toneLead.triggerAttackRelease(Tone.Frequency(m.note, "midi"), `${m.dur * BEAT}s`, time, 0.6);
-          }, `${m.bar}:${beatTime}`);
-        });
-
-        Tone.Transport.loop = true;
-        Tone.Transport.loopEnd = `${CHORDS.length}m`;
-        Tone.Transport.start();
-      });
-    } else {
-      isTonePlaying = false;
-      Tone.Transport.stop();
-      btn.textContent = '▶ Play Live Tone.js';
-      btn.classList.remove('active');
-      status.textContent = 'Paused';
-    }
-  }
-
-  function stopAll() {
-    if (isSfPlaying) {
-      isSfPlaying = false;
-      clearTimeout(sfTimer);
-      document.getElementById('btnSoundfont').textContent = '▶ Play Live SoundFont';
-      document.getElementById('btnSoundfont').classList.remove('active');
-      document.getElementById('statusSoundfont').textContent = 'Paused';
-    }
-    if (isTonePlaying) {
-      isTonePlaying = false;
-      Tone.Transport.stop();
-      document.getElementById('btnTone').textContent = '▶ Play Live Tone.js';
-      document.getElementById('btnTone').classList.remove('active');
-      document.getElementById('statusTone').textContent = 'Paused';
-    }
-    document.querySelectorAll('audio').forEach(a => a.pause());
   }
 </script>
 </body>
