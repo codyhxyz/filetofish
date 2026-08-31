@@ -8,6 +8,8 @@
     "soundtrack": "python3 soundtrack/render.py",
     "soundtrack:check": "python3 soundtrack/render.py --check",
     "soundtrack:suite": "python3 soundtrack/ac_suite.py",
+    "soundtrack:catalog": "python3 soundtrack/kk_catalog.py",
+    "soundtrack:jukebox": "open soundtrack/player.html",
     "soundtrack:play": "python3 soundtrack/ac_suite.py && afplay soundtrack/previews/ac_suite_album.wav",
     "soundtrack:mvp": "python3 soundtrack/dock_mvp.py && afplay soundtrack/previews/dock_mvp.wav"
   },
