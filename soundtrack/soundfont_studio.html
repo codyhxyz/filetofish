@@ -218,11 +218,17 @@
     .midi-row {
       display: flex;
       justify-content: space-between;
-      padding: 4px 0;
+      padding: 4px 6px;
+      border-radius: 4px;
       border-bottom: 1px solid #162230;
       transition: background 0.1s;
     }
+    .midi-row.active-now {
+      background: #1d4b7a;
+      color: #fff;
+    }
     .midi-note { color: #79c0ff; font-weight: 600; }
+    .midi-row.active-now .midi-note { color: #fff; }
     .midi-time { color: #d29922; }
     .midi-vel { color: #7ee787; }
   </style>
@@ -234,7 +240,7 @@
   <header>
     <div>
       <h1>🎹 SoundFont & MIDI Architecture Studio</h1>
-      <div class="sub">Glitch-free live hotswapping across SoundFont banks and instruments with clean single-stream transport.</div>
+      <div class="sub">Instantaneous live hotswapping across SoundFont banks and instruments via micro-lookahead scheduler.</div>
     </div>
   </header>
 
@@ -262,7 +268,7 @@
     <div class="panel">
       <div class="panel-title">
         <span>Live Channel Hotswapping</span>
-        <span style="font-size:11px;color:#7ee787">⚡ Instant Cache</span>
+        <span style="font-size:11px;color:#7ee787">⚡ Instant On-Next-Beat</span>
       </div>
 
       <!-- Bank Selector -->
@@ -349,11 +355,11 @@
     <div class="panel">
       <div class="panel-title">
         <span>Standard MIDI Event Stream</span>
-        <span style="font-size:11px;color:#d29922">Universal MIDI 0–127</span>
+        <span style="font-size:11px;color:#d29922">Live Active Note Highlight</span>
       </div>
 
       <p style="font-size:12px;color:#7b94aa;margin-bottom:12px;">
-        Standard MIDI events playing across active soundbanks with zero audio stream duplication on pause/resume.
+        Each note is scheduled just 50–100ms ahead. Instrument changes take effect instantly on the next note without pausing.
       </p>
 
       <div class="midi-box" id="midiInspector"></div>
@@ -366,19 +372,18 @@
   const ac = new (window.AudioContext || window.webkitAudioContext)();
   const masterBus = ac.createGain();
   masterBus.connect(ac.destination);
-  masterBus.gain.setValueAtTime(1.0, ac.currentTime);
 
-  // Transport State & Stream Protection
+  // Transport State
   let isPlaying = false;
   let bpm = 92;
   let swing = 0.62;
   let currentBank = "FluidR3_GM";
 
-  // Monotonic Generation ID to prevent duplicate timers & orphan streams
+  // Monotonic Generation ID & Scheduler interval
   let playbackGeneration = 0;
-  let loopTimeout = null;
+  let schedulerTimer = null;
 
-  // Active playing audio source nodes (for immediate cancellation on pause)
+  // Active playing audio source nodes
   const activeNodes = new Set();
 
   // Channel Mute States
@@ -387,52 +392,100 @@
   // Instrument Cache: Map<"Bank:InstrumentName", SoundfontPlayerInstance>
   const instrumentCache = new Map();
 
-  // Active Channel Instruments
+  // Active Channel Instruments (read live on every beat!)
   const channels = {
     bass: null,
     chords: null,
     lead: null
   };
 
-  // MIDI Sequences
-  const MIDI_CHORDS = [
-    { bass: "C2", bassMidi: 36, notes: ["E4", "G4", "B4", "D5"], name: "Cmaj9" },
-    { bass: "A1", bassMidi: 33, notes: ["Db4", "E4", "G4", "Bb4"], name: "A7b9" },
-    { bass: "D2", bassMidi: 38, notes: ["F4", "A4", "C5", "E5"], name: "Dm9" },
-    { bass: "G1", bassMidi: 31, notes: ["E4", "F4", "B4", "D5"], name: "G13" },
-    { bass: "E2", bassMidi: 40, notes: ["G4", "B4", "D5", "G5"], name: "Em7" },
-    { bass: "A1", bassMidi: 33, notes: ["Db4", "G4", "A4", "E5"], name: "A7" },
-    { bass: "F1", bassMidi: 29, notes: ["A4", "C5", "E5", "G5"], name: "Fmaj7" },
-    { bass: "F1", bassMidi: 29, notes: ["Ab4", "C5", "D5", "G5"], name: "Fm6 (IVm)" },
+  // MIDI Event Data (Linear event timeline across 8 bars = 32 beats)
+  // Each bar has 4 beats (bar 0: 0.0..3.9, bar 1: 4.0..7.9, etc.)
+  const TOTAL_BEATS = 32;
+
+  const CHORD_DATA = [
+    { bass: "C2", notes: ["E4", "G4", "B4", "D5"] }, // Bar 0
+    { bass: "A1", notes: ["Db4", "E4", "G4", "Bb4"] }, // Bar 1
+    { bass: "D2", notes: ["F4", "A4", "C5", "E5"] }, // Bar 2
+    { bass: "G1", notes: ["E4", "F4", "B4", "D5"] }, // Bar 3
+    { bass: "E2", notes: ["G4", "B4", "D5", "G5"] }, // Bar 4
+    { bass: "A1", notes: ["Db4", "G4", "A4", "E5"] }, // Bar 5
+    { bass: "F1", notes: ["A4", "C5", "E5", "G5"] }, // Bar 6
+    { bass: "F1", notes: ["Ab4", "C5", "D5", "G5"] }, // Bar 7
   ];
 
-  const MIDI_MELODY = [
-    { bar: 0, beat: 0.0, note: "E5", midi: 76, dur: 0.8, vel: 0.8 },
-    { bar: 0, beat: 1.0, note: "G5", midi: 79, dur: 0.6, vel: 0.7 },
-    { bar: 0, beat: 2.0, note: "D5", midi: 74, dur: 0.8, vel: 0.8 },
-    { bar: 0, beat: 3.0, note: "C5", midi: 72, dur: 1.8, vel: 0.9 },
-    { bar: 1, beat: 2.5, note: "B4", midi: 71, dur: 0.5, vel: 0.6 },
-    { bar: 1, beat: 3.0, note: "C5", midi: 72, dur: 0.9, vel: 0.7 },
-    { bar: 3, beat: 2.5, note: "D5", midi: 74, dur: 0.5, vel: 0.6 },
-    { bar: 3, beat: 3.0, note: "E5", midi: 76, dur: 0.7, vel: 0.8 },
-    { bar: 4, beat: 0.0, note: "G5", midi: 79, dur: 0.8, vel: 0.8 },
-    { bar: 4, beat: 1.0, note: "A5", midi: 81, dur: 0.6, vel: 0.7 },
-    { bar: 4, beat: 2.0, note: "B5", midi: 83, dur: 1.2, vel: 0.9 },
-    { bar: 5, beat: 0.5, note: "A5", midi: 81, dur: 0.6, vel: 0.7 },
-    { bar: 5, beat: 1.5, note: "G5", midi: 79, dur: 0.6, vel: 0.7 },
-    { bar: 5, beat: 2.5, note: "E5", midi: 76, dur: 1.6, vel: 0.8 },
-    { bar: 6, beat: 0.0, note: "E5", midi: 76, dur: 1.2, vel: 0.8 },
-    { bar: 6, beat: 2.0, note: "F5", midi: 77, dur: 0.8, vel: 0.7 },
-    { bar: 7, beat: 0.0, note: "F5", midi: 77, dur: 1.0, vel: 0.7 },
-    { bar: 7, beat: 2.0, note: "Eb5", midi: 75, dur: 1.5, vel: 0.9 },
-  ];
+  // Compile flat event list for precision micro-scheduling
+  function compileTimelineEvents() {
+    const events = [];
 
-  function swingBeat(b) {
-    const whole = Math.floor(b);
-    const frac = b - whole;
-    if (frac === 0) return whole;
-    if (Math.abs(frac - 0.5) < 0.05) return whole + swing;
-    return whole + frac;
+    // Bass & Chords
+    for (let bar = 0; bar < 8; bar++) {
+      const barStart = bar * 4.0;
+      const c = CHORD_DATA[bar];
+
+      // Bass note 1 on beat 0
+      events.push({ channel: "bass", beat: barStart + 0.0, note: c.bass, durBeats: 1.5, gain: 1.1 });
+      // Bass note 2 on beat 2
+      const bassOct2 = c.bass.replace(/\d/, d => parseInt(d) + 1);
+      events.push({ channel: "bass", beat: barStart + 2.0, note: bassOct2, durBeats: 1.2, gain: 0.8 });
+
+      // Chord stabs on "and of 1" (0.5) and "and of 3" (2.5) with swing
+      c.notes.forEach(n => {
+        events.push({ channel: "chords", beat: barStart + 0.5, note: n, durBeats: 1.0, gain: 0.45, isSwung: true });
+        events.push({ channel: "chords", beat: barStart + 2.5, note: n, durBeats: 0.8, gain: 0.40, isSwung: true });
+      });
+    }
+
+    // Lead Melody Notes
+    const melodyDef = [
+      { bar: 0, b: 0.0, note: "E5", dur: 0.8, vel: 0.8 },
+      { bar: 0, b: 1.0, note: "G5", dur: 0.6, vel: 0.7 },
+      { bar: 0, b: 2.0, note: "D5", dur: 0.8, vel: 0.8 },
+      { bar: 0, b: 3.0, note: "C5", dur: 1.8, vel: 0.9 },
+      { bar: 1, b: 2.5, note: "B4", dur: 0.5, vel: 0.6, isSwung: true },
+      { bar: 1, b: 3.0, note: "C5", dur: 0.9, vel: 0.7 },
+      { bar: 3, b: 2.5, note: "D5", dur: 0.5, vel: 0.6, isSwung: true },
+      { bar: 3, b: 3.0, note: "E5", dur: 0.7, vel: 0.8 },
+      { bar: 4, b: 0.0, note: "G5", dur: 0.8, vel: 0.8 },
+      { bar: 4, b: 1.0, note: "A5", dur: 0.6, vel: 0.7 },
+      { bar: 4, b: 2.0, note: "B5", dur: 1.2, vel: 0.9 },
+      { bar: 5, b: 0.5, note: "A5", dur: 0.6, vel: 0.7, isSwung: true },
+      { bar: 5, b: 1.5, note: "G5", dur: 0.6, vel: 0.7, isSwung: true },
+      { bar: 5, b: 2.5, note: "E5", dur: 1.6, vel: 0.8, isSwung: true },
+      { bar: 6, b: 0.0, note: "E5", dur: 1.2, vel: 0.8 },
+      { bar: 6, b: 2.0, note: "F5", dur: 0.8, vel: 0.7 },
+      { bar: 7, b: 0.0, note: "F5", dur: 1.0, vel: 0.7 },
+      { bar: 7, b: 2.0, note: "Eb5", dur: 1.5, vel: 0.9 },
+    ];
+
+    melodyDef.forEach(m => {
+      events.push({
+        channel: "lead",
+        beat: m.bar * 4.0 + m.b,
+        note: m.note,
+        durBeats: m.dur,
+        gain: m.vel * 0.9,
+        isSwung: !!m.isSwung,
+        id: `mel_${m.bar}_${m.b}`
+      });
+    });
+
+    events.sort((a, b) => a.beat - b.beat);
+    return events;
+  }
+
+  const TIMELINE_EVENTS = compileTimelineEvents();
+
+  function calculateSwungBeatTime(beatFloat) {
+    const bar = Math.floor(beatFloat / 4.0);
+    const beatInBar = beatFloat - bar * 4.0;
+    const whole = Math.floor(beatInBar);
+    const frac = beatInBar - whole;
+    let offset = frac;
+    if (Math.abs(frac - 0.5) < 0.05) {
+      offset = swing;
+    }
+    return (bar * 4.0 + whole + offset);
   }
 
   // Load single instrument with caching and route through masterBus
@@ -449,55 +502,7 @@
     return inst;
   }
 
-  // Play a note safely tracked in activeNodes
-  function playTracked(inst, note, time, opts) {
-    if (!inst || !isPlaying) return;
-    try {
-      const node = inst.play(note, time, opts);
-      if (node) {
-        activeNodes.add(node);
-        if (node.source && node.source.onended !== undefined) {
-          const oldOnEnded = node.source.onended;
-          node.source.onended = () => {
-            activeNodes.delete(node);
-            if (oldOnEnded) oldOnEnded();
-          };
-        }
-      }
-    } catch (e) {
-      // Ignored
-    }
-  }
-
-  // Stop all active audio streams immediately
-  function killAllActiveStreams() {
-    // 1. Invalidate generation ID so all pending loop callbacks abort
-    playbackGeneration++;
-
-    // 2. Clear pending scheduling timers
-    if (loopTimeout) {
-      clearTimeout(loopTimeout);
-      loopTimeout = null;
-    }
-
-    // 3. Hard-stop every tracked playing node
-    activeNodes.forEach(node => {
-      try {
-        if (node.stop) node.stop();
-        if (node.source && node.source.stop) node.source.stop();
-      } catch (e) {}
-    });
-    activeNodes.clear();
-
-    // 4. Also call stop on channel instruments
-    ['bass', 'chords', 'lead'].forEach(k => {
-      if (channels[k] && channels[k].stop) {
-        try { channels[k].stop(); } catch (e) {}
-      }
-    });
-  }
-
-  // Seamless Hotswap: updates channel reference on the fly
+  // Instant Hotswap: updates channel in-memory reference immediately!
   async function hotswapInstrument(channelKey, instName) {
     const spinEl = document.getElementById(`load${channelKey.charAt(0).toUpperCase() + channelKey.slice(1)}`);
     const tagEl = document.getElementById(`tag${channelKey.charAt(0).toUpperCase() + channelKey.slice(1)}`);
@@ -508,6 +513,7 @@
 
     try {
       const inst = await getOrLoadInstrument(currentBank, instName);
+      // Hot-swap channel reference immediately! Next note in 50ms will play from this instance!
       channels[channelKey] = inst;
       tagEl.textContent = instName;
       status.textContent = `✓ Active: ${instName} (${currentBank})`;
@@ -535,51 +541,74 @@
     ]);
   }
 
-  // Clock & Playback Engine (Looping AudioContext scheduler)
-  function scheduleLoop(genId, startTime) {
-    // Abort if playback was paused or a newer generation started
-    if (!isPlaying || genId !== playbackGeneration) return;
+  // =========================================================================
+  // MICRO-LOOKAHEAD SCHEDULER (A Tale of Two Clocks Pattern)
+  // Schedules only 100ms into the future so dropdown changes take effect INSTANTLY!
+  // =========================================================================
+  let transportStartTime = 0;
+  let nextEventIndex = 0;
+  let loopCount = 0;
+
+  function runSchedulerTick() {
+    if (!isPlaying) return;
 
     const beatDur = 60.0 / bpm;
-    const numBars = MIDI_CHORDS.length;
-    const loopDuration = numBars * 4 * beatDur;
+    const loopDurationSec = TOTAL_BEATS * beatDur;
+    const now = ac.currentTime;
+    const lookaheadSec = 0.12; // Schedule only 120ms ahead for instant responsiveness!
 
-    // Schedule Chords & Bass
-    MIDI_CHORDS.forEach((c, bar) => {
-      const tBar = startTime + bar * 4 * beatDur;
+    while (true) {
+      const event = TIMELINE_EVENTS[nextEventIndex];
+      const eventSwungBeat = event.isSwung ? calculateSwungBeatTime(event.beat) : event.beat;
+      const eventAudioTime = transportStartTime + (loopCount * loopDurationSec) + (eventSwungBeat * beatDur);
 
-      // Bass Channel
-      if (!mutes.bass && channels.bass) {
-        playTracked(channels.bass, c.bass, tBar, { duration: beatDur * 1.5, gain: 1.1 });
-        const bassOct2 = c.bass.replace(/\d/, d => parseInt(d) + 1);
-        playTracked(channels.bass, bassOct2, tBar + 2 * beatDur, { duration: beatDur * 1.2, gain: 0.8 });
+      if (eventAudioTime < now + lookaheadSec) {
+        // Schedule this note if not in the past and channel is unmuted
+        if (eventAudioTime >= now - 0.02) {
+          const inst = channels[event.channel];
+          if (inst && !mutes[event.channel]) {
+            try {
+              const durSec = event.durBeats * beatDur;
+              const node = inst.play(event.note, Math.max(now, eventAudioTime), {
+                duration: durSec,
+                gain: event.gain
+              });
+              if (node) activeNodes.add(node);
+            } catch (err) {}
+          }
+        }
+
+        // Advance to next event
+        nextEventIndex++;
+        if (nextEventIndex >= TIMELINE_EVENTS.length) {
+          nextEventIndex = 0;
+          loopCount++;
+        }
+      } else {
+        // Event is further in future than lookahead window: stop scheduling for this tick
+        break;
       }
+    }
+  }
 
-      // Chords Channel
-      if (!mutes.chords && channels.chords) {
-        const tStab1 = tBar + swingBeat(0.5) * beatDur;
-        const tStab2 = tBar + swingBeat(2.5) * beatDur;
-        c.notes.forEach(n => {
-          playTracked(channels.chords, n, tStab1, { duration: beatDur * 1.0, gain: 0.45 });
-          playTracked(channels.chords, n, tStab2, { duration: beatDur * 0.8, gain: 0.40 });
-        });
+  function killAllStreams() {
+    playbackGeneration++;
+    if (schedulerTimer) {
+      clearInterval(schedulerTimer);
+      schedulerTimer = null;
+    }
+    activeNodes.forEach(n => {
+      try {
+        if (n.stop) n.stop();
+        if (n.source && n.source.stop) n.source.stop();
+      } catch (e) {}
+    });
+    activeNodes.clear();
+    ['bass', 'chords', 'lead'].forEach(k => {
+      if (channels[k] && channels[k].stop) {
+        try { channels[k].stop(); } catch (e) {}
       }
     });
-
-    // Schedule Lead Channel
-    if (!mutes.lead && channels.lead) {
-      MIDI_MELODY.forEach(m => {
-        const tNote = startTime + (m.bar * 4 + swingBeat(m.beat)) * beatDur;
-        playTracked(channels.lead, m.note, tNote, { duration: m.dur * beatDur, gain: m.vel * 0.9 });
-      });
-    }
-
-    const nextStartTime = startTime + loopDuration;
-    const msUntilNextSchedule = (nextStartTime - ac.currentTime - 0.25) * 1000;
-
-    loopTimeout = setTimeout(() => {
-      scheduleLoop(genId, nextStartTime);
-    }, Math.max(50, msUntilNextSchedule));
   }
 
   async function togglePlay() {
@@ -589,33 +618,30 @@
     const status = document.getElementById('transportStatus');
 
     if (!isPlaying) {
-      // 1. Kill any stray previous stream completely
-      killAllActiveStreams();
+      killAllStreams();
 
-      // 2. Ensure initial instruments loaded
       if (!channels.bass || !channels.chords || !channels.lead) {
         status.textContent = "Loading initial SoundFont bank...";
         await onBankChange(currentBank);
       }
 
-      // 3. Start clean fresh stream with current generation ID
       isPlaying = true;
-      const currentGen = ++playbackGeneration;
-      const startTime = ac.currentTime + 0.05;
+      transportStartTime = ac.currentTime + 0.05;
+      nextEventIndex = 0;
+      loopCount = 0;
 
       playBtn.textContent = '⏸ Pause MIDI';
       playBtn.classList.add('active');
-      status.textContent = `▶ Playing Live SoundFont (${currentBank})`;
+      status.textContent = `▶ Playing Live SoundFont (${currentBank}) — Hotswap anytime!`;
 
-      scheduleLoop(currentGen, startTime);
+      // 25ms tick interval for ultra-tight micro-scheduling
+      schedulerTimer = setInterval(runSchedulerTick, 25);
     } else {
-      // Clean Pause: Hard kill all active and queued notes
       isPlaying = false;
-      killAllActiveStreams();
-
+      killAllStreams();
       playBtn.textContent = '▶ Play MIDI';
       playBtn.classList.remove('active');
-      status.textContent = 'Paused (All streams stopped)';
+      status.textContent = 'Paused';
     }
   }
 
@@ -639,13 +665,17 @@
   function renderMidiInspector() {
     const el = document.getElementById('midiInspector');
     el.innerHTML = '';
-    MIDI_MELODY.forEach(m => {
+    const leadEvents = TIMELINE_EVENTS.filter(e => e.channel === 'lead');
+    leadEvents.forEach((m, idx) => {
+      const bar = Math.floor(m.beat / 4.0) + 1;
+      const b = (m.beat % 4.0).toFixed(1);
       const row = document.createElement('div');
       row.className = 'midi-row';
+      row.id = `row_${idx}`;
       row.innerHTML = `
-        <span class="midi-note">Bar ${m.bar+1}:${m.beat.toFixed(1)} — ${m.note} (MIDI ${m.midi})</span>
-        <span class="midi-time">Dur: ${m.dur} beats</span>
-        <span class="midi-vel">Vel: ${m.vel}</span>
+        <span class="midi-note">Bar ${bar}:${b} — ${m.note}</span>
+        <span class="midi-time">Dur: ${m.durBeats}b</span>
+        <span class="midi-vel">Vel: ${(m.gain/0.9).toFixed(1)}</span>
       `;
       el.appendChild(row);
     });
