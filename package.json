@@ -7,6 +7,8 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "soundtrack": "python3 soundtrack/render.py",
     "soundtrack:check": "python3 soundtrack/render.py --check",
+    "soundtrack:suite": "python3 soundtrack/ac_suite.py",
+    "soundtrack:play": "python3 soundtrack/ac_suite.py && afplay soundtrack/previews/ac_suite_album.wav",
     "soundtrack:mvp": "python3 soundtrack/dock_mvp.py && afplay soundtrack/previews/dock_mvp.wav"
   },
   "keywords": [],
