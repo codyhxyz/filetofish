@@ -158,17 +158,28 @@ vec2 ripples(vec2 p, float t){
   return o;
 }
 /* one raindrop impact per grid cell, phase-offset so they fire at random
-   times. Free of the uRip slots, which belong to the bobber. */
+   times. The wave is domain-warped and noise-broken instead of a clean circle;
+   rain should make messy little disturbances, not a field of portholes. Free
+   of the uRip slots, which belong to the bobber. */
 vec2 drops(vec2 p, float t, float sc, float sk, float rate){
   vec2 gp = p*sc + sk;
   vec2 ip = floor(gp), f = fract(gp);
-  float h = hash21(ip + sk);
+  float h = hash21(ip + sk), h2 = hash21(ip + sk + 3.71);
   float ph = fract(t*rate + h*11.0);
-  vec2 c = vec2(0.30) + 0.40*vec2(h, hash21(ip + sk + 3.71));
-  float d = length(f - c);
-  float r = ph*0.30, dec = 1.0 - ph;
-  float env = exp(-abs(d - r)*11.0)*dec*dec;
-  return vec2(sin((r - d)*34.0)*env, env);
+  vec2 q = f - (vec2(0.24) + 0.52*vec2(h, h2));
+  float seed = h*17.0 + h2*5.0;
+  /* cheap value-noise warp: it gives each impact a different shoreline. */
+  q += (vec2(vnoise(q*3.2 + vec2(seed, 2.4)),
+             vnoise(q*3.2 + vec2(-seed, 7.1))) - 0.5) * (0.14 + ph*0.05);
+  float d = length(q);
+  float shape = vnoise(q*5.0 + vec2(seed, -seed*0.7));
+  float breakup = vnoise(q*11.0 + vec2(-seed, seed*0.4));
+  float r = ph*0.29*(0.82 + shape*0.34);
+  float edge = exp(-abs(d - r)*(16.0 + breakup*15.0));
+  float arcs = smoothstep(0.34, 0.60, breakup + shape*0.28);
+  float dec = 1.0 - ph;
+  float env = edge*arcs*dec*dec;
+  return vec2(sin((r - d)*30.0)*env, env);
 }
 /* fixed stars: position depends on direction only, only the twinkle moves */
 float starfield(vec2 sp, float t){
