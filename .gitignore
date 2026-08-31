@@ -9,3 +9,4 @@ mockups/
 dist/ocean/
 soundtrack/previews/
 .pi/subagents/
+__pycache__/
