@@ -163,7 +163,7 @@ body.has-catch #plate{opacity:1; transform:translate(-50%,0);}
 #snd .on,#snd .off{display:none;}
 #snd[aria-pressed="true"] .on{display:block;}
 #snd[aria-pressed="false"] .off{display:block;}
-#dexn{font-style:normal;}
+#dexn,#radionm{font-style:normal; color:#FFD9A8;}
 
 #foot{
   position:fixed; left:50%; transform:translateX(-50%); bottom:clamp(1.1rem,3vh,2rem); z-index:6;
@@ -332,6 +332,16 @@ body.has-catch #plate{opacity:1; transform:translate(-50%,0);}
       <path d="M12 7.1C10.1 5.2 7.4 4.4 3.6 4.6v12.9c3.8-.2 6.5.6 8.4 2.5 1.9-1.9 4.6-2.7 8.4-2.5V4.6c-3.8-.2-6.5.6-8.4 2.5z"/>
       <path d="M12 7.1V20"/>
       <path d="M6.3 8.6h2.9M6.3 11.6h2.9M14.8 8.6h2.9M14.8 11.6h2.9"/>
+    </svg></span>
+  </button>
+  <button class="tool" id="radio" aria-label="Music radio: click to change track" title="click: change the song">
+    <span class="lb" id="radiolb">now playing <i id="radionm">Sunlit Bobber</i></span>
+    <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+      stroke-linejoin="round" stroke-linecap="round" aria-hidden="true">
+      <rect x="2.5" y="7" width="19" height="13" rx="2"/>
+      <path d="M5.5 7 L17.5 2.5"/>
+      <circle cx="8" cy="13.5" r="3.2"/>
+      <path d="M15 11.5h3.5M15 15.5h3.5"/>
     </svg></span>
   </button>
   <button class="tool" id="snd" aria-pressed="true" aria-label="Sound">

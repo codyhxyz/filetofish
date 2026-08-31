@@ -1,4 +1,8 @@
 import { sfx, isOn, setOn, audio } from "./sfx.js";
+import {
+  initMusic, setMusicTrack, nextMusicTrack, getMusicTrack,
+  syncMusicToTime, setMusicSoundOn, duckMusic
+} from "./music.js";
 import { Sea, WEATHERS, weatherForDate } from "./sea.js";
 import {
   Scene, PerspectiveCamera, OrthographicCamera, WebGLRenderer, Mesh, Group,
@@ -622,18 +626,35 @@ function FishStage(canvas) {
 }
 
 
-/* ============================================================ sound */
+/* ============================================================ sound & music */
+const elRadio = $("#radio"), elRadioNm = $("#radionm");
+function updateRadioUI() {
+  const t = getMusicTrack();
+  if (elRadioNm && t) elRadioNm.textContent = t.title;
+}
+
 function syncSound() {
   $("#snd").setAttribute("aria-pressed", String(isOn()));
   $("#sndlb").textContent = isOn() ? "sound" : "muted";
+  setMusicSoundOn(isOn());
 }
 $("#snd").addEventListener("click", e => {
   e.stopPropagation();
+  if (audio()) initMusic(audio(), null, isOn());
   setOn(!isOn());
   syncSound();
   if (isOn()) sfx("tick");
 });
+if (elRadio) {
+  elRadio.addEventListener("click", e => {
+    e.stopPropagation();
+    if (audio()) initMusic(audio(), null, isOn());
+    nextMusicTrack().then(updateRadioUI);
+    if (isOn()) sfx("tick");
+  });
+}
 syncSound();
+updateRadioUI();
 
 
 /* ============================================================ files */
@@ -880,16 +901,21 @@ function stepWake(dt, now) {
 
 function enter(s, now) {
   state = s; t0 = now;
-  if (s === "cast") { from = { x: tip().x - 26, y: tip().y + 20 }; say("casting"); sfx("cast"); }
+  if (s === "cast") {
+    if (audio()) initMusic(audio(), null, isOn());
+    from = { x: tip().x - 26, y: tip().y + 20 }; say("casting"); sfx("cast");
+  }
   if (s === "wait") { say(hex32(fish.hash)); splash(1.35, now); sfx("plop"); }
-  if (s === "bite") { say("something's biting"); splash(0.9, now); sfx("bite"); shake = 3.5; }
+  if (s === "bite") { say("something's biting"); splash(0.9, now); sfx("bite"); shake = 3.5; duckMusic(0.25, 1.2); }
   if (s === "reel") {
     splash(1.6, now); say("reeling in"); sfx("splash"); sfx("reel", 1.0);
     stage.splash(bob.x / Math.max(W, 1), bob.y / Math.max(H, 1));
     shake = 5;
+    duckMusic(0.2, 1.8);
   }
   if (s === "caught") {
     document.body.classList.add("has-catch");
+    duckMusic(0.15, 2.2);
     const seen = !!DEX[fish.speciesKey];
     $("#p-rar").textContent = fish.rarity + (seen ? "" : " · new species");
     $("#p-rar").style.color = (RARE_LOOK[fish.rarity] || RARE_LOOK.Common).css;
@@ -1255,7 +1281,9 @@ async function haul(files) {
   openDex();
 }
 
-const unlock = () => { if (isOn()) audio(); };
+const unlock = () => {
+  if (isOn() && audio()) initMusic(audio(), null, isOn());
+};
 $("#cast").addEventListener("click", e => {
   e.stopPropagation(); unlock();
   const btn = e.currentTarget;
@@ -1439,7 +1467,12 @@ if (sea) {
 function tickClock(now) {
   const d = worldNow();
   const s = `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
-  if (s !== shown) { shown = s; elClockT.textContent = s; }
+  if (s !== shown) {
+    shown = s;
+    elClockT.textContent = s;
+    syncMusicToTime(d);
+    updateRadioUI();
+  }
   if (now > wxNext) { wxNext = now + 30; syncWeather(false); }  // the sky keeps its own time
 }
 function cycleWeather() {
