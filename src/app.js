@@ -628,9 +628,12 @@ function FishStage(canvas) {
 
 /* ============================================================ sound & music */
 const elRadio = $("#radio"), elRadioNm = $("#radionm");
-function updateRadioUI() {
-  const t = getMusicTrack();
-  if (elRadioNm && t) elRadioNm.textContent = t.title;
+function updateRadioUI(track = getMusicTrack()) {
+  if (elRadioNm && track) {
+    elRadioNm.textContent = track.title;
+    elRadio.title = `now playing: ${track.title} · click to change the song`;
+    elRadio.setAttribute("aria-label", `Now playing ${track.title}; click to change the song`);
+  }
 }
 
 function syncSound() {
@@ -649,8 +652,10 @@ if (elRadio) {
   elRadio.addEventListener("click", e => {
     e.stopPropagation();
     if (audio()) initMusic(audio(), null, isOn());
-    nextMusicTrack().then(updateRadioUI);
-    if (isOn()) sfx("tick");
+    updateRadioUI(nextMusicTrack());
+    elRadio.classList.remove("pop");
+    void elRadio.offsetWidth;
+    elRadio.classList.add("pop");
   });
 }
 syncSound();
