@@ -78,7 +78,8 @@ fs.writeFileSync("dist/index.html", standalone);
 fs.writeFileSync("dist/_headers",
   "/*\n  X-Content-Type-Options: nosniff\n  Referrer-Policy: strict-origin-when-cross-origin\n" +
   "  Permissions-Policy: geolocation=(), microphone=(), camera=()\n" +
-  "/sfx/*\n  X-Robots-Tag: noindex\n");
+  "/sfx/*\n  X-Robots-Tag: noindex\n" +
+  "/score/*\n  X-Robots-Tag: noindex\n");
 
 // 3) the sfx audition page -- shares src/sfx.js with the site, so it cannot drift
 const aud = await page("src/audition.js", "src/audition.html");
@@ -99,7 +100,26 @@ ${aud.doc.replace(/<title>[\s\S]*?<\/title>\s*/i, "")}
 </body>
 </html>`);
 
-// 4) the ocean mockup -- the file-viewer prototype, deployed at /ocean
+// 4) soundtrack score inspector -- imports the same tracks and compiler as production
+const score = await page("src/score.js", "src/score.html");
+const scoreTitle = (score.doc.match(/<title>([\s\S]*?)<\/title>/i) || [, "soundtrack score"])[1];
+fs.mkdirSync("dist/score", {recursive: true});
+fs.writeFileSync("dist/score/index.html", `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>${scoreTitle}</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#071416">
+<link rel="icon" href="${FAVICON}">
+</head>
+<body>
+${score.doc.replace(/<title>[\s\S]*?<\/title>\s*/i, "")}
+</body>
+</html>`);
+
+// 5) the ocean mockup -- the file-viewer prototype, deployed at /ocean
 const oc = await page("src/ocean.js", "src/ocean.html");
 const ocTitle = (oc.doc.match(/<title>([\s\S]*?)<\/title>/i) || [, "ocean"])[1];
 fs.mkdirSync("dist/ocean", {recursive: true});
@@ -119,4 +139,4 @@ ${oc.doc.replace(/<title>[\s\S]*?<\/title>\s*/i, "")}
 </html>`);
 
 console.log(`site ${(doc.length/1024).toFixed(0)} KB | audition ${(aud.doc.length/1024).toFixed(0)} KB`
-          + ` | ocean ${(oc.doc.length/1024).toFixed(0)} KB`);
+          + ` | score ${(score.doc.length/1024).toFixed(0)} KB | ocean ${(oc.doc.length/1024).toFixed(0)} KB`);

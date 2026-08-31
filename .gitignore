@@ -5,8 +5,10 @@ node_modules/
 dist/index.html
 dist/_headers
 dist/sfx/
+dist/score/
 mockups/
 dist/ocean/
+.impeccable/review/
 soundtrack/previews/
 .pi/subagents/
 __pycache__/

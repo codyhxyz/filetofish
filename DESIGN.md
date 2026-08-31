@@ -137,6 +137,20 @@ Sliders are generated from `P`, with ranges guessed from the parameter name, so
 adding a knob needs no UI work. The page is `noindex` and costs 12 KB; delete
 `src/audition.*` and the third block in `build.mjs` to remove it.
 
+## Inspecting the soundtrack
+
+**`/score`** is the read-only production score. It imports `TRACKS` and
+`compileTimeline()` from `src/music.js`, so the phrase map and piano roll show the
+same expanded 32-bar events that the scheduler plays. `soundtrack/scores.json` is
+an older sketch format and is deliberately not used by this tool.
+
+Phrase boundaries follow changes in the arrangement's `layer`; a run longer than
+eight bars splits into readable eight-bar phrases. Each channel lane reports its
+actual scheduled-note count. Selecting a piano-roll note loads and plays that
+track's production SoundFont, then exposes pitch/MIDI number, instrument, channel,
+bar and beat, duration, gain, and swing. The page is `noindex` and built from
+`src/score.{html,js}` by `build.mjs`.
+
 ## The rod
 
 Modelled as a cubic blank from an off-screen butt to the tip, with control points

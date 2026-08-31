@@ -326,7 +326,7 @@ function expandTrack(track) {
   return track;
 }
 
-function compileTimeline(track) {
+export function compileTimeline(track) {
   expandTrack(track);
   const events = [];
   const numBars = track.chords.length;
@@ -506,6 +506,23 @@ export function setMusicSoundOn(enabled) {
     stopPlayback();
   } else if (!isPlaying && AC && AC.state === "running" && Object.values(channels).every(Boolean)) {
     startPlayback();
+  }
+}
+
+export function auditionMusicNote(channel, note, durationSec = 0.6, gain = 0.6) {
+  const instrument = channels[channel];
+  if (!AC || !instrument) return false;
+  const now = AC.currentTime;
+  if (!hasStartedMusic) {
+    hasStartedMusic = true;
+    MASTER_FADE.gain.setValueAtTime(0.38, now);
+  }
+  try {
+    const node = instrument.play(note, now, { duration: durationSec, gain });
+    if (node) activeNodes.add(node);
+    return true;
+  } catch (error) {
+    return false;
   }
 }
 

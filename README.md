@@ -31,17 +31,20 @@ coarse grid so they block up with the facets. No textures.
 Traits are pure functions of (name, size, MIME, hash), so a shared fish could be a
 URL rather than a database row.
 
-## Soundtrack sketches
+## Soundtrack
 
-`soundtrack/scores.json` stores six time-of-day songs as chords and MIDI-note
-events. `soundtrack/render.py` synthesizes listening proofs without external
-packages. The WAV files are local build artifacts, not site assets.
+The shipped six-song soundtrack lives in `src/music.js`: track data, arrangement
+expansion, note compilation, SoundFont playback, and clock-based song selection.
+`/score` is a noindex developer tool that imports that same source to show phrase-level
+instrument activity and every compiled note in a piano roll.
 
 ```sh
-npm run soundtrack:check
-npm run soundtrack
-npm run soundtrack -- --play
+npm run soundtrack:inspect        # build and open the score inspector
+npm run soundtrack:inspect:check  # check phrase grouping and pitch conversion
 ```
+
+`soundtrack/scores.json` and `soundtrack/render.py` are older renderer-neutral
+listening sketches. Their WAV files are local build artifacts, not site assets.
 
 ## What happens to a catch
 

@@ -13,6 +13,8 @@
     "soundtrack:real": "open soundtrack/real_soundfont.html",
     "soundtrack:shootout": "open soundtrack/engine_shootout.html",
     "soundtrack:jukebox": "open soundtrack/player.html",
+    "soundtrack:inspect": "node build.mjs && open dist/score/index.html",
+    "soundtrack:inspect:check": "node soundtrack/inspector-check.mjs",
     "soundtrack:play": "python3 soundtrack/ac_suite.py && afplay soundtrack/previews/ac_suite_album.wav",
     "soundtrack:mvp": "python3 soundtrack/dock_mvp.py && afplay soundtrack/previews/dock_mvp.wav"
   },
