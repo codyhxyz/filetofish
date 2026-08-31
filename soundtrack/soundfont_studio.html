@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FiletoFish — SoundFont & MIDI Studio</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #0d1217;
+      color: #e2ebf4;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      padding: 32px 20px 80px 20px;
+      line-height: 1.5;
+    }
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+    header {
+      margin-bottom: 24px;
+      border-bottom: 1px solid #1f2c3a;
+      padding-bottom: 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    h1 {
+      font-size: 22px;
+      font-weight: 700;
+      color: #f0f6fc;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .sub {
+      color: #7b94aa;
+      font-size: 13px;
+      margin-top: 4px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+    @media (max-width: 700px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+    .panel {
+      background: #141c26;
+      border: 1px solid #233345;
+      border-radius: 12px;
+      padding: 20px;
+    }
+    .panel-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: #58a6ff;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .form-group {
+      margin-bottom: 14px;
+    }
+    label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      color: #8da4b8;
+      margin-bottom: 6px;
+    }
+    select, input {
+      width: 100%;
+      background: #0d141d;
+      border: 1px solid #25374a;
+      border-radius: 8px;
+      padding: 10px 12px;
+      color: #f0f6fc;
+      font-size: 13px;
+      outline: none;
+    }
+    select:focus, input:focus {
+      border-color: #388bfd;
+    }
+    .status-box {
+      background: #0e151f;
+      border: 1px solid #223244;
+      border-radius: 8px;
+      padding: 12px 16px;
+      font-family: monospace;
+      font-size: 12px;
+      color: #79c0ff;
+      margin-bottom: 16px;
+    }
+    .btn-main {
+      background: #238636;
+      border: none;
+      color: white;
+      font-weight: 600;
+      font-size: 15px;
+      padding: 14px 20px;
+      border-radius: 8px;
+      cursor: pointer;
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: background 0.15s;
+    }
+    .btn-main:hover { background: #2ea043; }
+    .btn-main:disabled { background: #334455; cursor: not-allowed; }
+    .btn-main.active { background: #d29922; }
+
+    /* MIDI Event Inspector */
+    .midi-box {
+      background: #0d141d;
+      border: 1px solid #202e3f;
+      border-radius: 8px;
+      padding: 14px;
+      max-height: 240px;
+      overflow-y: auto;
+      font-family: monospace;
+      font-size: 12px;
+      color: #8da4b8;
+    }
+    .midi-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 4px 0;
+      border-bottom: 1px solid #162230;
+    }
+    .midi-note { color: #79c0ff; font-weight: 600; }
+    .midi-time { color: #d29922; }
+    .midi-vel { color: #7ee787; }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/soundfont-player@0.12.0/dist/soundfont-player.min.js"></script>
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <div>
+      <h1>🎹 SoundFont & MIDI Architecture Studio</h1>
+      <div class="sub">Standard MIDI note sequencing routed dynamically through studio acoustic SoundFont soundbanks.</div>
+    </div>
+  </header>
+
+  <!-- Status / Transport -->
+  <div class="status-box" id="statusBox">Select your SoundFont bank and instruments, then click Play...</div>
+
+  <button class="btn-main" id="playBtn" onclick="togglePlay()">▶ Load SoundFont & Play MIDI</button>
+
+  <div class="grid" style="margin-top: 20px;">
+    <!-- SoundFont Selection Panel -->
+    <div class="panel">
+      <div class="panel-title">
+        <span>SoundFont Soundbank Selection</span>
+        <span style="font-size:11px;color:#7ee787">100% Sampled Audio</span>
+      </div>
+
+      <div class="form-group">
+        <label>SoundFont Bank Source</label>
+        <select id="soundfontBank" onchange="onBankChange()">
+          <option value="FluidR3_GM" selected>FluidR3 GM (Modern Crisp Studio General MIDI)</option>
+          <option value="MusngKite">Musyng Kite (Warm, Expressive Acoustic SoundBank)</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>Channel 1: Bass Instrument</label>
+        <select id="instBass" onchange="reloadInstruments()">
+          <option value="acoustic_bass" selected>Acoustic Upright Double Bass</option>
+          <option value="electric_bass_finger">Electric Finger Bass</option>
+          <option value="fretless_bass">Fretless Bass</option>
+          <option value="slap_bass_1">Slap Bass (Funk/Pop)</option>
+          <option value="tuba">Sousaphone / Tuba</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>Channel 2: Chords & Comping</label>
+        <select id="instChords" onchange="reloadInstruments()">
+          <option value="acoustic_guitar_nylon" selected>Nylon-String Acoustic Guitar</option>
+          <option value="acoustic_guitar_steel">Steel-String Acoustic Guitar</option>
+          <option value="electric_piano_1">Rhodes Electric Piano (Suitcase)</option>
+          <option value="acoustic_grand_piano">Concert Grand Piano</option>
+          <option value="vibraphone">Vibraphone</option>
+          <option value="marimba">Orchestral Marimba</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>Channel 3: Lead Voice (Melody)</label>
+        <select id="instLead" onchange="reloadInstruments()">
+          <option value="flute" selected>Concert Air Flute</option>
+          <option value="accordion">French Musette Accordion</option>
+          <option value="pan_flute">Pan Flute</option>
+          <option value="whistle">Tin Whistle / Piccolo</option>
+          <option value="vibraphone">Vibraphone</option>
+          <option value="music_box">Music Box</option>
+          <option value="marimba">Wood Marimba</option>
+          <option value="muted_trumpet">Harmon-Muted Trumpet</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Standard MIDI Event Inspector Panel -->
+    <div class="panel">
+      <div class="panel-title">
+        <span>Standard MIDI Note Event Stream</span>
+        <span style="font-size:11px;color:#d29922">Standard [Note, Time, Dur, Vel]</span>
+      </div>
+
+      <p style="font-size:12px;color:#7b94aa;margin-bottom:12px;">
+        These notes use standard universal MIDI numbers (0–127) and pitch names. You can swap any SoundFont in without changing a single line of musical score.
+      </p>
+
+      <div class="midi-box" id="midiInspector"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const ac = new (window.AudioContext || window.webkitAudioContext)();
+  let isPlaying = false;
+  let timer = null;
+
+  let bassPlayer = null;
+  let chordsPlayer = null;
+  let leadPlayer = null;
+
+  const BPM = 92;
+  const BEAT = 60 / BPM;
+  const SWING = 0.62;
+
+  function swingBeat(b) {
+    const whole = Math.floor(b);
+    const frac = b - whole;
+    if (frac === 0) return whole;
+    if (Math.abs(frac - 0.5) < 0.05) return whole + SWING;
+    return whole + frac;
+  }
+
+  // STANDARD MIDI CHORD SCORE
+  const MIDI_CHORDS = [
+    { bass: "C2", bassMidi: 36, notes: ["E4", "G4", "B4", "D5"], midi: [64, 67, 71, 74], name: "Cmaj9" },
+    { bass: "A1", bassMidi: 33, notes: ["Db4", "E4", "G4", "Bb4"], midi: [61, 64, 67, 70], name: "A7b9" },
+    { bass: "D2", bassMidi: 38, notes: ["F4", "A4", "C5", "E5"], midi: [65, 69, 72, 76], name: "Dm9" },
+    { bass: "G1", bassMidi: 31, notes: ["E4", "F4", "B4", "D5"], midi: [64, 65, 71, 74], name: "G13" },
+    { bass: "E2", bassMidi: 40, notes: ["G4", "B4", "D5", "G5"], midi: [67, 71, 74, 79], name: "Em7" },
+    { bass: "A1", bassMidi: 33, notes: ["Db4", "G4", "A4", "E5"], midi: [61, 67, 69, 76], name: "A7" },
+    { bass: "F1", bassMidi: 29, notes: ["A4", "C5", "E5", "G5"], midi: [69, 72, 76, 79], name: "Fmaj7" },
+    { bass: "F1", bassMidi: 29, notes: ["Ab4", "C5", "D5", "G5"], midi: [68, 72, 74, 79], name: "Fm6 (IVm)" },
+  ];
+
+  // STANDARD MIDI MELODY SCORE
+  const MIDI_MELODY = [
+    { bar: 0, beat: 0.0, note: "E5", midi: 76, dur: 0.8, vel: 0.8 },
+    { bar: 0, beat: 1.0, note: "G5", midi: 79, dur: 0.6, vel: 0.7 },
+    { bar: 0, beat: 2.0, note: "D5", midi: 74, dur: 0.8, vel: 0.8 },
+    { bar: 0, beat: 3.0, note: "C5", midi: 72, dur: 1.8, vel: 0.9 },
+    { bar: 1, beat: 2.5, note: "B4", midi: 71, dur: 0.5, vel: 0.6 },
+    { bar: 1, beat: 3.0, note: "C5", midi: 72, dur: 0.9, vel: 0.7 },
+    // Rest in bar 2-3 (Negative space)
+    { bar: 3, beat: 2.5, note: "D5", midi: 74, dur: 0.5, vel: 0.6 },
+    { bar: 3, beat: 3.0, note: "E5", midi: 76, dur: 0.7, vel: 0.8 },
+    { bar: 4, beat: 0.0, note: "G5", midi: 79, dur: 0.8, vel: 0.8 },
+    { bar: 4, beat: 1.0, note: "A5", midi: 81, dur: 0.6, vel: 0.7 },
+    { bar: 4, beat: 2.0, note: "B5", midi: 83, dur: 1.2, vel: 0.9 },
+    { bar: 5, beat: 0.5, note: "A5", midi: 81, dur: 0.6, vel: 0.7 },
+    { bar: 5, beat: 1.5, note: "G5", midi: 79, dur: 0.6, vel: 0.7 },
+    { bar: 5, beat: 2.5, note: "E5", midi: 76, dur: 1.6, vel: 0.8 },
+    { bar: 6, beat: 0.0, note: "E5", midi: 76, dur: 1.2, vel: 0.8 },
+    { bar: 6, beat: 2.0, note: "F5", midi: 77, dur: 0.8, vel: 0.7 },
+    { bar: 7, beat: 0.0, note: "F5", midi: 77, dur: 1.0, vel: 0.7 },
+    { bar: 7, beat: 2.0, note: "Eb5", midi: 75, dur: 1.5, vel: 0.9 },
+  ];
+
+  function populateMidiInspector() {
+    const el = document.getElementById('midiInspector');
+    el.innerHTML = '';
+    MIDI_MELODY.forEach(m => {
+      const row = document.createElement('div');
+      row.className = 'midi-row';
+      row.innerHTML = `
+        <span class="midi-note">Bar ${m.bar+1}:${m.beat.toFixed(1)} — ${m.note} (MIDI ${m.midi})</span>
+        <span class="midi-time">Dur: ${(m.dur*BEAT).toFixed(2)}s</span>
+        <span class="midi-vel">Vel: ${m.vel}</span>
+      `;
+      el.appendChild(row);
+    });
+  }
+
+  async function loadSelectedSoundfonts() {
+    const bank = document.getElementById('soundfontBank').value;
+    const bassName = document.getElementById('instBass').value;
+    const chordsName = document.getElementById('instChords').value;
+    const leadName = document.getElementById('instLead').value;
+
+    const status = document.getElementById('statusBox');
+    const playBtn = document.getElementById('playBtn');
+
+    status.textContent = `Downloading real multi-sampled SoundFont [${bank}] for (${bassName}, ${chordsName}, ${leadName})...`;
+    playBtn.disabled = true;
+
+    try {
+      const opts = { soundfont: bank };
+      [bassPlayer, chordsPlayer, leadPlayer] = await Promise.all([
+        Soundfont.instrument(ac, bassName, opts),
+        Soundfont.instrument(ac, chordsName, opts),
+        Soundfont.instrument(ac, leadName, opts)
+      ]);
+      status.textContent = `✓ SoundFont Loaded: [${bank}] with ${bassName}, ${chordsName}, ${leadName}`;
+      playBtn.disabled = false;
+    } catch (err) {
+      status.textContent = `Error loading soundfont: ${err.message}`;
+      playBtn.disabled = false;
+    }
+  }
+
+  function scheduleMidiLoop() {
+    if (!isPlaying || !bassPlayer || !chordsPlayer || !leadPlayer) return;
+    const now = ac.currentTime + 0.05;
+    const numBars = MIDI_CHORDS.length;
+
+    MIDI_CHORDS.forEach((c, bar) => {
+      const tBar = now + bar * 4 * BEAT;
+      // Channel 1: Bass
+      bassPlayer.play(c.bass, tBar, { duration: BEAT * 1.5, gain: 1.1 });
+      const bassOct2 = c.bass.replace(/\d/, d => parseInt(d) + 1);
+      bassPlayer.play(bassOct2, tBar + 2 * BEAT, { duration: BEAT * 1.2, gain: 0.8 });
+
+      // Channel 2: Chords (Swung rhythm)
+      const tStab1 = tBar + swingBeat(0.5) * BEAT;
+      const tStab2 = tBar + swingBeat(2.5) * BEAT;
+      c.notes.forEach(n => {
+        chordsPlayer.play(n, tStab1, { duration: BEAT * 1.0, gain: 0.45 });
+        chordsPlayer.play(n, tStab2, { duration: BEAT * 0.8, gain: 0.40 });
+      });
+    });
+
+    // Channel 3: Lead Melody
+    MIDI_MELODY.forEach(m => {
+      const tNote = now + (m.bar * 4 + swingBeat(m.beat)) * BEAT;
+      leadPlayer.play(m.note, tNote, { duration: m.dur * BEAT, gain: m.vel * 0.9 });
+    });
+
+    const loopLen = numBars * 4 * BEAT * 1000;
+    timer = setTimeout(scheduleMidiLoop, loopLen - 100);
+  }
+
+  async function togglePlay() {
+    if (ac.state === 'suspended') await ac.resume();
+
+    if (!bassPlayer || !chordsPlayer || !leadPlayer) {
+      await loadSelectedSoundfonts();
+    }
+
+    const playBtn = document.getElementById('playBtn');
+    const status = document.getElementById('statusBox');
+
+    if (!isPlaying) {
+      isPlaying = true;
+      playBtn.textContent = '⏸ Pause MIDI Playback';
+      playBtn.classList.add('active');
+      status.textContent = '▶ Playing MIDI Stream through selected SoundFont bank...';
+      scheduleMidiLoop();
+    } else {
+      isPlaying = false;
+      clearTimeout(timer);
+      playBtn.textContent = '▶ Resume MIDI Playback';
+      playBtn.classList.remove('active');
+      status.textContent = 'Paused';
+    }
+  }
+
+  async function reloadInstruments() {
+    if (isPlaying) {
+      isPlaying = false;
+      clearTimeout(timer);
+    }
+    await loadSelectedSoundfonts();
+    if (isPlaying) {
+      scheduleMidiLoop();
+    }
+  }
+
+  async function onBankChange() {
+    await reloadInstruments();
+  }
+
+  populateMidiInspector();
+</script>
+</body>
+</html>
