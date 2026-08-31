@@ -287,6 +287,7 @@ export const TRACKS = [
 
 let AC = null, BUS = null, MASTER_FADE = null, DUCK_GAIN = null;
 let musicInitialized = false;
+let hasStartedMusic = false;
 let trackRequest = 0;
 let currentTrackIndex = 0;
 let isRadioManual = false;
@@ -411,9 +412,9 @@ export function initMusic(audioContext, masterDestination, soundEnabled = true, 
     MASTER_FADE = AC.createGain();
     DUCK_GAIN = AC.createGain();
 
-    // The one startup ramp prevents a first-gesture jump scare. Track changes do not replay it.
+    /* startPlayback owns the one startup ramp, because SoundFont loading can
+       finish after initialization. Track changes do not replay the ramp. */
     MASTER_FADE.gain.setValueAtTime(0.0001, AC.currentTime);
-    MASTER_FADE.gain.exponentialRampToValueAtTime(0.38, AC.currentTime + 1.25);
 
     DUCK_GAIN.gain.setValueAtTime(1.0, AC.currentTime);
 
@@ -564,7 +565,14 @@ function startPlayback() {
   if (isPlaying || !isSoundOn || !AC) return;
   isPlaying = true;
   playbackGen++;
-  transportStartTime = AC.currentTime + 0.05;
+  const now = AC.currentTime;
+  if (!hasStartedMusic) {
+    hasStartedMusic = true;
+    MASTER_FADE.gain.cancelScheduledValues(now);
+    MASTER_FADE.gain.setValueAtTime(0.0001, now);
+    MASTER_FADE.gain.exponentialRampToValueAtTime(0.38, now + 1.25);
+  }
+  transportStartTime = now + 0.05;
   nextEventIndex = 0;
   loopCount = 0;
   schedulerTimer = setInterval(runSchedulerTick, 25);
