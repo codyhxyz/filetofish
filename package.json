@@ -6,7 +6,8 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "soundtrack": "python3 soundtrack/render.py",
-    "soundtrack:check": "python3 soundtrack/render.py --check"
+    "soundtrack:check": "python3 soundtrack/render.py --check",
+    "soundtrack:mvp": "python3 soundtrack/dock_mvp.py && afplay soundtrack/previews/dock_mvp.wav"
   },
   "keywords": [],
   "author": "",
