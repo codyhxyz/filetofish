@@ -222,10 +222,6 @@
       border-bottom: 1px solid #162230;
       transition: background 0.1s;
     }
-    .midi-row.active-beat {
-      background: #172e47;
-      color: #58a6ff;
-    }
     .midi-note { color: #79c0ff; font-weight: 600; }
     .midi-time { color: #d29922; }
     .midi-vel { color: #7ee787; }
@@ -238,7 +234,7 @@
   <header>
     <div>
       <h1>🎹 SoundFont & MIDI Architecture Studio</h1>
-      <div class="sub">Glitch-free live hotswapping across SoundFont banks and instruments with running MIDI clock.</div>
+      <div class="sub">Glitch-free live hotswapping across SoundFont banks and instruments with clean single-stream transport.</div>
     </div>
   </header>
 
@@ -357,7 +353,7 @@
       </div>
 
       <p style="font-size:12px;color:#7b94aa;margin-bottom:12px;">
-        Standard MIDI events playing across active soundbanks with zero playback interruptions.
+        Standard MIDI events playing across active soundbanks with zero audio stream duplication on pause/resume.
       </p>
 
       <div class="midi-box" id="midiInspector"></div>
@@ -366,13 +362,24 @@
 </div>
 
 <script>
+  // WebAudio Context + Master Gain Bus Gate
   const ac = new (window.AudioContext || window.webkitAudioContext)();
-  
-  // Transport State
+  const masterBus = ac.createGain();
+  masterBus.connect(ac.destination);
+  masterBus.gain.setValueAtTime(1.0, ac.currentTime);
+
+  // Transport State & Stream Protection
   let isPlaying = false;
   let bpm = 92;
   let swing = 0.62;
   let currentBank = "FluidR3_GM";
+
+  // Monotonic Generation ID to prevent duplicate timers & orphan streams
+  let playbackGeneration = 0;
+  let loopTimeout = null;
+
+  // Active playing audio source nodes (for immediate cancellation on pause)
+  const activeNodes = new Set();
 
   // Channel Mute States
   const mutes = { bass: false, chords: false, lead: false };
@@ -428,18 +435,69 @@
     return whole + frac;
   }
 
-  // Load single instrument with caching
+  // Load single instrument with caching and route through masterBus
   async function getOrLoadInstrument(bank, instName) {
     const key = `${bank}:${instName}`;
     if (instrumentCache.has(key)) {
       return instrumentCache.get(key);
     }
-    const inst = await Soundfont.instrument(ac, instName, { soundfont: bank });
+    const inst = await Soundfont.instrument(ac, instName, {
+      soundfont: bank,
+      destination: masterBus
+    });
     instrumentCache.set(key, inst);
     return inst;
   }
 
-  // Seamless Hotswap: updates the channel reference on the fly without stopping the clock
+  // Play a note safely tracked in activeNodes
+  function playTracked(inst, note, time, opts) {
+    if (!inst || !isPlaying) return;
+    try {
+      const node = inst.play(note, time, opts);
+      if (node) {
+        activeNodes.add(node);
+        if (node.source && node.source.onended !== undefined) {
+          const oldOnEnded = node.source.onended;
+          node.source.onended = () => {
+            activeNodes.delete(node);
+            if (oldOnEnded) oldOnEnded();
+          };
+        }
+      }
+    } catch (e) {
+      // Ignored
+    }
+  }
+
+  // Stop all active audio streams immediately
+  function killAllActiveStreams() {
+    // 1. Invalidate generation ID so all pending loop callbacks abort
+    playbackGeneration++;
+
+    // 2. Clear pending scheduling timers
+    if (loopTimeout) {
+      clearTimeout(loopTimeout);
+      loopTimeout = null;
+    }
+
+    // 3. Hard-stop every tracked playing node
+    activeNodes.forEach(node => {
+      try {
+        if (node.stop) node.stop();
+        if (node.source && node.source.stop) node.source.stop();
+      } catch (e) {}
+    });
+    activeNodes.clear();
+
+    // 4. Also call stop on channel instruments
+    ['bass', 'chords', 'lead'].forEach(k => {
+      if (channels[k] && channels[k].stop) {
+        try { channels[k].stop(); } catch (e) {}
+      }
+    });
+  }
+
+  // Seamless Hotswap: updates channel reference on the fly
   async function hotswapInstrument(channelKey, instName) {
     const spinEl = document.getElementById(`load${channelKey.charAt(0).toUpperCase() + channelKey.slice(1)}`);
     const tagEl = document.getElementById(`tag${channelKey.charAt(0).toUpperCase() + channelKey.slice(1)}`);
@@ -450,7 +508,6 @@
 
     try {
       const inst = await getOrLoadInstrument(currentBank, instName);
-      // Hot-swap channel reference in place
       channels[channelKey] = inst;
       tagEl.textContent = instName;
       status.textContent = `✓ Active: ${instName} (${currentBank})`;
@@ -479,18 +536,13 @@
   }
 
   // Clock & Playback Engine (Looping AudioContext scheduler)
-  let loopTimeout = null;
-  let nextLoopStartTime = 0;
-
-  function scheduleNextLoop() {
-    if (!isPlaying) return;
+  function scheduleLoop(genId, startTime) {
+    // Abort if playback was paused or a newer generation started
+    if (!isPlaying || genId !== playbackGeneration) return;
 
     const beatDur = 60.0 / bpm;
     const numBars = MIDI_CHORDS.length;
     const loopDuration = numBars * 4 * beatDur;
-    const now = ac.currentTime;
-
-    const startTime = Math.max(now + 0.05, nextLoopStartTime);
 
     // Schedule Chords & Bass
     MIDI_CHORDS.forEach((c, bar) => {
@@ -498,9 +550,9 @@
 
       // Bass Channel
       if (!mutes.bass && channels.bass) {
-        channels.bass.play(c.bass, tBar, { duration: beatDur * 1.5, gain: 1.1 });
+        playTracked(channels.bass, c.bass, tBar, { duration: beatDur * 1.5, gain: 1.1 });
         const bassOct2 = c.bass.replace(/\d/, d => parseInt(d) + 1);
-        channels.bass.play(bassOct2, tBar + 2 * beatDur, { duration: beatDur * 1.2, gain: 0.8 });
+        playTracked(channels.bass, bassOct2, tBar + 2 * beatDur, { duration: beatDur * 1.2, gain: 0.8 });
       }
 
       // Chords Channel
@@ -508,8 +560,8 @@
         const tStab1 = tBar + swingBeat(0.5) * beatDur;
         const tStab2 = tBar + swingBeat(2.5) * beatDur;
         c.notes.forEach(n => {
-          channels.chords.play(n, tStab1, { duration: beatDur * 1.0, gain: 0.45 });
-          channels.chords.play(n, tStab2, { duration: beatDur * 0.8, gain: 0.40 });
+          playTracked(channels.chords, n, tStab1, { duration: beatDur * 1.0, gain: 0.45 });
+          playTracked(channels.chords, n, tStab2, { duration: beatDur * 0.8, gain: 0.40 });
         });
       }
     });
@@ -518,13 +570,16 @@
     if (!mutes.lead && channels.lead) {
       MIDI_MELODY.forEach(m => {
         const tNote = startTime + (m.bar * 4 + swingBeat(m.beat)) * beatDur;
-        channels.lead.play(m.note, tNote, { duration: m.dur * beatDur, gain: m.vel * 0.9 });
+        playTracked(channels.lead, m.note, tNote, { duration: m.dur * beatDur, gain: m.vel * 0.9 });
       });
     }
 
-    nextLoopStartTime = startTime + loopDuration;
-    const msUntilNextSchedule = (nextLoopStartTime - ac.currentTime - 0.2) * 1000;
-    loopTimeout = setTimeout(scheduleNextLoop, Math.max(50, msUntilNextSchedule));
+    const nextStartTime = startTime + loopDuration;
+    const msUntilNextSchedule = (nextStartTime - ac.currentTime - 0.25) * 1000;
+
+    loopTimeout = setTimeout(() => {
+      scheduleLoop(genId, nextStartTime);
+    }, Math.max(50, msUntilNextSchedule));
   }
 
   async function togglePlay() {
@@ -534,24 +589,33 @@
     const status = document.getElementById('transportStatus');
 
     if (!isPlaying) {
-      // Ensure initial instruments loaded
+      // 1. Kill any stray previous stream completely
+      killAllActiveStreams();
+
+      // 2. Ensure initial instruments loaded
       if (!channels.bass || !channels.chords || !channels.lead) {
         status.textContent = "Loading initial SoundFont bank...";
         await onBankChange(currentBank);
       }
 
+      // 3. Start clean fresh stream with current generation ID
       isPlaying = true;
-      nextLoopStartTime = ac.currentTime + 0.05;
+      const currentGen = ++playbackGeneration;
+      const startTime = ac.currentTime + 0.05;
+
       playBtn.textContent = '⏸ Pause MIDI';
       playBtn.classList.add('active');
       status.textContent = `▶ Playing Live SoundFont (${currentBank})`;
-      scheduleNextLoop();
+
+      scheduleLoop(currentGen, startTime);
     } else {
+      // Clean Pause: Hard kill all active and queued notes
       isPlaying = false;
-      clearTimeout(loopTimeout);
+      killAllActiveStreams();
+
       playBtn.textContent = '▶ Play MIDI';
       playBtn.classList.remove('active');
-      status.textContent = 'Paused';
+      status.textContent = 'Paused (All streams stopped)';
     }
   }
 
