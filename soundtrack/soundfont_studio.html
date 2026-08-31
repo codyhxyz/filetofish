@@ -14,7 +14,7 @@
       line-height: 1.5;
     }
     .container {
-      max-width: 900px;
+      max-width: 920px;
       margin: 0 auto;
     }
     header {
@@ -40,13 +40,76 @@
       font-size: 13px;
       margin-top: 4px;
     }
+    /* Sticky Transport Control */
+    .transport-bar {
+      position: sticky;
+      top: 16px;
+      z-index: 100;
+      background: #15202c;
+      border: 1px solid #283a4f;
+      border-radius: 12px;
+      padding: 16px 20px;
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6);
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+    .transport-left {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .btn-main {
+      background: #238636;
+      border: none;
+      color: white;
+      font-weight: 700;
+      font-size: 15px;
+      padding: 10px 24px;
+      border-radius: 8px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: background 0.15s, transform 0.05s;
+    }
+    .btn-main:hover { background: #2ea043; }
+    .btn-main.active { background: #d29922; }
+    .transport-status {
+      font-size: 13px;
+      color: #79c0ff;
+      font-family: monospace;
+    }
+    .transport-sliders {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+    .slider-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: #8da4b8;
+      font-weight: 600;
+    }
+    .slider-group input[type="range"] {
+      width: 90px;
+      accent-color: #388bfd;
+      cursor: pointer;
+    }
+
     .grid {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: 1.1fr 0.9fr;
       gap: 16px;
       margin-bottom: 20px;
     }
-    @media (max-width: 700px) {
+    @media (max-width: 760px) {
       .grid { grid-template-columns: 1fr; }
     }
     .panel {
@@ -59,71 +122,94 @@
       font-size: 15px;
       font-weight: 700;
       color: #58a6ff;
-      margin-bottom: 12px;
+      margin-bottom: 14px;
       display: flex;
       align-items: center;
       justify-content: space-between;
     }
-    .form-group {
-      margin-bottom: 14px;
-    }
-    label {
-      display: block;
-      font-size: 12px;
-      font-weight: 600;
-      color: #8da4b8;
-      margin-bottom: 6px;
-    }
-    select, input {
-      width: 100%;
+    .channel-row {
       background: #0d141d;
-      border: 1px solid #25374a;
+      border: 1px solid #202e3f;
       border-radius: 8px;
-      padding: 10px 12px;
+      padding: 12px;
+      margin-bottom: 12px;
+      transition: border-color 0.15s;
+    }
+    .channel-row:hover {
+      border-color: #33485e;
+    }
+    .channel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .channel-name {
+      font-size: 13px;
+      font-weight: 700;
+      color: #f0f6fc;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .channel-tag {
+      font-size: 11px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: #192736;
+      color: #79c0ff;
+      font-family: monospace;
+    }
+    .channel-controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .mute-btn {
+      background: #1f2d3d;
+      border: 1px solid #2c3e50;
+      color: #8da4b8;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 4px 8px;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .mute-btn.muted {
+      background: #da3633;
+      border-color: #f85149;
+      color: #fff;
+    }
+    select {
+      width: 100%;
+      background: #141d27;
+      border: 1px solid #2b3d52;
+      border-radius: 6px;
+      padding: 8px 10px;
       color: #f0f6fc;
       font-size: 13px;
       outline: none;
+      cursor: pointer;
     }
-    select:focus, input:focus {
+    select:focus {
       border-color: #388bfd;
     }
-    .status-box {
-      background: #0e151f;
-      border: 1px solid #223244;
-      border-radius: 8px;
-      padding: 12px 16px;
-      font-family: monospace;
-      font-size: 12px;
-      color: #79c0ff;
-      margin-bottom: 16px;
+    .loading-spin {
+      display: inline-block;
+      color: #d29922;
+      font-size: 11px;
+      margin-left: 6px;
+      animation: spin 1s linear infinite;
     }
-    .btn-main {
-      background: #238636;
-      border: none;
-      color: white;
-      font-weight: 600;
-      font-size: 15px;
-      padding: 14px 20px;
-      border-radius: 8px;
-      cursor: pointer;
-      width: 100%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      transition: background 0.15s;
-    }
-    .btn-main:hover { background: #2ea043; }
-    .btn-main:disabled { background: #334455; cursor: not-allowed; }
-    .btn-main.active { background: #d29922; }
+    @keyframes spin { 100% { transform: rotate(360deg); } }
 
     /* MIDI Event Inspector */
     .midi-box {
       background: #0d141d;
       border: 1px solid #202e3f;
       border-radius: 8px;
-      padding: 14px;
-      max-height: 240px;
+      padding: 12px;
+      max-height: 380px;
       overflow-y: auto;
       font-family: monospace;
       font-size: 12px;
@@ -134,6 +220,11 @@
       justify-content: space-between;
       padding: 4px 0;
       border-bottom: 1px solid #162230;
+      transition: background 0.1s;
+    }
+    .midi-row.active-beat {
+      background: #172e47;
+      color: #58a6ff;
     }
     .midi-note { color: #79c0ff; font-weight: 600; }
     .midi-time { color: #d29922; }
@@ -147,78 +238,126 @@
   <header>
     <div>
       <h1>🎹 SoundFont & MIDI Architecture Studio</h1>
-      <div class="sub">Standard MIDI note sequencing routed dynamically through studio acoustic SoundFont soundbanks.</div>
+      <div class="sub">Glitch-free live hotswapping across SoundFont banks and instruments with running MIDI clock.</div>
     </div>
   </header>
 
-  <!-- Status / Transport -->
-  <div class="status-box" id="statusBox">Select your SoundFont bank and instruments, then click Play...</div>
+  <!-- Sticky Transport -->
+  <div class="transport-bar">
+    <div class="transport-left">
+      <button class="btn-main" id="playBtn" onclick="togglePlay()">▶ Play MIDI</button>
+      <span class="transport-status" id="transportStatus">Ready (Instruments Cached)</span>
+    </div>
 
-  <button class="btn-main" id="playBtn" onclick="togglePlay()">▶ Load SoundFont & Play MIDI</button>
+    <div class="transport-sliders">
+      <div class="slider-group">
+        <span>BPM: <b id="bpmVal">92</b></span>
+        <input type="range" id="bpmSlider" min="60" max="160" value="92" oninput="onBpmChange(this.value)">
+      </div>
+      <div class="slider-group">
+        <span>Swing: <b id="swingVal">62%</b></span>
+        <input type="range" id="swingSlider" min="50" max="75" value="62" oninput="onSwingChange(this.value)">
+      </div>
+    </div>
+  </div>
 
-  <div class="grid" style="margin-top: 20px;">
-    <!-- SoundFont Selection Panel -->
+  <div class="grid">
+    <!-- Channel & SoundFont Switcher Panel -->
     <div class="panel">
       <div class="panel-title">
-        <span>SoundFont Soundbank Selection</span>
-        <span style="font-size:11px;color:#7ee787">100% Sampled Audio</span>
+        <span>Live Channel Hotswapping</span>
+        <span style="font-size:11px;color:#7ee787">⚡ Instant Cache</span>
       </div>
 
-      <div class="form-group">
-        <label>SoundFont Bank Source</label>
-        <select id="soundfontBank" onchange="onBankChange()">
-          <option value="FluidR3_GM" selected>FluidR3 GM (Modern Crisp Studio General MIDI)</option>
+      <!-- Bank Selector -->
+      <div style="margin-bottom: 16px;">
+        <label style="font-size:12px;font-weight:700;color:#8da4b8;display:block;margin-bottom:6px;">SoundFont Soundbank Source</label>
+        <select id="soundfontBank" onchange="onBankChange(this.value)">
+          <option value="FluidR3_GM" selected>FluidR3 GM (Crisp Studio General MIDI)</option>
           <option value="MusngKite">Musyng Kite (Warm, Expressive Acoustic SoundBank)</option>
         </select>
       </div>
 
-      <div class="form-group">
-        <label>Channel 1: Bass Instrument</label>
-        <select id="instBass" onchange="reloadInstruments()">
+      <!-- Channel 1: Bass -->
+      <div class="channel-row">
+        <div class="channel-header">
+          <div class="channel-name">
+            <span>🎸 Channel 1: Bass</span>
+            <span class="channel-tag" id="tagBass">acoustic_bass</span>
+            <span id="loadBass" style="display:none;" class="loading-spin">⏳</span>
+          </div>
+          <div class="channel-controls">
+            <button class="mute-btn" id="muteBassBtn" onclick="toggleMute('bass')">Mute</button>
+          </div>
+        </div>
+        <select id="instBass" onchange="hotswapInstrument('bass', this.value)">
           <option value="acoustic_bass" selected>Acoustic Upright Double Bass</option>
           <option value="electric_bass_finger">Electric Finger Bass</option>
           <option value="fretless_bass">Fretless Bass</option>
-          <option value="slap_bass_1">Slap Bass (Funk/Pop)</option>
+          <option value="slap_bass_1">Slap Bass (Funk / Pop)</option>
           <option value="tuba">Sousaphone / Tuba</option>
+          <option value="contrabass">Orchestral Contrabass</option>
         </select>
       </div>
 
-      <div class="form-group">
-        <label>Channel 2: Chords & Comping</label>
-        <select id="instChords" onchange="reloadInstruments()">
+      <!-- Channel 2: Chords -->
+      <div class="channel-row">
+        <div class="channel-header">
+          <div class="channel-name">
+            <span>🎹 Channel 2: Chords & Comping</span>
+            <span class="channel-tag" id="tagChords">acoustic_guitar_nylon</span>
+            <span id="loadChords" style="display:none;" class="loading-spin">⏳</span>
+          </div>
+          <div class="channel-controls">
+            <button class="mute-btn" id="muteChordsBtn" onclick="toggleMute('chords')">Mute</button>
+          </div>
+        </div>
+        <select id="instChords" onchange="hotswapInstrument('chords', this.value)">
           <option value="acoustic_guitar_nylon" selected>Nylon-String Acoustic Guitar</option>
           <option value="acoustic_guitar_steel">Steel-String Acoustic Guitar</option>
           <option value="electric_piano_1">Rhodes Electric Piano (Suitcase)</option>
           <option value="acoustic_grand_piano">Concert Grand Piano</option>
           <option value="vibraphone">Vibraphone</option>
           <option value="marimba">Orchestral Marimba</option>
+          <option value="honkytonk_piano">Honky-Tonk / Tack Piano</option>
         </select>
       </div>
 
-      <div class="form-group">
-        <label>Channel 3: Lead Voice (Melody)</label>
-        <select id="instLead" onchange="reloadInstruments()">
+      <!-- Channel 3: Lead -->
+      <div class="channel-row">
+        <div class="channel-header">
+          <div class="channel-name">
+            <span>🎺 Channel 3: Lead Melody</span>
+            <span class="channel-tag" id="tagLead">flute</span>
+            <span id="loadLead" style="display:none;" class="loading-spin">⏳</span>
+          </div>
+          <div class="channel-controls">
+            <button class="mute-btn" id="muteLeadBtn" onclick="toggleMute('lead')">Mute</button>
+          </div>
+        </div>
+        <select id="instLead" onchange="hotswapInstrument('lead', this.value)">
           <option value="flute" selected>Concert Air Flute</option>
           <option value="accordion">French Musette Accordion</option>
           <option value="pan_flute">Pan Flute</option>
           <option value="whistle">Tin Whistle / Piccolo</option>
           <option value="vibraphone">Vibraphone</option>
-          <option value="music_box">Music Box</option>
           <option value="marimba">Wood Marimba</option>
+          <option value="music_box">Music Box</option>
           <option value="muted_trumpet">Harmon-Muted Trumpet</option>
+          <option value="harmonica">Blues Harmonica</option>
         </select>
       </div>
     </div>
 
-    <!-- Standard MIDI Event Inspector Panel -->
+    <!-- Live MIDI Inspector Panel -->
     <div class="panel">
       <div class="panel-title">
-        <span>Standard MIDI Note Event Stream</span>
-        <span style="font-size:11px;color:#d29922">Standard [Note, Time, Dur, Vel]</span>
+        <span>Standard MIDI Event Stream</span>
+        <span style="font-size:11px;color:#d29922">Universal MIDI 0–127</span>
       </div>
 
       <p style="font-size:12px;color:#7b94aa;margin-bottom:12px;">
-        These notes use standard universal MIDI numbers (0–127) and pitch names. You can swap any SoundFont in without changing a single line of musical score.
+        Standard MIDI events playing across active soundbanks with zero playback interruptions.
       </p>
 
       <div class="midi-box" id="midiInspector"></div>
@@ -228,38 +367,38 @@
 
 <script>
   const ac = new (window.AudioContext || window.webkitAudioContext)();
+  
+  // Transport State
   let isPlaying = false;
-  let timer = null;
+  let bpm = 92;
+  let swing = 0.62;
+  let currentBank = "FluidR3_GM";
 
-  let bassPlayer = null;
-  let chordsPlayer = null;
-  let leadPlayer = null;
+  // Channel Mute States
+  const mutes = { bass: false, chords: false, lead: false };
 
-  const BPM = 92;
-  const BEAT = 60 / BPM;
-  const SWING = 0.62;
+  // Instrument Cache: Map<"Bank:InstrumentName", SoundfontPlayerInstance>
+  const instrumentCache = new Map();
 
-  function swingBeat(b) {
-    const whole = Math.floor(b);
-    const frac = b - whole;
-    if (frac === 0) return whole;
-    if (Math.abs(frac - 0.5) < 0.05) return whole + SWING;
-    return whole + frac;
-  }
+  // Active Channel Instruments
+  const channels = {
+    bass: null,
+    chords: null,
+    lead: null
+  };
 
-  // STANDARD MIDI CHORD SCORE
+  // MIDI Sequences
   const MIDI_CHORDS = [
-    { bass: "C2", bassMidi: 36, notes: ["E4", "G4", "B4", "D5"], midi: [64, 67, 71, 74], name: "Cmaj9" },
-    { bass: "A1", bassMidi: 33, notes: ["Db4", "E4", "G4", "Bb4"], midi: [61, 64, 67, 70], name: "A7b9" },
-    { bass: "D2", bassMidi: 38, notes: ["F4", "A4", "C5", "E5"], midi: [65, 69, 72, 76], name: "Dm9" },
-    { bass: "G1", bassMidi: 31, notes: ["E4", "F4", "B4", "D5"], midi: [64, 65, 71, 74], name: "G13" },
-    { bass: "E2", bassMidi: 40, notes: ["G4", "B4", "D5", "G5"], midi: [67, 71, 74, 79], name: "Em7" },
-    { bass: "A1", bassMidi: 33, notes: ["Db4", "G4", "A4", "E5"], midi: [61, 67, 69, 76], name: "A7" },
-    { bass: "F1", bassMidi: 29, notes: ["A4", "C5", "E5", "G5"], midi: [69, 72, 76, 79], name: "Fmaj7" },
-    { bass: "F1", bassMidi: 29, notes: ["Ab4", "C5", "D5", "G5"], midi: [68, 72, 74, 79], name: "Fm6 (IVm)" },
+    { bass: "C2", bassMidi: 36, notes: ["E4", "G4", "B4", "D5"], name: "Cmaj9" },
+    { bass: "A1", bassMidi: 33, notes: ["Db4", "E4", "G4", "Bb4"], name: "A7b9" },
+    { bass: "D2", bassMidi: 38, notes: ["F4", "A4", "C5", "E5"], name: "Dm9" },
+    { bass: "G1", bassMidi: 31, notes: ["E4", "F4", "B4", "D5"], name: "G13" },
+    { bass: "E2", bassMidi: 40, notes: ["G4", "B4", "D5", "G5"], name: "Em7" },
+    { bass: "A1", bassMidi: 33, notes: ["Db4", "G4", "A4", "E5"], name: "A7" },
+    { bass: "F1", bassMidi: 29, notes: ["A4", "C5", "E5", "G5"], name: "Fmaj7" },
+    { bass: "F1", bassMidi: 29, notes: ["Ab4", "C5", "D5", "G5"], name: "Fm6 (IVm)" },
   ];
 
-  // STANDARD MIDI MELODY SCORE
   const MIDI_MELODY = [
     { bar: 0, beat: 0.0, note: "E5", midi: 76, dur: 0.8, vel: 0.8 },
     { bar: 0, beat: 1.0, note: "G5", midi: 79, dur: 0.6, vel: 0.7 },
@@ -267,7 +406,6 @@
     { bar: 0, beat: 3.0, note: "C5", midi: 72, dur: 1.8, vel: 0.9 },
     { bar: 1, beat: 2.5, note: "B4", midi: 71, dur: 0.5, vel: 0.6 },
     { bar: 1, beat: 3.0, note: "C5", midi: 72, dur: 0.9, vel: 0.7 },
-    // Rest in bar 2-3 (Negative space)
     { bar: 3, beat: 2.5, note: "D5", midi: 74, dur: 0.5, vel: 0.6 },
     { bar: 3, beat: 3.0, note: "E5", midi: 76, dur: 0.7, vel: 0.8 },
     { bar: 4, beat: 0.0, note: "G5", midi: 79, dur: 0.8, vel: 0.8 },
@@ -282,7 +420,159 @@
     { bar: 7, beat: 2.0, note: "Eb5", midi: 75, dur: 1.5, vel: 0.9 },
   ];
 
-  function populateMidiInspector() {
+  function swingBeat(b) {
+    const whole = Math.floor(b);
+    const frac = b - whole;
+    if (frac === 0) return whole;
+    if (Math.abs(frac - 0.5) < 0.05) return whole + swing;
+    return whole + frac;
+  }
+
+  // Load single instrument with caching
+  async function getOrLoadInstrument(bank, instName) {
+    const key = `${bank}:${instName}`;
+    if (instrumentCache.has(key)) {
+      return instrumentCache.get(key);
+    }
+    const inst = await Soundfont.instrument(ac, instName, { soundfont: bank });
+    instrumentCache.set(key, inst);
+    return inst;
+  }
+
+  // Seamless Hotswap: updates the channel reference on the fly without stopping the clock
+  async function hotswapInstrument(channelKey, instName) {
+    const spinEl = document.getElementById(`load${channelKey.charAt(0).toUpperCase() + channelKey.slice(1)}`);
+    const tagEl = document.getElementById(`tag${channelKey.charAt(0).toUpperCase() + channelKey.slice(1)}`);
+    const status = document.getElementById('transportStatus');
+
+    spinEl.style.display = 'inline-block';
+    status.textContent = `Hotswapping ${channelKey} -> ${instName}...`;
+
+    try {
+      const inst = await getOrLoadInstrument(currentBank, instName);
+      // Hot-swap channel reference in place
+      channels[channelKey] = inst;
+      tagEl.textContent = instName;
+      status.textContent = `✓ Active: ${instName} (${currentBank})`;
+    } catch (e) {
+      status.textContent = `Hotswap error: ${e.message}`;
+    } finally {
+      spinEl.style.display = 'none';
+    }
+  }
+
+  // Hotswap entire SoundFont bank seamlessly
+  async function onBankChange(newBank) {
+    currentBank = newBank;
+    const status = document.getElementById('transportStatus');
+    status.textContent = `Switching soundbank to ${newBank}...`;
+
+    const bassName = document.getElementById('instBass').value;
+    const chordsName = document.getElementById('instChords').value;
+    const leadName = document.getElementById('instLead').value;
+
+    await Promise.all([
+      hotswapInstrument('bass', bassName),
+      hotswapInstrument('chords', chordsName),
+      hotswapInstrument('lead', leadName),
+    ]);
+  }
+
+  // Clock & Playback Engine (Looping AudioContext scheduler)
+  let loopTimeout = null;
+  let nextLoopStartTime = 0;
+
+  function scheduleNextLoop() {
+    if (!isPlaying) return;
+
+    const beatDur = 60.0 / bpm;
+    const numBars = MIDI_CHORDS.length;
+    const loopDuration = numBars * 4 * beatDur;
+    const now = ac.currentTime;
+
+    const startTime = Math.max(now + 0.05, nextLoopStartTime);
+
+    // Schedule Chords & Bass
+    MIDI_CHORDS.forEach((c, bar) => {
+      const tBar = startTime + bar * 4 * beatDur;
+
+      // Bass Channel
+      if (!mutes.bass && channels.bass) {
+        channels.bass.play(c.bass, tBar, { duration: beatDur * 1.5, gain: 1.1 });
+        const bassOct2 = c.bass.replace(/\d/, d => parseInt(d) + 1);
+        channels.bass.play(bassOct2, tBar + 2 * beatDur, { duration: beatDur * 1.2, gain: 0.8 });
+      }
+
+      // Chords Channel
+      if (!mutes.chords && channels.chords) {
+        const tStab1 = tBar + swingBeat(0.5) * beatDur;
+        const tStab2 = tBar + swingBeat(2.5) * beatDur;
+        c.notes.forEach(n => {
+          channels.chords.play(n, tStab1, { duration: beatDur * 1.0, gain: 0.45 });
+          channels.chords.play(n, tStab2, { duration: beatDur * 0.8, gain: 0.40 });
+        });
+      }
+    });
+
+    // Schedule Lead Channel
+    if (!mutes.lead && channels.lead) {
+      MIDI_MELODY.forEach(m => {
+        const tNote = startTime + (m.bar * 4 + swingBeat(m.beat)) * beatDur;
+        channels.lead.play(m.note, tNote, { duration: m.dur * beatDur, gain: m.vel * 0.9 });
+      });
+    }
+
+    nextLoopStartTime = startTime + loopDuration;
+    const msUntilNextSchedule = (nextLoopStartTime - ac.currentTime - 0.2) * 1000;
+    loopTimeout = setTimeout(scheduleNextLoop, Math.max(50, msUntilNextSchedule));
+  }
+
+  async function togglePlay() {
+    if (ac.state === 'suspended') await ac.resume();
+
+    const playBtn = document.getElementById('playBtn');
+    const status = document.getElementById('transportStatus');
+
+    if (!isPlaying) {
+      // Ensure initial instruments loaded
+      if (!channels.bass || !channels.chords || !channels.lead) {
+        status.textContent = "Loading initial SoundFont bank...";
+        await onBankChange(currentBank);
+      }
+
+      isPlaying = true;
+      nextLoopStartTime = ac.currentTime + 0.05;
+      playBtn.textContent = '⏸ Pause MIDI';
+      playBtn.classList.add('active');
+      status.textContent = `▶ Playing Live SoundFont (${currentBank})`;
+      scheduleNextLoop();
+    } else {
+      isPlaying = false;
+      clearTimeout(loopTimeout);
+      playBtn.textContent = '▶ Play MIDI';
+      playBtn.classList.remove('active');
+      status.textContent = 'Paused';
+    }
+  }
+
+  function toggleMute(ch) {
+    mutes[ch] = !mutes[ch];
+    const btn = document.getElementById(`mute${ch.charAt(0).toUpperCase() + ch.slice(1)}Btn`);
+    btn.classList.toggle('muted', mutes[ch]);
+    btn.textContent = mutes[ch] ? "MUTED" : "Mute";
+  }
+
+  function onBpmChange(val) {
+    bpm = parseInt(val);
+    document.getElementById('bpmVal').textContent = bpm;
+  }
+
+  function onSwingChange(val) {
+    swing = parseInt(val) / 100.0;
+    document.getElementById('swingVal').textContent = `${val}%`;
+  }
+
+  function renderMidiInspector() {
     const el = document.getElementById('midiInspector');
     el.innerHTML = '';
     MIDI_MELODY.forEach(m => {
@@ -290,112 +580,16 @@
       row.className = 'midi-row';
       row.innerHTML = `
         <span class="midi-note">Bar ${m.bar+1}:${m.beat.toFixed(1)} — ${m.note} (MIDI ${m.midi})</span>
-        <span class="midi-time">Dur: ${(m.dur*BEAT).toFixed(2)}s</span>
+        <span class="midi-time">Dur: ${m.dur} beats</span>
         <span class="midi-vel">Vel: ${m.vel}</span>
       `;
       el.appendChild(row);
     });
   }
 
-  async function loadSelectedSoundfonts() {
-    const bank = document.getElementById('soundfontBank').value;
-    const bassName = document.getElementById('instBass').value;
-    const chordsName = document.getElementById('instChords').value;
-    const leadName = document.getElementById('instLead').value;
-
-    const status = document.getElementById('statusBox');
-    const playBtn = document.getElementById('playBtn');
-
-    status.textContent = `Downloading real multi-sampled SoundFont [${bank}] for (${bassName}, ${chordsName}, ${leadName})...`;
-    playBtn.disabled = true;
-
-    try {
-      const opts = { soundfont: bank };
-      [bassPlayer, chordsPlayer, leadPlayer] = await Promise.all([
-        Soundfont.instrument(ac, bassName, opts),
-        Soundfont.instrument(ac, chordsName, opts),
-        Soundfont.instrument(ac, leadName, opts)
-      ]);
-      status.textContent = `✓ SoundFont Loaded: [${bank}] with ${bassName}, ${chordsName}, ${leadName}`;
-      playBtn.disabled = false;
-    } catch (err) {
-      status.textContent = `Error loading soundfont: ${err.message}`;
-      playBtn.disabled = false;
-    }
-  }
-
-  function scheduleMidiLoop() {
-    if (!isPlaying || !bassPlayer || !chordsPlayer || !leadPlayer) return;
-    const now = ac.currentTime + 0.05;
-    const numBars = MIDI_CHORDS.length;
-
-    MIDI_CHORDS.forEach((c, bar) => {
-      const tBar = now + bar * 4 * BEAT;
-      // Channel 1: Bass
-      bassPlayer.play(c.bass, tBar, { duration: BEAT * 1.5, gain: 1.1 });
-      const bassOct2 = c.bass.replace(/\d/, d => parseInt(d) + 1);
-      bassPlayer.play(bassOct2, tBar + 2 * BEAT, { duration: BEAT * 1.2, gain: 0.8 });
-
-      // Channel 2: Chords (Swung rhythm)
-      const tStab1 = tBar + swingBeat(0.5) * BEAT;
-      const tStab2 = tBar + swingBeat(2.5) * BEAT;
-      c.notes.forEach(n => {
-        chordsPlayer.play(n, tStab1, { duration: BEAT * 1.0, gain: 0.45 });
-        chordsPlayer.play(n, tStab2, { duration: BEAT * 0.8, gain: 0.40 });
-      });
-    });
-
-    // Channel 3: Lead Melody
-    MIDI_MELODY.forEach(m => {
-      const tNote = now + (m.bar * 4 + swingBeat(m.beat)) * BEAT;
-      leadPlayer.play(m.note, tNote, { duration: m.dur * BEAT, gain: m.vel * 0.9 });
-    });
-
-    const loopLen = numBars * 4 * BEAT * 1000;
-    timer = setTimeout(scheduleMidiLoop, loopLen - 100);
-  }
-
-  async function togglePlay() {
-    if (ac.state === 'suspended') await ac.resume();
-
-    if (!bassPlayer || !chordsPlayer || !leadPlayer) {
-      await loadSelectedSoundfonts();
-    }
-
-    const playBtn = document.getElementById('playBtn');
-    const status = document.getElementById('statusBox');
-
-    if (!isPlaying) {
-      isPlaying = true;
-      playBtn.textContent = '⏸ Pause MIDI Playback';
-      playBtn.classList.add('active');
-      status.textContent = '▶ Playing MIDI Stream through selected SoundFont bank...';
-      scheduleMidiLoop();
-    } else {
-      isPlaying = false;
-      clearTimeout(timer);
-      playBtn.textContent = '▶ Resume MIDI Playback';
-      playBtn.classList.remove('active');
-      status.textContent = 'Paused';
-    }
-  }
-
-  async function reloadInstruments() {
-    if (isPlaying) {
-      isPlaying = false;
-      clearTimeout(timer);
-    }
-    await loadSelectedSoundfonts();
-    if (isPlaying) {
-      scheduleMidiLoop();
-    }
-  }
-
-  async function onBankChange() {
-    await reloadInstruments();
-  }
-
-  populateMidiInspector();
+  // Pre-load default instruments into cache immediately
+  onBankChange("FluidR3_GM");
+  renderMidiInspector();
 </script>
 </body>
 </html>
