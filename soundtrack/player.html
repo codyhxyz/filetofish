@@ -2,281 +2,696 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>FiletoFish — Animal Crossing & K.K. Slider Jukebox (26 Styles)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FiletoFish — Animal Crossing & K.K. Slider Jukebox</title>
   <style>
-    * { box-sizing: border-box; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      background: #0d1217;
-      color: #e4edf5;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      margin: 0;
-      padding: 32px 20px 80px 20px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
+      background: #0d131a;
+      color: #e2ebf4;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      min-height: 100vh;
+      padding-bottom: 120px;
     }
-    .container {
-      max-width: 860px;
-      width: 100%;
+    .wrapper {
+      max-width: 920px;
+      margin: 0 auto;
+      padding: 24px 20px;
     }
     header {
-      margin-bottom: 24px;
+      margin-bottom: 20px;
       display: flex;
       justify-content: space-between;
-      align-items: flex-end;
+      align-items: center;
       flex-wrap: wrap;
-      gap: 16px;
-      border-bottom: 1px solid #1f2b37;
-      padding-bottom: 18px;
+      gap: 12px;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .logo-icon {
+      font-size: 28px;
+      background: #192635;
+      border: 1px solid #293d54;
+      width: 46px;
+      height: 46px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 12px;
     }
     h1 {
-      margin: 0;
-      font-size: 24px;
+      font-size: 20px;
       font-weight: 700;
+      color: #f0f6fc;
       letter-spacing: -0.02em;
-      display: flex;
-      align-items: center;
-      gap: 10px;
     }
     .sub {
-      color: #7e94a8;
-      font-size: 14px;
-      margin-top: 4px;
-    }
-    /* Sticky Player Bar */
-    .player-card {
-      position: sticky;
-      top: 16px;
-      z-index: 100;
-      background: #16202c;
-      border: 1px solid #28394b;
-      border-radius: 14px;
-      padding: 18px 24px;
-      box-shadow: 0 12px 36px rgba(0, 0, 0, 0.6);
-      margin-bottom: 24px;
-      backdrop-filter: blur(12px);
-    }
-    .now-playing-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 10px;
-    }
-    .now-title {
-      font-size: 16px;
-      font-weight: 600;
-      color: #58a6ff;
-    }
-    .now-meta {
       font-size: 13px;
-      color: #8da4b8;
+      color: #7b94aa;
+      margin-top: 2px;
     }
-    audio {
+    .search-bar {
       width: 100%;
-      height: 40px;
+      margin-bottom: 16px;
+    }
+    .search-input {
+      width: 100%;
+      background: #141c26;
+      border: 1px solid #233242;
+      border-radius: 10px;
+      padding: 12px 16px;
+      color: #f0f6fc;
+      font-size: 14px;
       outline: none;
-      border-radius: 8px;
+      transition: border-color 0.15s;
+    }
+    .search-input:focus {
+      border-color: #388bfd;
+      box-shadow: 0 0 0 2px rgba(56, 139, 253, 0.2);
     }
     /* Category Filter Tabs */
     .tabs {
       display: flex;
       gap: 8px;
       overflow-x: auto;
-      padding-bottom: 8px;
-      margin-bottom: 18px;
+      padding-bottom: 12px;
+      margin-bottom: 16px;
       scrollbar-width: none;
     }
     .tabs::-webkit-scrollbar { display: none; }
     .tab-btn {
-      background: #17222e;
-      border: 1px solid #273747;
-      color: #9ab0c2;
+      background: #16202c;
+      border: 1px solid #26384a;
+      color: #8da4b8;
       padding: 8px 14px;
       border-radius: 20px;
       font-size: 13px;
       font-weight: 500;
       cursor: pointer;
       white-space: nowrap;
-      transition: all 0.15s;
+      transition: all 0.15s ease;
     }
     .tab-btn:hover {
-      background: #202e3d;
+      background: #1f2d3d;
       color: #fff;
+      border-color: #384f66;
     }
     .tab-btn.active {
-      background: #2564a8;
+      background: #1d4877;
       border-color: #388bfd;
       color: #fff;
+      font-weight: 600;
     }
-    /* Track Grid */
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-      gap: 12px;
-    }
-    .track-card {
-      background: #141d27;
-      border: 1px solid #202c3a;
-      border-radius: 10px;
-      padding: 14px;
-      cursor: pointer;
-      transition: all 0.15s ease;
+
+    /* Track List */
+    .track-list {
       display: flex;
       flex-direction: column;
+      gap: 8px;
+    }
+    .track-row {
+      background: #141d27;
+      border: 1px solid #202e3d;
+      border-radius: 10px;
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
       justify-content: space-between;
-      gap: 10px;
+      gap: 16px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      user-select: none;
     }
-    .track-card:hover {
+    .track-row:hover {
       background: #1c2836;
-      border-color: #314457;
-      transform: translateY(-2px);
+      border-color: #33485e;
+      transform: translateX(2px);
     }
-    .track-card.active {
-      background: #17324c;
+    .track-row.active {
+      background: #152d47;
+      border-color: #388bfd;
+      box-shadow: 0 4px 16px rgba(56, 139, 253, 0.15);
+    }
+    .row-left {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      min-width: 0;
+    }
+    .play-btn-circle {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: #202e3e;
+      border: 1px solid #31465c;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #58a6ff;
+      font-size: 14px;
+      flex-shrink: 0;
+      transition: all 0.15s;
+    }
+    .track-row:hover .play-btn-circle {
+      background: #388bfd;
+      color: #fff;
       border-color: #388bfd;
     }
-    .track-top {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
+    .track-row.active .play-btn-circle {
+      background: #388bfd;
+      color: #fff;
+      border-color: #388bfd;
     }
-    .track-name {
-      font-size: 14px;
+    .track-info {
+      min-width: 0;
+    }
+    .track-title {
+      font-size: 15px;
       font-weight: 600;
       color: #f0f6fc;
-      line-height: 1.3;
+      display: flex;
+      align-items: center;
+      gap: 8px;
     }
-    .track-badge {
+    .track-desc {
+      font-size: 12px;
+      color: #7b94aa;
+      margin-top: 3px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .row-right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+    .badge {
       font-size: 11px;
-      padding: 2px 7px;
-      border-radius: 100px;
-      background: #202e3d;
+      padding: 3px 8px;
+      border-radius: 6px;
+      background: #1b2633;
+      border: 1px solid #283749;
       color: #79c0ff;
       font-weight: 500;
-      white-space: nowrap;
     }
-    .track-bottom {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
+    .meta-text {
       font-size: 12px;
-      color: #71889c;
+      color: #6e8499;
+      min-width: 80px;
+      text-align: right;
     }
-    .play-icon {
-      font-size: 16px;
+
+    /* Fixed Bottom Player */
+    .bottom-player {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: #131b24;
+      border-top: 1px solid #243447;
+      box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.7);
+      padding: 12px 20px;
+      z-index: 1000;
+      backdrop-filter: blur(16px);
+    }
+    .player-inner {
+      max-width: 920px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .player-top-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    .current-track-meta {
+      min-width: 0;
+      flex: 1;
+    }
+    .current-title {
+      font-size: 15px;
+      font-weight: 700;
       color: #58a6ff;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .current-sub {
+      font-size: 12px;
+      color: #8da4b8;
+      margin-top: 2px;
+    }
+    .player-controls {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+    .control-btn {
+      background: none;
+      border: none;
+      color: #c9d1d9;
+      font-size: 18px;
+      cursor: pointer;
+      padding: 6px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s;
+    }
+    .control-btn:hover {
+      color: #fff;
+      background: #202d3d;
+    }
+    .play-main-btn {
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      background: #388bfd;
+      color: #fff;
+      font-size: 18px;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.1s, background 0.15s;
+    }
+    .play-main-btn:hover {
+      background: #4797ff;
+      transform: scale(1.05);
+    }
+    .play-main-btn:active {
+      transform: scale(0.95);
+    }
+    .control-btn.toggle-on {
+      color: #388bfd;
+      background: #172d44;
+    }
+
+    /* Seekbar */
+    .seek-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      width: 100%;
+    }
+    .time-lbl {
+      font-size: 11px;
+      font-family: monospace;
+      color: #7b94aa;
+      min-width: 36px;
+    }
+    .seek-bar-container {
+      flex: 1;
+      position: relative;
+      height: 20px;
+      display: flex;
+      align-items: center;
+      cursor: pointer;
+    }
+    .seek-bar-bg {
+      width: 100%;
+      height: 5px;
+      background: #233345;
+      border-radius: 3px;
+      position: relative;
+      overflow: hidden;
+    }
+    .seek-bar-fill {
+      height: 100%;
+      background: #388bfd;
+      width: 0%;
+      border-radius: 3px;
+      transition: width 0.05s linear;
+    }
+    .seek-input {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      opacity: 0;
+      cursor: pointer;
+      margin: 0;
+    }
+    .vol-container {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .vol-input {
+      width: 70px;
+      accent-color: #388bfd;
+      cursor: pointer;
     }
   </style>
 </head>
 <body>
-  <div class="container">
-    <header>
+
+<div class="wrapper">
+  <header>
+    <div class="brand">
+      <div class="logo-icon">🎣</div>
       <div>
-        <h1>🎣 FiletoFish — K.K. Slider & AC Jukebox</h1>
-        <div class="sub">26 custom-synthesized genre prototypes + 6 time-of-day dock suite tracks</div>
+        <h1>FiletoFish — Animal Crossing & K.K. Jukebox</h1>
+        <div class="sub">33 fully synthesized concepts: 26 K.K. slider genres + 6 time-of-day dock tracks</div>
       </div>
-    </header>
-
-    <!-- Sticky Audio Player -->
-    <div class="player-card">
-      <div class="now-playing-header">
-        <span class="now-title" id="nowTitle">Select a track below</span>
-        <span class="now-meta" id="nowMeta">0:00 / 0:00</span>
-      </div>
-      <audio id="audio" controls autoplay></audio>
     </div>
+  </header>
 
-    <!-- Category Tabs -->
-    <div class="tabs" id="tabs">
-      <button class="tab-btn active" onclick="filterCategory('All', this)">All (26)</button>
-      <button class="tab-btn" onclick="filterCategory('Tropical & Island', this)">🏝 Tropical & Island (5)</button>
-      <button class="tab-btn" onclick="filterCategory('Vintage & Retro', this)">📻 Vintage & Retro (5)</button>
-      <button class="tab-btn" onclick="filterCategory('Maritime & Folk', this)">⚓ Maritime & Folk (4)</button>
-      <button class="tab-btn" onclick="filterCategory('Electronic & Chill', this)">🌆 Electronic & Chill (5)</button>
-      <button class="tab-btn" onclick="filterCategory('Atmospheric & Ambient', this)">🌌 Ambient & Lullaby (4)</button>
-      <button class="tab-btn" onclick="filterCategory('World & Regional', this)">🌍 World & Regional (3)</button>
-      <button class="tab-btn" onclick="filterCategory('Time of Day Suite', this)">🌅 Time of Day Suite (6)</button>
-    </div>
-
-    <!-- Tracks Grid -->
-    <div class="grid" id="grid"></div>
+  <!-- Search -->
+  <div class="search-bar">
+    <input type="text" id="searchInput" class="search-input" placeholder="🔍 Search by genre, instrument, BPM, or mood (e.g. 'surf', 'accordion', 'waltz', 'chill')...">
   </div>
 
-  <script>
-    const audio = document.getElementById('audio');
-    const nowTitle = document.getElementById('nowTitle');
-    const nowMeta = document.getElementById('nowMeta');
-    const grid = document.getElementById('grid');
+  <!-- Category Tabs -->
+  <div class="tabs" id="tabs"></div>
 
-    let currentCategory = 'All';
-    let activeTrackSlug = null;
-    let catalog = [];
+  <!-- Track List -->
+  <div class="track-list" id="trackList"></div>
+</div>
 
-    const TOD_SUITE = [
-      { slug: "ac_dawn", title: "1. Dawn (05:00-08:00)", category: "Time of Day Suite", bpm: 78, meter: "3/4", duration: "39.4s", path: "previews/ac_dawn.wav", badge: "Kalimba & Flute" },
-      { slug: "ac_morning", title: "2. Morning (08:00-11:00)", category: "Time of Day Suite", bpm: 98, meter: "4/4", duration: "41.7s", path: "previews/ac_morning.wav", badge: "Slap Bass & Melodica" },
-      { slug: "ac_day", title: "3. Day (11:00-17:00)", category: "Time of Day Suite", bpm: 92, meter: "4/4", duration: "44.2s", path: "previews/ac_day.wav", badge: "FM Marimba & Whistle" },
-      { slug: "ac_sunset", title: "4. Sunset (17:00-20:00)", category: "Time of Day Suite", bpm: 76, meter: "4/4", duration: "53.0s", path: "previews/ac_sunset.wav", badge: "Rhodes & Vibraphone" },
-      { slug: "ac_night", title: "5. Night (20:00-00:00)", category: "Time of Day Suite", bpm: 66, meter: "4/4", duration: "60.7s", path: "previews/ac_night.wav", badge: "Vibraphone & Glass" },
-      { slug: "ac_late-night", title: "6. Late Night (00:00-05:00)", category: "Time of Day Suite", bpm: 56, meter: "4/4", duration: "71.6s", path: "previews/ac_late-night.wav", badge: "Music Box & Ticking" }
-    ];
+<!-- Sticky Bottom Player -->
+<div class="bottom-player">
+  <div class="player-inner">
+    <div class="player-top-row">
+      <div class="current-track-meta">
+        <div class="current-title" id="playerTitle">Select any track to play</div>
+        <div class="current-sub" id="playerSub">Ready</div>
+      </div>
 
-    async function init() {
-      try {
-        const res = await fetch('previews/kk_catalog.json');
-        const kkData = await res.json();
-        catalog = [...kkData, ...TOD_SUITE];
-      } catch (e) {
-        console.error(e);
-        catalog = TOD_SUITE;
-      }
-      renderGrid();
-      // Start with first track
-      if (catalog.length > 0) {
-        selectTrack(catalog[0]);
-      }
+      <div class="player-controls">
+        <button class="control-btn" id="prevBtn" title="Previous Track">⏮</button>
+        <button class="play-main-btn" id="mainPlayBtn" title="Play/Pause">▶</button>
+        <button class="control-btn" id="nextBtn" title="Next Track">⏭</button>
+        <button class="control-btn toggle-on" id="loopBtn" title="Loop Current Track">🔁</button>
+        <button class="control-btn" id="autoBtn" title="Auto-advance to Next">⏭️</button>
+
+        <div class="vol-container">
+          <span style="font-size:14px;color:#7b94aa">🔊</span>
+          <input type="range" id="volInput" class="vol-input" min="0" max="1" step="0.01" value="0.9">
+        </div>
+      </div>
+    </div>
+
+    <!-- Seekbar Row -->
+    <div class="seek-row">
+      <span class="time-lbl" id="currTime">0:00</span>
+      <div class="seek-bar-container" id="seekContainer">
+        <div class="seek-bar-bg">
+          <div class="seek-bar-fill" id="seekFill"></div>
+        </div>
+        <input type="range" id="seekInput" class="seek-input" min="0" max="100" value="0">
+      </div>
+      <span class="time-lbl" id="totTime">0:00</span>
+    </div>
+  </div>
+</div>
+
+<audio id="audioEl" preload="auto"></audio>
+
+<script>
+  // FULL INLINED CATALOG DATA — Zero external fetch dependencies!
+  const CATALOG = [
+    // --- 26 K.K. SLIDER GENRES ---
+    { slug: "bossa", title: "K.K. Bossa", category: "Tropical & Island", desc: "Nylon guitar thumb & strums, upright bass, soft shaker, flute melody", bpm: 84, meter: "4/4", duration: "24.9s", file: "previews/kk_bossa.wav" },
+    { slug: "dub_reggae", title: "K.K. Pier Dub", category: "Tropical & Island", desc: "Sub-bass drop on 3, offbeat organ bubble, spring-reverb rimshot, melodica", bpm: 72, meter: "4/4", duration: "28.7s", file: "previews/kk_dub_reggae.wav" },
+    { slug: "calypso", title: "K.K. Calypso / Steelpan", category: "Tropical & Island", desc: "Metallic FM steelpan rolls (1:2.76 ratio), woodblocks, congas, bouncy bass", bpm: 112, meter: "4/4", duration: "19.1s", file: "previews/kk_calypso.wav" },
+    { slug: "slack_key", title: "K.K. Hawaiian Slack Key", category: "Tropical & Island", desc: "Open-G fingerpicked acoustic with sliding notes, ukulele, log drums", bpm: 80, meter: "4/4", duration: "26.0s", file: "previews/kk_slack_key.wav" },
+    { slug: "mambo", title: "K.K. Mambo / Son Cubano", category: "Tropical & Island", desc: "Staccato piano montuno, muted trumpet blips, bongo martillo pattern", bpm: 105, meter: "4/4", duration: "20.3s", file: "previews/kk_mambo.wav" },
+
+    { slug: "surf_rock", title: "K.K. Surf Rock (60s Twang)", category: "Vintage & Retro", desc: "Twangy electric guitar with whammy pitch dips, double-picked tremolo surf lead", bpm: 140, meter: "4/4", duration: "15.7s", file: "previews/kk_surf_rock.wav" },
+    { slug: "ragtime", title: "K.K. Ragtime / Stride Pier", category: "Vintage & Retro", desc: "Detuned tack/honky-tonk piano, tuba bassline, washboard / woodblock", bpm: 100, meter: "4/4", duration: "21.2s", file: "previews/kk_ragtime.wav" },
+    { slug: "western", title: "K.K. Western (Morricone)", category: "Vintage & Retro", desc: "Baritone twang guitar, lonely high whistle, galloping shaker, acoustic strum", bpm: 86, meter: "4/4", duration: "24.3s", file: "previews/kk_western.wav" },
+    { slug: "second_line", title: "K.K. New Orleans Second Line", category: "Vintage & Retro", desc: "Brassy sousaphone tuba, swampy syncopated clarinet, marching snare rolls", bpm: 96, meter: "4/4", duration: "22.0s", file: "previews/kk_second_line.wav" },
+    { slug: "cool_jazz", title: "K.K. Cool Jazz / Neo-Noir", category: "Vintage & Retro", desc: "Harmon-muted trumpet, walking upright bass, ride cymbal, minor 9th piano stabs", bpm: 64, meter: "4/4", duration: "32.0s", file: "previews/kk_cool_jazz.wav" },
+
+    { slug: "musette", title: "K.K. Musette (French Waltz)", category: "Maritime & Folk", desc: "Dual-detuned beating accordion (authentic French vibrato), gypsy guitar la pompe", bpm: 130, meter: "3/4", duration: "13.1s", file: "previews/kk_musette.wav" },
+    { slug: "sea_shanty", title: "K.K. Sea Shanty / Celtic", category: "Maritime & Folk", desc: "Irish tin whistle with ornament cuts, DADGAD guitar strum, deep bodhrán", bpm: 88, meter: "3/4", duration: "18.4s", file: "previews/kk_sea_shanty.wav" },
+    { slug: "bluegrass", title: "K.K. Bluegrass / Country Pier", category: "Maritime & Folk", desc: "Fast 3-finger banjo rolls, boom-chick acoustic bass, fiddle slide lick", bpm: 116, meter: "4/4", duration: "18.6s", file: "previews/kk_bluegrass.wav" },
+    { slug: "flamenco", title: "K.K. Flamenco Harbor", category: "Maritime & Folk", desc: "Nylon rasgueado strumming, palmas claps, dramatic Phrygian cadence", bpm: 92, meter: "4/4", duration: "22.9s", file: "previews/kk_flamenco.wav" },
+
+    { slug: "city_pop", title: "K.K. City Pop (80s Coastal)", category: "Electronic & Chill", desc: "Slap bass thumb pops, DX7 FM electric piano, chorus guitar skanks, funk snare", bpm: 108, meter: "4/4", duration: "19.8s", file: "previews/kk_city_pop.wav" },
+    { slug: "lofi_chillhop", title: "K.K. Lo-Fi Chillhop", category: "Electronic & Chill", desc: "Detuned tape-warped felt piano (wow/flutter), vinyl crackle, unquantized kick/snare", bpm: 78, meter: "4/4", duration: "26.6s", file: "previews/kk_lofi_chillhop.wav" },
+    { slug: "y2k_jungle", title: "K.K. Y2K Jungle / Ocean Break", category: "Electronic & Chill", desc: "Fast chopped breakbeats (160 BPM) + slow floating ambient Rhodes + sub bass", bpm: 160, meter: "4/4", duration: "14.0s", file: "previews/kk_y2k_jungle.wav" },
+    { slug: "chiptune", title: "K.K. Chiptune 8-Bit", category: "Electronic & Chill", desc: "12.5% & 50% pulse waves, rapid arpeggiator sweeps, noise burst snare", bpm: 124, meter: "4/4", duration: "17.5s", file: "previews/kk_chiptune.wav" },
+    { slug: "deep_house", title: "K.K. Cozy Deep House", category: "Electronic & Chill", desc: "4-on-the-floor kick, swung hats, M1 organ chord stabs, deep FM bass", bpm: 118, meter: "4/4", duration: "18.3s", file: "previews/kk_deep_house.wav" },
+
+    { slug: "music_box", title: "K.K. Music Box / Lullaby", category: "Atmospheric & Ambient", desc: "Pure metallic music box tines (high chime overtone series), celesta, bowed cello", bpm: 68, meter: "3/4", duration: "23.2s", file: "previews/kk_music_box.wav" },
+    { slug: "satie_ambient", title: "K.K. Satie Minimalist", category: "Atmospheric & Ambient", desc: "Sparse acoustic piano chords, long silences, church bell chime, underwater drone", bpm: 52, meter: "4/4", duration: "38.9s", file: "previews/kk_satie_ambient.wav" },
+    { slug: "raindrop_kalimba", title: "K.K. Raindrop Kalimba", category: "Atmospheric & Ambient", desc: "3 interlocking pentatonic kalimbas panned L/C/R + natural water droplets", bpm: 84, meter: "4/4", duration: "24.9s", file: "previews/kk_raindrop_kalimba.wav" },
+    { slug: "chamber_strings", title: "K.K. Chamber / Museum", category: "Atmospheric & Ambient", desc: "Pizzicato cello/viola rhythm, soaring expressive violin lead", bpm: 76, meter: "4/4", duration: "27.3s", file: "previews/kk_chamber_strings.wav" },
+
+    { slug: "afrobeat", title: "K.K. Afrobeat Pier", category: "World & Regional", desc: "Interlocking clean dual-guitar riffs, talking drum pitch-bends, shekere shaker", bpm: 105, meter: "4/4", duration: "20.3s", file: "previews/kk_afrobeat.wav" },
+    { slug: "tango", title: "K.K. Argentine Tango", category: "World & Regional", desc: "Bandoneón accordion, piano marcato, dramatic habanera rhythm", bpm: 116, meter: "4/4", duration: "18.6s", file: "previews/kk_tango.wav" },
+    { slug: "march", title: "K.K. March / Harbor Stroll", category: "World & Regional", desc: "Piccolo whistle, marching snare rudiments (flams/rolls), tuba oom-pah", bpm: 104, meter: "4/4", duration: "20.5s", file: "previews/kk_march.wav" },
+
+    // --- TIME OF DAY DOCK SUITE ---
+    { slug: "ac_dawn", title: "1. Dawn (05:00–08:00)", category: "Time of Day Suite", desc: "3/4 Gentle Waltz in D Maj, Kalimba, Pizzicato Nylon Guitar, Soft Flute", bpm: 78, meter: "3/4", duration: "39.4s", file: "previews/ac_dawn.wav" },
+    { slug: "ac_morning", title: "2. Morning (08:00–11:00)", category: "Time of Day Suite", desc: "4/4 Brisk 64% Shuffle in G Maj, Upright Slap Bass, Marimba, Melodica", bpm: 98, meter: "4/4", duration: "41.7s", file: "previews/ac_morning.wav" },
+    { slug: "ac_day", title: "3. Day (11:00–17:00)", category: "Time of Day Suite", desc: "4/4 Swung Bossa in C Maj, FM Marimba, Walking Bass, Whistle Lead with Negative Space", bpm: 92, meter: "4/4", duration: "44.2s", file: "previews/ac_day.wav" },
+    { slug: "ac_sunset", title: "4. Sunset (17:00–20:00)", category: "Time of Day Suite", desc: "4/4 Laid-back Bossa in F Maj, Warm Rhodes EP, Vibraphone, Bittersweet IVm shift", bpm: 76, meter: "4/4", duration: "53.0s", file: "previews/ac_sunset.wav" },
+    { slug: "ac_night", title: "5. Night (20:00–00:00)", category: "Time of Day Suite", desc: "4/4 Late Lounge in E Maj, Vibraphone Motor Tremolo, Glass Chimes, Deep Bass", bpm: 66, meter: "4/4", duration: "60.7s", file: "previews/ac_night.wav" },
+    { slug: "ac_late-night", title: "6. Late Night (00:00–05:00)", category: "Time of Day Suite", desc: "4/4 Satie Minimalism in B Min, Ticking Clock Bed, Music Box, Deep Sub Sine", bpm: 56, meter: "4/4", duration: "71.6s", file: "previews/ac_late-night.wav" },
+    { slug: "ac_album", title: "🌟 Full Time-of-Day Album", category: "Time of Day Suite", desc: "Continuous 6-track listening showcase through all hours of the day (5 mins)", bpm: 80, meter: "Various", duration: "5m 10s", file: "previews/ac_suite_album.wav" }
+  ];
+
+  const CATEGORIES = [
+    "All",
+    "Tropical & Island",
+    "Vintage & Retro",
+    "Maritime & Folk",
+    "Electronic & Chill",
+    "Atmospheric & Ambient",
+    "World & Regional",
+    "Time of Day Suite"
+  ];
+
+  // DOM Elements
+  const tabsEl = document.getElementById('tabs');
+  const trackListEl = document.getElementById('trackList');
+  const searchInput = document.getElementById('searchInput');
+  const audioEl = document.getElementById('audioEl');
+
+  const playerTitle = document.getElementById('playerTitle');
+  const playerSub = document.getElementById('playerSub');
+  const mainPlayBtn = document.getElementById('mainPlayBtn');
+  const prevBtn = document.getElementById('prevBtn');
+  const nextBtn = document.getElementById('nextBtn');
+  const loopBtn = document.getElementById('loopBtn');
+  const autoBtn = document.getElementById('autoBtn');
+  const volInput = document.getElementById('volInput');
+
+  const currTime = document.getElementById('currTime');
+  const totTime = document.getElementById('totTime');
+  const seekFill = document.getElementById('seekFill');
+  const seekInput = document.getElementById('seekInput');
+
+  // State
+  let currentCategory = "All";
+  let searchQuery = "";
+  let currentIndex = 0;
+  let isLooping = true;
+  let isAutoAdvance = false;
+
+  // Render Tabs
+  function renderTabs() {
+    tabsEl.innerHTML = '';
+    CATEGORIES.forEach(cat => {
+      const count = cat === "All" ? CATALOG.length : CATALOG.filter(t => t.category === cat).length;
+      const btn = document.createElement('button');
+      btn.className = `tab-btn ${cat === currentCategory ? 'active' : ''}`;
+      btn.textContent = `${cat} (${count})`;
+      btn.onclick = () => {
+        currentCategory = cat;
+        renderTabs();
+        renderTracks();
+      };
+      tabsEl.appendChild(btn);
+    });
+  }
+
+  // Filter Catalog
+  function getFilteredCatalog() {
+    return CATALOG.filter(t => {
+      const matchCat = currentCategory === "All" || t.category === currentCategory;
+      const matchSearch = !searchQuery || 
+        t.title.toLowerCase().includes(searchQuery) ||
+        t.desc.toLowerCase().includes(searchQuery) ||
+        t.category.toLowerCase().includes(searchQuery) ||
+        t.slug.toLowerCase().includes(searchQuery);
+      return matchCat && matchSearch;
+    });
+  }
+
+  // Render Track List
+  function renderTracks() {
+    trackListEl.innerHTML = '';
+    const filtered = getFilteredCatalog();
+
+    if (filtered.length === 0) {
+      trackListEl.innerHTML = '<div style="text-align:center;padding:40px;color:#7b94aa;">No matching tracks found.</div>';
+      return;
     }
 
-    function renderGrid() {
-      grid.innerHTML = '';
-      const filtered = catalog.filter(t => currentCategory === 'All' || t.category === currentCategory);
+    filtered.forEach((t) => {
+      const globalIdx = CATALOG.indexOf(t);
+      const isCurrent = globalIdx === currentIndex;
+      const isPlaying = isCurrent && !audioEl.paused;
 
-      filtered.forEach(t => {
-        const card = document.createElement('div');
-        card.className = `track-card ${t.slug === activeTrackSlug ? 'active' : ''}`;
-        card.onclick = () => selectTrack(t);
+      const row = document.createElement('div');
+      row.className = `track-row ${isCurrent ? 'active' : ''}`;
+      row.onclick = () => playIndex(globalIdx);
 
-        card.innerHTML = `
-          <div class="track-top">
-            <div class="track-name">${t.title}</div>
-            <div class="track-badge">${t.badge || t.category}</div>
+      row.innerHTML = `
+        <div class="row-left">
+          <div class="play-btn-circle">${isPlaying ? '⏸' : '▶'}</div>
+          <div class="track-info">
+            <div class="track-title">
+              ${t.title}
+              ${isCurrent ? '<span style="color:#58a6ff;font-size:12px;">● Playing</span>' : ''}
+            </div>
+            <div class="track-desc">${t.desc}</div>
           </div>
-          <div class="track-bottom">
-            <span>${t.bpm} BPM · ${t.meter}</span>
-            <span class="play-icon">▶ ${t.duration}</span>
-          </div>
-        `;
-        grid.appendChild(card);
-      });
+        </div>
+        <div class="row-right">
+          <span class="badge">${t.bpm} BPM · ${t.meter}</span>
+          <span class="meta-text">${t.duration}</span>
+        </div>
+      `;
+      trackListEl.appendChild(row);
+    });
+  }
+
+  // Playback Logic
+  function playIndex(idx) {
+    if (idx < 0) idx = CATALOG.length - 1;
+    if (idx >= CATALOG.length) idx = 0;
+
+    const track = CATALOG[idx];
+    if (currentIndex === idx && audioEl.src && !audioEl.ended) {
+      if (audioEl.paused) {
+        audioEl.play();
+        mainPlayBtn.textContent = '⏸';
+      } else {
+        audioEl.pause();
+        mainPlayBtn.textContent = '▶';
+      }
+      renderTracks();
+      return;
     }
 
-    function selectTrack(track) {
-      activeTrackSlug = track.slug;
-      nowTitle.textContent = `▶ ${track.title}`;
-      nowMeta.textContent = `${track.category} · ${track.bpm} BPM · ${track.meter} (${track.duration})`;
-      audio.src = track.path.replace(/^soundtrack\//, '');
-      audio.play().catch(() => {});
-      renderGrid();
-    }
+    currentIndex = idx;
+    audioEl.src = track.file;
+    audioEl.currentTime = 0;
+    audioEl.play().catch(e => console.log('Audio autoplay prevented:', e));
 
-    function filterCategory(cat, btn) {
-      currentCategory = cat;
-      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-      if (btn) btn.classList.add('active');
-      renderGrid();
-    }
+    playerTitle.textContent = track.title;
+    playerSub.textContent = `${track.category} · ${track.bpm} BPM · ${track.meter} — ${track.desc}`;
+    mainPlayBtn.textContent = '⏸';
 
-    init();
-  </script>
+    renderTracks();
+  }
+
+  // Time format helper
+  function formatTime(s) {
+    if (isNaN(s) || s <= 0) return "0:00";
+    const m = Math.floor(s / 60);
+    const sec = Math.floor(s % 60);
+    return `${m}:${sec < 10 ? '0' : ''}${sec}`;
+  }
+
+  // Audio Event Listeners
+  audioEl.ontimeupdate = () => {
+    currTime.textContent = formatTime(audioEl.currentTime);
+    totTime.textContent = formatTime(audioEl.duration);
+    const pct = (audioEl.currentTime / (audioEl.duration || 1)) * 100;
+    seekFill.style.width = `${pct}%`;
+    seekInput.value = pct;
+  };
+
+  audioEl.onplay = () => {
+    mainPlayBtn.textContent = '⏸';
+    renderTracks();
+  };
+
+  audioEl.onpause = () => {
+    mainPlayBtn.textContent = '▶';
+    renderTracks();
+  };
+
+  audioEl.onended = () => {
+    if (isLooping) {
+      audioEl.currentTime = 0;
+      audioEl.play();
+    } else if (isAutoAdvance) {
+      playIndex(currentIndex + 1);
+    } else {
+      mainPlayBtn.textContent = '▶';
+      renderTracks();
+    }
+  };
+
+  // Controls
+  mainPlayBtn.onclick = () => {
+    if (!audioEl.src) {
+      playIndex(0);
+    } else if (audioEl.paused) {
+      audioEl.play();
+    } else {
+      audioEl.pause();
+    }
+  };
+
+  prevBtn.onclick = () => playIndex(currentIndex - 1);
+  nextBtn.onclick = () => playIndex(currentIndex + 1);
+
+  loopBtn.onclick = () => {
+    isLooping = !isLooping;
+    loopBtn.classList.toggle('toggle-on', isLooping);
+    if (isLooping && isAutoAdvance) {
+      isAutoAdvance = false;
+      autoBtn.classList.remove('toggle-on');
+    }
+  };
+
+  autoBtn.onclick = () => {
+    isAutoAdvance = !isAutoAdvance;
+    autoBtn.classList.toggle('toggle-on', isAutoAdvance);
+    if (isAutoAdvance && isLooping) {
+      isLooping = false;
+      loopBtn.classList.remove('toggle-on');
+    }
+  };
+
+  volInput.oninput = (e) => {
+    audioEl.volume = parseFloat(e.target.value);
+  };
+
+  seekInput.oninput = (e) => {
+    const val = parseFloat(e.target.value);
+    if (audioEl.duration) {
+      audioEl.currentTime = (val / 100) * audioEl.duration;
+    }
+  };
+
+  searchInput.oninput = (e) => {
+    searchQuery = e.target.value.toLowerCase().trim();
+    renderTracks();
+  };
+
+  // Init
+  renderTabs();
+  renderTracks();
+  playIndex(0);
+</script>
 </body>
 </html>
