@@ -688,10 +688,21 @@
     renderTracks();
   };
 
+  function selectTrackInitial(idx) {
+    currentIndex = idx;
+    const track = CATALOG[idx];
+    audioEl.src = track.file;
+    audioEl.currentTime = 0;
+    playerTitle.textContent = track.title;
+    playerSub.textContent = `${track.category} · ${track.bpm} BPM · ${track.meter} — ${track.desc}`;
+    mainPlayBtn.textContent = '▶';
+    renderTracks();
+  }
+
   // Init
   renderTabs();
   renderTracks();
-  playIndex(0);
+  selectTrackInitial(0);
 </script>
 </body>
 </html>
