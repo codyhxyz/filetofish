@@ -1,0 +1,2562 @@
+{
+  "motif": "1-6-5-2",
+  "songs": [
+    {
+      "slug": "dawn",
+      "time": "05:00-08:00",
+      "title": "The Tide Keeps Time",
+      "bpm": 82,
+      "key": "D major / B minor",
+      "palette": {
+        "lead": "reed",
+        "keys": "mallet",
+        "brush": 0.55
+      },
+      "chords": [
+        {
+          "notes": [
+            62,
+            66,
+            69,
+            71,
+            76
+          ],
+          "bass": 38
+        },
+        {
+          "notes": [
+            59,
+            62,
+            66,
+            69
+          ],
+          "bass": 35
+        },
+        {
+          "notes": [
+            55,
+            59,
+            62,
+            66
+          ],
+          "bass": 31
+        },
+        {
+          "notes": [
+            57,
+            62,
+            64,
+            67
+          ],
+          "bass": 33
+        },
+        {
+          "notes": [
+            62,
+            66,
+            69,
+            71,
+            76
+          ],
+          "bass": 38
+        },
+        {
+          "notes": [
+            54,
+            57,
+            61,
+            64
+          ],
+          "bass": 30
+        },
+        {
+          "notes": [
+            55,
+            59,
+            62,
+            66
+          ],
+          "bass": 31
+        },
+        {
+          "notes": [
+            55,
+            58,
+            62,
+            64
+          ],
+          "bass": 31
+        },
+        {
+          "notes": [
+            52,
+            55,
+            59,
+            62
+          ],
+          "bass": 28
+        },
+        {
+          "notes": [
+            57,
+            62,
+            64,
+            67
+          ],
+          "bass": 33
+        },
+        {
+          "notes": [
+            62,
+            66,
+            69,
+            73
+          ],
+          "bass": 38
+        },
+        {
+          "notes": [
+            61,
+            64,
+            67,
+            69
+          ],
+          "bass": 33
+        },
+        {
+          "notes": [
+            59,
+            62,
+            66,
+            69
+          ],
+          "bass": 35
+        },
+        {
+          "notes": [
+            55,
+            59,
+            62,
+            66
+          ],
+          "bass": 31
+        },
+        {
+          "notes": [
+            52,
+            55,
+            59,
+            62
+          ],
+          "bass": 28
+        },
+        {
+          "notes": [
+            62,
+            66,
+            69,
+            71,
+            76
+          ],
+          "bass": 38
+        }
+      ],
+      "melody": [
+        {
+          "bar": 0,
+          "beat": 0.45,
+          "note": 62,
+          "durationBeats": 0.7
+        },
+        {
+          "bar": 0,
+          "beat": 1.35,
+          "note": 71,
+          "durationBeats": 0.48
+        },
+        {
+          "bar": 0,
+          "beat": 2.05,
+          "note": 69,
+          "durationBeats": 0.72
+        },
+        {
+          "bar": 0,
+          "beat": 3.05,
+          "note": 64,
+          "durationBeats": 0.58
+        },
+        {
+          "bar": 1,
+          "beat": 0.35,
+          "note": 66,
+          "durationBeats": 0.5
+        },
+        {
+          "bar": 1,
+          "beat": 1.1,
+          "note": 69,
+          "durationBeats": 0.55
+        },
+        {
+          "bar": 1,
+          "beat": 2,
+          "note": 74,
+          "durationBeats": 0.78
+        },
+        {
+          "bar": 1,
+          "beat": 3.05,
+          "note": 71,
+          "durationBeats": 0.55
+        },
+        {
+          "bar": 2,
+          "beat": 0.45,
+          "note": 67,
+          "durationBeats": 0.6
+        },
+        {
+          "bar": 2,
+          "beat": 1.25,
+          "note": 71,
+          "durationBeats": 0.52
+        },
+        {
+          "bar": 2,
+          "beat": 2.1,
+          "note": 69,
+          "durationBeats": 0.45
+        },
+        {
+          "bar": 2,
+          "beat": 2.8,
+          "note": 66,
+          "durationBeats": 0.85
+        },
+        {
+          "bar": 3,
+          "beat": 0.55,
+          "note": 64,
+          "durationBeats": 0.5
+        },
+        {
+          "bar": 3,
+          "beat": 1.25,
+          "note": 62,
+          "durationBeats": 0.48
+        },
+        {
+          "bar": 3,
+          "beat": 2.1,
+          "note": 61,
+          "durationBeats": 0.42
+        },
+        {
+          "bar": 3,
+          "beat": 2.72,
+          "note": 62,
+          "durationBeats": 0.9
+        },
+        {
+          "bar": 4,
+          "beat": 0.3,
+          "note": 62,
+          "durationBeats": 0.55
+        },
+        {
+          "bar": 4,
+          "beat": 1.1,
+          "note": 71,
+          "durationBeats": 0.42
+        },
+        {
+          "bar": 4,
+          "beat": 1.78,
+          "note": 69,
+          "durationBeats": 0.55
+        },
+        {
+          "bar": 4,
+          "beat": 2.55,
+          "note": 76,
+          "durationBeats": 0.75
+        },
+        {
+          "bar": 5,
+          "beat": 0.4,
+          "note": 69,
+          "durationBeats": 0.48
+        },
+        {
+          "bar": 5,
+          "beat": 1.15,
+          "note": 73,
+          "durationBeats": 0.52
+        },
+        {
+          "bar": 5,
+          "beat": 2.05,
+          "note": 76,
+          "durationBeats": 0.72
+        },
+        {
+          "bar": 5,
+          "beat": 3.05,
+          "note": 69,
+          "durationBeats": 0.62
+        },
+        {
+          "bar": 6,
+          "beat": 0.3,
+          "note": 71,
+          "durationBeats": 0.5
+        },
+        {
+          "bar": 6,
+          "beat": 1,
+          "note": 69,
+          "durationBeats": 0.42
+        },
+        {
+          "bar": 6,
+          "beat": 1.7,
+          "note": 66,
+          "durationBeats": 0.58
+        },
+        {
+          "bar": 6,
+          "beat": 2.55,
+          "note": 62,
+          "durationBeats": 0.9
+        },
+        {
+          "bar": 7,
+          "beat": 0.45,
+          "note": 64,
+          "durationBeats": 0.62
+        },
+        {
+          "bar": 7,
+          "beat": 1.3,
+          "note": 67,
+          "durationBeats": 0.46
+        },
+        {
+          "bar": 7,
+          "beat": 2.05,
+          "note": 70,
+          "durationBeats": 0.62
+        },
+        {
+          "bar": 7,
+          "beat": 3.05,
+          "note": 69,
+          "durationBeats": 0.72
+        },
+        {
+          "bar": 8,
+          "beat": 0.55,
+          "note": 64,
+          "durationBeats": 0.5
+        },
+        {
+          "bar": 8,
+          "beat": 1.3,
+          "note": 67,
+          "durationBeats": 0.5
+        },
+        {
+          "bar": 8,
+          "beat": 2.05,
+          "note": 71,
+          "durationBeats": 0.65
+        },
+        {
+          "bar": 8,
+          "beat": 3,
+          "note": 74,
+          "durationBeats": 0.72
+        },
+        {
+          "bar": 9,
+          "beat": 0.35,
+          "note": 69,
+          "durationBeats": 0.42
+        },
+        {
+          "bar": 9,
+          "beat": 1,
+          "note": 74,
+          "durationBeats": 0.55
+        },
+        {
+          "bar": 9,
+          "beat": 1.75,
+          "note": 76,
+          "durationBeats": 0.5
+        },
+        {
+          "bar": 9,
+          "beat": 2.45,
+          "note": 74,
+          "durationBeats": 0.45
+        },
+        {
+          "bar": 9,
+          "beat": 3.05,
+          "note": 71,
+          "durationBeats": 0.72
+        },
+        {
+          "bar": 10,
+          "beat": 0.45,
+          "note": 73,
+          "durationBeats": 0.48
+        },
+        {
+          "bar": 10,
+          "beat": 1.2,
+          "note": 69,
+          "durationBeats": 0.52
+        },
+        {
+          "bar": 10,
+          "beat": 2.05,
+          "note": 66,
+          "durationBeats": 0.58
+        },
+        {
+          "bar": 10,
+          "beat": 3,
+          "note": 64,
+          "durationBeats": 0.6
+        },
+        {
+          "bar": 11,
+          "beat": 0.4,
+          "note": 61,
+          "durationBeats": 0.5
+        },
+        {
+          "bar": 11,
+          "beat": 1.15,
+          "note": 64,
+          "durationBeats": 0.48
+        },
+        {
+          "bar": 11,
+          "beat": 2,
+          "note": 69,
+          "durationBeats": 0.8
+        },
+        {
+          "bar": 12,
+          "beat": 0.45,
+          "note": 59,
+          "durationBeats": 0.52
+        },
+        {
+          "bar": 12,
+          "beat": 1.2,
+          "note": 62,
+          "durationBeats": 0.5
+        },
+        {
+          "bar": 12,
+          "beat": 2,
+          "note": 66,
+          "durationBeats": 0.68
+        },
+        {
+          "bar": 12,
+          "beat": 3,
+          "note": 69,
+          "durationBeats": 0.62
+        },
+        {
+          "bar": 13,
+          "beat": 0.35,
+          "note": 71,
+          "durationBeats": 0.44
+        },
+        {
+          "bar": 13,
+          "beat": 1,
+          "note": 69,
+          "durationBeats": 0.42
+        },
+        {
+          "bar": 13,
+          "beat": 1.7,
+          "note": 66,
+          "durationBeats": 0.5
+        },
+        {
+          "bar": 13,
+          "beat": 2.45,
+          "note": 62,
+          "durationBeats": 1
+        },
+        {
+          "bar": 14,
+          "beat": 0.55,
+          "note": 64,
+          "durationBeats": 0.48
+        },
+        {
+          "bar": 14,
+          "beat": 1.25,
+          "note": 67,
+          "durationBeats": 0.48
+        },
+        {
+          "bar": 14,
+          "beat": 2.05,
+          "note": 71,
+          "durationBeats": 0.62
+        },
+        {
+          "bar": 14,
+          "beat": 3,
+          "note": 69,
+          "durationBeats": 0.62
+        },
+        {
+          "bar": 15,
+          "beat": 0.3,
+          "note": 62,
+          "durationBeats": 0.55
+        },
+        {
+          "bar": 15,
+          "beat": 1.1,
+          "note": 71,
+          "durationBeats": 0.42
+        },
+        {
+          "bar": 15,
+          "beat": 1.8,
+          "note": 69,
+          "durationBeats": 0.58
+        },
+        {
+          "bar": 15,
+          "beat": 2.65,
+          "note": 64,
+          "durationBeats": 0.42
+        },
+        {
+          "bar": 15,
+          "beat": 3.18,
+          "note": 62,
+          "durationBeats": 1.5
+        }
+      ]
+    },
+    {
+      "slug": "morning",
+      "time": "08:00-11:00",
+      "title": "Reeds Along the Waking Pier",
+      "bpm": 94,
+      "key": "G major / E minor",
+      "palette": {
+        "lead": "reed",
+        "keys": "pluck",
+        "brush": 0.75
+      },
+      "chords": [
+        {
+          "notes": [
+            55,
+            59,
+            62,
+            67
+          ],
+          "bass": 43
+        },
+        {
+          "notes": [
+            52,
+            55,
+            59,
+            62
+          ],
+          "bass": 40
+        },
+        {
+          "notes": [
+            48,
+            52,
+            55,
+            59
+          ],
+          "bass": 36
+        },
+        {
+          "notes": [
+            50,
+            54,
+            57,
+            60
+          ],
+          "bass": 38
+        },
+        {
+          "notes": [
+            59,
+            62,
+            67,
+            71
+          ],
+          "bass": 47
+        },
+        {
+          "notes": [
+            57,
+            60,
+            64,
+            67
+          ],
+          "bass": 45
+        },
+        {
+          "notes": [
+            48,
+            52,
+            55,
+            60
+          ],
+          "bass": 36
+        },
+        {
+          "notes": [
+            50,
+            54,
+            57,
+            60
+          ],
+          "bass": 38
+        },
+        {
+          "notes": [
+            52,
+            55,
+            59,
+            62
+          ],
+          "bass": 40
+        },
+        {
+          "notes": [
+            59,
+            62,
+            66,
+            69
+          ],
+          "bass": 47
+        },
+        {
+          "notes": [
+            48,
+            52,
+            55,
+            59
+          ],
+          "bass": 36
+        },
+        {
+          "notes": [
+            55,
+            59,
+            62,
+            67
+          ],
+          "bass": 38
+        },
+        {
+          "notes": [
+            57,
+            60,
+            64,
+            67
+          ],
+          "bass": 45
+        },
+        {
+          "notes": [
+            50,
+            54,
+            57,
+            60
+          ],
+          "bass": 38
+        },
+        {
+          "notes": [
+            55,
+            59,
+            62,
+            64
+          ],
+          "bass": 43
+        },
+        {
+          "notes": [
+            55,
+            59,
+            62,
+            67
+          ],
+          "bass": 43
+        }
+      ],
+      "melody": [
+        {
+          "bar": 0,
+          "beat": 0,
+          "note": 67,
+          "durationBeats": 0.5
+        },
+        {
+          "bar": 0,
+          "beat": 1,
+          "note": 76,
+          "durationBeats": 0.5
+        },
+        {
+          "bar": 0,
+          "beat": 2.25,
+          "note": 74,
+          "durationBeats": 0.5
+        },
+        {
+          "bar": 0,
+          "beat": 3.25,
+          "note": 69,
+          "durationBeats": 0.5
+        },
+        {
+          "bar": 1,
+          "beat": 0.5,
+          "note": 71,
+          "durationBeats": 0.75
+        },
+        {
+          "bar": 1,
+          "beat": 2,
+          "note": 67,
+          "durationBeats": 0.5
+        },
+        {
+          "bar": 1,
+          "beat": 3,
+          "note": 64,
+          "durationBeats": 0.5
+        },
+        {
+          "bar": 2,
+          "beat": 0,
+          "note": 64,
+          "durationBeats": 1
+        },
+        {
+          "bar": 2,
+          "beat": 1.75,
+          "note": 67,
+          "durationBeats": 0.5
+        },
+        {
+          "bar": 2,
+          "beat": 2.75,
+          "note": 71,
+          "durationBeats": 0.75
+        },
+        {
+          "bar": 3,
+          "beat": 0.5,
+          "note": 69,
+          "durationBeats": 0.5
+        },
+        {
+          "bar": 3,
+          "beat": 1.5,
+          "note": 66,
+          "durationBeats": 0.5
+        },
+        {
+          "bar": 3,
+          "beat": 3,
+          "note": 62,
+          "durationBeats": 0.75
+        },
+        {
+          "bar": 4,
+          "beat": 0,
+          "note": 71,
+          "durationBeats": 0.75
+        },
+        {
+          "bar": 4,
+          "beat": 1.5,
+          "note": 74,
+          "durationBeats": 0.5
+        },
+        {
+          "bar": 4,
+          "beat": 2.5,
+          "note": 67,
+          "durationBeats": 1
+        },
+        {
+          "bar": 5,
+          "beat": 0.75,
+          "note": 69,
+          "durationBeats": 0.5
+        },
+        {
+          "bar": 5,
+          "beat": 1.75,
+          "note": 72,
+          "durationBeats": 0.75
+        },
+        {
+          "bar": 5,
+          "beat": 3.25,
+          "note": 71,
+          "durationBeats": 0.5
+        },
+        {
+          "bar": 6,
+          "beat": 0,
+          "note": 67,
+          "durationBeats": 0.5
+        },
+        {
+          "bar": 6,
+          "beat": 1,
+          "note": 64,
+          "durationBeats": 0.75
+        },
+        {
+          "bar": 6,
+          "beat": 2.5,
+          "note": 62,
+          "durationBeats": 0.5
+        },
+        {
+          "bar": 7,
+          "beat": 1.5,
+          "note": 66,
+          "durationBeats": 0.5
+        },
+        {
+          "bar": 7,
+          "beat": 2.5,
+          "note": 69,
+          "durationBeats": 0.75
+        },
+        {
+          "bar": 8,
+          "beat": 0.5,
+          "note": 79,
+          "durationBeats": 0.5
+        },
+        {
+          "bar": 8,
+          "beat": 1.25,
+          "note": 76,
+          "durationBeats": 0.75
+        },
+        {
+          "bar": 8,
+          "beat": 2.5,
+          "note": 74,
+          "durationBeats": 0.5
+        },
+        {
+          "bar": 8,
+          "beat": 3.25,
+          "note": 81,
+          "durationBeats": 0.5
+        },
+        {
+          "bar": 9,
+          "beat": 0,
+          "note": 78,
+          "durationBeats": 0.75
+        },
+        {
+          "bar": 9,
+          "beat": 1.5,
+          "note": 74,
+          "durationBeats": 0.5
+        },
+        {
+          "bar": 9,
+          "beat": 2.75,
+          "note": 71,
+          "durationBeats": 0.75
+        },
+        {
+          "bar": 10,
+          "beat": 0.5,
+          "note": 71,
+          "durationBeats": 0.5
+        },
+        {
+          "bar": 10,
+          "beat": 1.5,
+          "note": 76,
+          "durationBeats": 0.75
+        },
+        {
+          "bar": 10,
+          "beat": 3,
+          "note": 74,
+          "durationBeats": 0.5
+        },
+        {
+          "bar": 11,
+          "beat": 0,
+          "note": 71,
+          "durationBeats": 1
+        },
+        {
+          "bar": 11,
+          "beat": 2,
+          "note": 69,
+          "durationBeats": 0.5
+        },
+        {
+          "bar": 11,
+          "beat": 3,
+          "note": 67,
+          "durationBeats": 0.5
+        },
+        {
+          "bar": 12,
+          "beat": 0.75,
+          "note": 72,
+          "durationBeats": 0.5
+        },
+        {
+          "bar": 12,
+          "beat": 1.75,
+          "note": 69,
+          "durationBeats": 0.75
+        },
+        {
+          "bar": 12,
+          "beat": 3.25,
+          "note": 64,
+          "durationBeats": 0.5
+        },
+        {
+          "bar": 13,
+          "beat": 0,
+          "note": 66,
+          "durationBeats": 0.5
+        },
+        {
+          "bar": 13,
+          "beat": 1,
+          "note": 69,
+          "durationBeats": 0.5
+        },
+        {
+          "bar": 13,
+          "beat": 2.25,
+          "note": 74,
+          "durationBeats": 0.75
+        },
+        {
+          "bar": 14,
+          "beat": 0.5,
+          "note": 71,
+          "durationBeats": 0.5
+        },
+        {
+          "bar": 14,
+          "beat": 1.5,
+          "note": 69,
+          "durationBeats": 0.5
+        },
+        {
+          "bar": 14,
+          "beat": 2.75,
+          "note": 67,
+          "durationBeats": 0.75
+        },
+        {
+          "bar": 15,
+          "beat": 0,
+          "note": 62,
+          "durationBeats": 0.5
+        },
+        {
+          "bar": 15,
+          "beat": 1,
+          "note": 67,
+          "durationBeats": 1.5
+        }
+      ]
+    },
+    {
+      "slug": "day",
+      "time": "11:00-17:00",
+      "title": "Sunlit Bobber",
+      "bpm": 106,
+      "key": "A major / F# minor",
+      "palette": {
+        "lead": "bright",
+        "keys": "marimba",
+        "brush": 0.9
+      },
+      "chords": [
+        {
+          "notes": [
+            57,
+            61,
+            64
+          ],
+          "bass": 45
+        },
+        {
+          "notes": [
+            56,
+            59,
+            64
+          ],
+          "bass": 44
+        },
+        {
+          "notes": [
+            54,
+            57,
+            61
+          ],
+          "bass": 42
+        },
+        {
+          "notes": [
+            50,
+            54,
+            57
+          ],
+          "bass": 38
+        },
+        {
+          "notes": [
+            57,
+            61,
+            64
+          ],
+          "bass": 45
+        },
+        {
+          "notes": [
+            52,
+            56,
+            59
+          ],
+          "bass": 40
+        },
+        {
+          "notes": [
+            47,
+            50,
+            54
+          ],
+          "bass": 35
+        },
+        {
+          "notes": [
+            52,
+            56,
+            59
+          ],
+          "bass": 40
+        },
+        {
+          "notes": [
+            57,
+            61,
+            64
+          ],
+          "bass": 45
+        },
+        {
+          "notes": [
+            49,
+            52,
+            56
+          ],
+          "bass": 37
+        },
+        {
+          "notes": [
+            54,
+            57,
+            61
+          ],
+          "bass": 42
+        },
+        {
+          "notes": [
+            50,
+            54,
+            57
+          ],
+          "bass": 38
+        },
+        {
+          "notes": [
+            57,
+            61,
+            64
+          ],
+          "bass": 40
+        },
+        {
+          "notes": [
+            47,
+            50,
+            54
+          ],
+          "bass": 35
+        },
+        {
+          "notes": [
+            52,
+            56,
+            59
+          ],
+          "bass": 40
+        },
+        {
+          "notes": [
+            57,
+            61,
+            64
+          ],
+          "bass": 45
+        }
+      ],
+      "melody": [
+        {
+          "bar": 0,
+          "beat": 0,
+          "note": 69,
+          "durationBeats": 0.5
+        },
+        {
+          "bar": 0,
+          "beat": 0.75,
+          "note": 66,
+          "durationBeats": 0.25
+        },
+        {
+          "bar": 0,
+          "beat": 1.5,
+          "note": 64,
+          "durationBeats": 0.5
+        },
+        {
+          "bar": 0,
+          "beat": 2.75,
+          "note": 71,
+          "durationBeats": 0.75
+        },
+        {
+          "bar": 1,
+          "beat": 0.5,
+          "note": 73,
+          "durationBeats": 0.5
+        },
+        {
+          "bar": 1,
+          "beat": 1.25,
+          "note": 71,
+          "durationBeats": 0.25
+        },
+        {
+          "bar": 1,
+          "beat": 2.5,
+          "note": 68,
+          "durationBeats": 0.75
+        },
+        {
+          "bar": 2,
+          "beat": 0.5,
+          "note": 66,
+          "durationBeats": 0.75
+        },
+        {
+          "bar": 2,
+          "beat": 1.5,
+          "note": 69,
+          "durationBeats": 0.25
+        },
+        {
+          "bar": 2,
+          "beat": 2,
+          "note": 73,
+          "durationBeats": 0.5
+        },
+        {
+          "bar": 3,
+          "beat": 0.25,
+          "note": 71,
+          "durationBeats": 0.25
+        },
+        {
+          "bar": 3,
+          "beat": 0.75,
+          "note": 69,
+          "durationBeats": 0.5
+        },
+        {
+          "bar": 3,
+          "beat": 2.25,
+          "note": 66,
+          "durationBeats": 1
+        },
+        {
+          "bar": 4,
+          "beat": 0,
+          "note": 81,
+          "durationBeats": 0.25
+        },
+        {
+          "bar": 4,
+          "beat": 0.5,
+          "note": 78,
+          "durationBeats": 0.5
+        },
+        {
+          "bar": 4,
+          "beat": 1.75,
+          "note": 76,
+          "durationBeats": 0.25
+        },
+        {
+          "bar": 4,
+          "beat": 2.5,
+          "note": 83,
+          "durationBeats": 0.5
+        },
+        {
+          "bar": 5,
+          "beat": 0.75,
+          "note": 80,
+          "durationBeats": 0.25
+        },
+        {
+          "bar": 5,
+          "beat": 1.25,
+          "note": 76,
+          "durationBeats": 0.5
+        },
+        {
+          "bar": 5,
+          "beat": 2.75,
+          "note": 73,
+          "durationBeats": 0.75
+        },
+        {
+          "bar": 6,
+          "beat": 0.5,
+          "note": 71,
+          "durationBeats": 0.5
+        },
+        {
+          "bar": 6,
+          "beat": 1.25,
+          "note": 74,
+          "durationBeats": 0.25
+        },
+        {
+          "bar": 6,
+          "beat": 2,
+          "note": 78,
+          "durationBeats": 0.75
+        },
+        {
+          "bar": 7,
+          "beat": 0.25,
+          "note": 76,
+          "durationBeats": 0.25
+        },
+        {
+          "bar": 7,
+          "beat": 1,
+          "note": 71,
+          "durationBeats": 0.5
+        },
+        {
+          "bar": 7,
+          "beat": 2.5,
+          "note": 68,
+          "durationBeats": 1
+        },
+        {
+          "bar": 8,
+          "beat": 0.25,
+          "note": 69,
+          "durationBeats": 0.75
+        },
+        {
+          "bar": 8,
+          "beat": 1.5,
+          "note": 66,
+          "durationBeats": 0.25
+        },
+        {
+          "bar": 8,
+          "beat": 2,
+          "note": 64,
+          "durationBeats": 0.25
+        },
+        {
+          "bar": 8,
+          "beat": 2.75,
+          "note": 71,
+          "durationBeats": 0.5
+        },
+        {
+          "bar": 9,
+          "beat": 0.5,
+          "note": 73,
+          "durationBeats": 0.25
+        },
+        {
+          "bar": 9,
+          "beat": 1,
+          "note": 76,
+          "durationBeats": 0.5
+        },
+        {
+          "bar": 9,
+          "beat": 2.5,
+          "note": 80,
+          "durationBeats": 0.75
+        },
+        {
+          "bar": 10,
+          "beat": 0,
+          "note": 78,
+          "durationBeats": 0.5
+        },
+        {
+          "bar": 10,
+          "beat": 1,
+          "note": 73,
+          "durationBeats": 0.25
+        },
+        {
+          "bar": 10,
+          "beat": 1.75,
+          "note": 69,
+          "durationBeats": 0.5
+        },
+        {
+          "bar": 11,
+          "beat": 0.75,
+          "note": 71,
+          "durationBeats": 0.25
+        },
+        {
+          "bar": 11,
+          "beat": 1.25,
+          "note": 69,
+          "durationBeats": 0.5
+        },
+        {
+          "bar": 11,
+          "beat": 2.75,
+          "note": 66,
+          "durationBeats": 0.75
+        },
+        {
+          "bar": 12,
+          "beat": 0,
+          "note": 69,
+          "durationBeats": 0.25
+        },
+        {
+          "bar": 12,
+          "beat": 0.5,
+          "note": 66,
+          "durationBeats": 0.25
+        },
+        {
+          "bar": 12,
+          "beat": 1,
+          "note": 64,
+          "durationBeats": 0.75
+        },
+        {
+          "bar": 12,
+          "beat": 2.5,
+          "note": 71,
+          "durationBeats": 0.25
+        },
+        {
+          "bar": 13,
+          "beat": 0.25,
+          "note": 74,
+          "durationBeats": 0.5
+        },
+        {
+          "bar": 13,
+          "beat": 1.25,
+          "note": 78,
+          "durationBeats": 0.25
+        },
+        {
+          "bar": 13,
+          "beat": 2.25,
+          "note": 76,
+          "durationBeats": 0.75
+        },
+        {
+          "bar": 14,
+          "beat": 0.5,
+          "note": 71,
+          "durationBeats": 0.25
+        },
+        {
+          "bar": 14,
+          "beat": 1,
+          "note": 76,
+          "durationBeats": 0.5
+        },
+        {
+          "bar": 14,
+          "beat": 2,
+          "note": 80,
+          "durationBeats": 0.25
+        },
+        {
+          "bar": 14,
+          "beat": 2.75,
+          "note": 83,
+          "durationBeats": 0.5
+        },
+        {
+          "bar": 15,
+          "beat": 0.25,
+          "note": 81,
+          "durationBeats": 0.25
+        },
+        {
+          "bar": 15,
+          "beat": 0.75,
+          "note": 76,
+          "durationBeats": 0.5
+        },
+        {
+          "bar": 15,
+          "beat": 1.75,
+          "note": 73,
+          "durationBeats": 0.25
+        },
+        {
+          "bar": 15,
+          "beat": 2.5,
+          "note": 69,
+          "durationBeats": 1.25
+        }
+      ]
+    },
+    {
+      "slug": "sunset",
+      "time": "17:00-20:00",
+      "title": "Embers on the Line",
+      "bpm": 76,
+      "key": "G major / E minor",
+      "palette": {
+        "lead": "mellow",
+        "keys": "ep",
+        "brush": 0.5
+      },
+      "chords": [
+        {
+          "notes": [
+            59,
+            62,
+            66,
+            69
+          ],
+          "bass": 43
+        },
+        {
+          "notes": [
+            55,
+            59,
+            62,
+            66
+          ],
+          "bass": 40
+        },
+        {
+          "notes": [
+            57,
+            59,
+            62,
+            66
+          ],
+          "bass": 42
+        },
+        {
+          "notes": [
+            55,
+            59,
+            60,
+            64
+          ],
+          "bass": 45
+        },
+        {
+          "notes": [
+            55,
+            59,
+            62,
+            64
+          ],
+          "bass": 36
+        },
+        {
+          "notes": [
+            55,
+            59,
+            62,
+            67
+          ],
+          "bass": 47
+        },
+        {
+          "notes": [
+            55,
+            60,
+            64,
+            69
+          ],
+          "bass": 45
+        },
+        {
+          "notes": [
+            55,
+            60,
+            62,
+            69
+          ],
+          "bass": 38
+        },
+        {
+          "notes": [
+            54,
+            59,
+            62,
+            67
+          ],
+          "bass": 43
+        },
+        {
+          "notes": [
+            54,
+            57,
+            59,
+            62
+          ],
+          "bass": 47
+        },
+        {
+          "notes": [
+            55,
+            59,
+            62,
+            66
+          ],
+          "bass": 40
+        },
+        {
+          "notes": [
+            57,
+            62,
+            66,
+            69
+          ],
+          "bass": 42
+        },
+        {
+          "notes": [
+            55,
+            59,
+            62,
+            64
+          ],
+          "bass": 36
+        },
+        {
+          "notes": [
+            55,
+            57,
+            60,
+            63
+          ],
+          "bass": 36
+        },
+        {
+          "notes": [
+            55,
+            59,
+            62,
+            67
+          ],
+          "bass": 38
+        },
+        {
+          "notes": [
+            54,
+            60,
+            63,
+            69
+          ],
+          "bass": 38
+        }
+      ],
+      "melody": [
+        {
+          "bar": 0,
+          "beat": 0,
+          "note": 67,
+          "durationBeats": 1.5
+        },
+        {
+          "bar": 0,
+          "beat": 2,
+          "note": 71,
+          "durationBeats": 1
+        },
+        {
+          "bar": 0,
+          "beat": 3,
+          "note": 69,
+          "durationBeats": 1
+        },
+        {
+          "bar": 1,
+          "beat": 0,
+          "note": 64,
+          "durationBeats": 1.5
+        },
+        {
+          "bar": 1,
+          "beat": 2,
+          "note": 67,
+          "durationBeats": 1
+        },
+        {
+          "bar": 1,
+          "beat": 3,
+          "note": 71,
+          "durationBeats": 1
+        },
+        {
+          "bar": 2,
+          "beat": 0,
+          "note": 62,
+          "durationBeats": 1
+        },
+        {
+          "bar": 2,
+          "beat": 1,
+          "note": 66,
+          "durationBeats": 1
+        },
+        {
+          "bar": 2,
+          "beat": 2,
+          "note": 69,
+          "durationBeats": 1.5
+        },
+        {
+          "bar": 3,
+          "beat": 0,
+          "note": 69,
+          "durationBeats": 1.5
+        },
+        {
+          "bar": 3,
+          "beat": 2,
+          "note": 67,
+          "durationBeats": 1
+        },
+        {
+          "bar": 3,
+          "beat": 3,
+          "note": 64,
+          "durationBeats": 1
+        },
+        {
+          "bar": 4,
+          "beat": 0,
+          "note": 64,
+          "durationBeats": 1
+        },
+        {
+          "bar": 4,
+          "beat": 1,
+          "note": 67,
+          "durationBeats": 1
+        },
+        {
+          "bar": 4,
+          "beat": 2,
+          "note": 71,
+          "durationBeats": 1
+        },
+        {
+          "bar": 4,
+          "beat": 3,
+          "note": 74,
+          "durationBeats": 1
+        },
+        {
+          "bar": 5,
+          "beat": 0,
+          "note": 71,
+          "durationBeats": 1.5
+        },
+        {
+          "bar": 5,
+          "beat": 2,
+          "note": 74,
+          "durationBeats": 1
+        },
+        {
+          "bar": 5,
+          "beat": 3,
+          "note": 69,
+          "durationBeats": 1
+        },
+        {
+          "bar": 6,
+          "beat": 0,
+          "note": 69,
+          "durationBeats": 1
+        },
+        {
+          "bar": 6,
+          "beat": 1,
+          "note": 72,
+          "durationBeats": 1
+        },
+        {
+          "bar": 6,
+          "beat": 2,
+          "note": 71,
+          "durationBeats": 1
+        },
+        {
+          "bar": 6,
+          "beat": 3,
+          "note": 67,
+          "durationBeats": 1
+        },
+        {
+          "bar": 7,
+          "beat": 0,
+          "note": 67,
+          "durationBeats": 1.5
+        },
+        {
+          "bar": 7,
+          "beat": 2,
+          "note": 66,
+          "durationBeats": 0.5
+        },
+        {
+          "bar": 7,
+          "beat": 2.5,
+          "note": 64,
+          "durationBeats": 0.5
+        },
+        {
+          "bar": 7,
+          "beat": 3,
+          "note": 62,
+          "durationBeats": 1
+        },
+        {
+          "bar": 8,
+          "beat": 0,
+          "note": 79,
+          "durationBeats": 1
+        },
+        {
+          "bar": 8,
+          "beat": 1,
+          "note": 74,
+          "durationBeats": 1
+        },
+        {
+          "bar": 8,
+          "beat": 2,
+          "note": 71,
+          "durationBeats": 1
+        },
+        {
+          "bar": 8,
+          "beat": 3,
+          "note": 69,
+          "durationBeats": 1
+        },
+        {
+          "bar": 9,
+          "beat": 0,
+          "note": 71,
+          "durationBeats": 1.5
+        },
+        {
+          "bar": 9,
+          "beat": 2,
+          "note": 74,
+          "durationBeats": 1
+        },
+        {
+          "bar": 9,
+          "beat": 3,
+          "note": 69,
+          "durationBeats": 1
+        },
+        {
+          "bar": 10,
+          "beat": 0,
+          "note": 76,
+          "durationBeats": 1.5
+        },
+        {
+          "bar": 10,
+          "beat": 2,
+          "note": 71,
+          "durationBeats": 1
+        },
+        {
+          "bar": 10,
+          "beat": 3,
+          "note": 67,
+          "durationBeats": 1
+        },
+        {
+          "bar": 11,
+          "beat": 0,
+          "note": 74,
+          "durationBeats": 1
+        },
+        {
+          "bar": 11,
+          "beat": 1,
+          "note": 69,
+          "durationBeats": 1
+        },
+        {
+          "bar": 11,
+          "beat": 2,
+          "note": 66,
+          "durationBeats": 1
+        },
+        {
+          "bar": 11,
+          "beat": 3,
+          "note": 69,
+          "durationBeats": 1
+        },
+        {
+          "bar": 12,
+          "beat": 0,
+          "note": 76,
+          "durationBeats": 1
+        },
+        {
+          "bar": 12,
+          "beat": 1,
+          "note": 74,
+          "durationBeats": 1
+        },
+        {
+          "bar": 12,
+          "beat": 2,
+          "note": 71,
+          "durationBeats": 1
+        },
+        {
+          "bar": 12,
+          "beat": 3,
+          "note": 67,
+          "durationBeats": 1
+        },
+        {
+          "bar": 13,
+          "beat": 0,
+          "note": 67,
+          "durationBeats": 1
+        },
+        {
+          "bar": 13,
+          "beat": 1,
+          "note": 63,
+          "durationBeats": 1
+        },
+        {
+          "bar": 13,
+          "beat": 2,
+          "note": 69,
+          "durationBeats": 1
+        },
+        {
+          "bar": 13,
+          "beat": 3,
+          "note": 67,
+          "durationBeats": 1
+        },
+        {
+          "bar": 14,
+          "beat": 0,
+          "note": 74,
+          "durationBeats": 1.5
+        },
+        {
+          "bar": 14,
+          "beat": 2,
+          "note": 71,
+          "durationBeats": 1
+        },
+        {
+          "bar": 14,
+          "beat": 3,
+          "note": 69,
+          "durationBeats": 1
+        },
+        {
+          "bar": 15,
+          "beat": 0,
+          "note": 69,
+          "durationBeats": 1
+        },
+        {
+          "bar": 15,
+          "beat": 1,
+          "note": 72,
+          "durationBeats": 1
+        },
+        {
+          "bar": 15,
+          "beat": 2,
+          "note": 75,
+          "durationBeats": 1
+        },
+        {
+          "bar": 15,
+          "beat": 3,
+          "note": 66,
+          "durationBeats": 1
+        }
+      ]
+    },
+    {
+      "slug": "night",
+      "time": "20:00-00:00",
+      "title": "Tideglass Replies",
+      "bpm": 68,
+      "key": "D major / B minor",
+      "palette": {
+        "lead": "vibe",
+        "keys": "glass",
+        "brush": 0.22
+      },
+      "chords": [
+        {
+          "notes": [
+            62,
+            66,
+            69,
+            73,
+            76
+          ],
+          "bass": 38
+        },
+        {
+          "notes": [
+            62,
+            64,
+            66,
+            69,
+            71
+          ],
+          "bass": 38
+        },
+        {
+          "notes": [
+            59,
+            62,
+            64,
+            66,
+            69
+          ],
+          "bass": 35
+        },
+        {
+          "notes": [
+            59,
+            61,
+            62,
+            66,
+            69
+          ],
+          "bass": 33
+        },
+        {
+          "notes": [
+            55,
+            59,
+            62,
+            66,
+            69
+          ],
+          "bass": 31
+        },
+        {
+          "notes": [
+            55,
+            59,
+            62,
+            64,
+            69
+          ],
+          "bass": 31
+        },
+        {
+          "notes": [
+            57,
+            61,
+            64,
+            71
+          ],
+          "bass": 33
+        },
+        {
+          "notes": [
+            57,
+            62,
+            64,
+            69
+          ],
+          "bass": 33
+        },
+        {
+          "notes": [
+            54,
+            57,
+            61,
+            64,
+            69
+          ],
+          "bass": 30
+        },
+        {
+          "notes": [
+            54,
+            57,
+            61,
+            64
+          ],
+          "bass": 30
+        },
+        {
+          "notes": [
+            59,
+            61,
+            62,
+            66,
+            69
+          ],
+          "bass": 35
+        },
+        {
+          "notes": [
+            59,
+            62,
+            64,
+            66,
+            69
+          ],
+          "bass": 35
+        },
+        {
+          "notes": [
+            55,
+            59,
+            62,
+            66,
+            69
+          ],
+          "bass": 31
+        },
+        {
+          "notes": [
+            52,
+            55,
+            59,
+            62,
+            66
+          ],
+          "bass": 28
+        },
+        {
+          "notes": [
+            57,
+            62,
+            64,
+            67,
+            71
+          ],
+          "bass": 33
+        },
+        {
+          "notes": [
+            54,
+            57,
+            59,
+            62,
+            64,
+            66
+          ],
+          "bass": 38
+        }
+      ],
+      "melody": [
+        {
+          "bar": 0,
+          "beat": 1.5,
+          "note": 66,
+          "durationBeats": 0.5
+        },
+        {
+          "bar": 0,
+          "beat": 2.5,
+          "note": 69,
+          "durationBeats": 1.0
+        },
+        {
+          "bar": 1,
+          "beat": 3.0,
+          "note": 74,
+          "durationBeats": 0.75
+        },
+        {
+          "bar": 2,
+          "beat": 0.5,
+          "note": 78,
+          "durationBeats": 0.5
+        },
+        {
+          "bar": 2,
+          "beat": 1.5,
+          "note": 76,
+          "durationBeats": 1.25
+        },
+        {
+          "bar": 3,
+          "beat": 3.0,
+          "note": 71,
+          "durationBeats": 0.75
+        },
+        {
+          "bar": 4,
+          "beat": 1.0,
+          "note": 71,
+          "durationBeats": 0.75
+        },
+        {
+          "bar": 4,
+          "beat": 2.5,
+          "note": 74,
+          "durationBeats": 0.5
+        },
+        {
+          "bar": 5,
+          "beat": 3.0,
+          "note": 69,
+          "durationBeats": 0.75
+        },
+        {
+          "bar": 6,
+          "beat": 0.5,
+          "note": 73,
+          "durationBeats": 0.5
+        },
+        {
+          "bar": 6,
+          "beat": 1.5,
+          "note": 71,
+          "durationBeats": 0.5
+        },
+        {
+          "bar": 7,
+          "beat": 3.0,
+          "note": 64,
+          "durationBeats": 0.75
+        },
+        {
+          "bar": 8,
+          "beat": 1.0,
+          "note": 69,
+          "durationBeats": 0.5
+        },
+        {
+          "bar": 8,
+          "beat": 2.0,
+          "note": 73,
+          "durationBeats": 0.75
+        },
+        {
+          "bar": 9,
+          "beat": 3.0,
+          "note": 74,
+          "durationBeats": 0.75
+        },
+        {
+          "bar": 10,
+          "beat": 0.5,
+          "note": 78,
+          "durationBeats": 0.5
+        },
+        {
+          "bar": 10,
+          "beat": 1.5,
+          "note": 74,
+          "durationBeats": 1.0
+        },
+        {
+          "bar": 11,
+          "beat": 3.0,
+          "note": 71,
+          "durationBeats": 0.75
+        },
+        {
+          "bar": 12,
+          "beat": 1.0,
+          "note": 74,
+          "durationBeats": 0.75
+        },
+        {
+          "bar": 12,
+          "beat": 2.5,
+          "note": 71,
+          "durationBeats": 0.5
+        },
+        {
+          "bar": 13,
+          "beat": 3.0,
+          "note": 69,
+          "durationBeats": 0.75
+        },
+        {
+          "bar": 14,
+          "beat": 0.5,
+          "note": 71,
+          "durationBeats": 0.5
+        },
+        {
+          "bar": 14,
+          "beat": 1.5,
+          "note": 73,
+          "durationBeats": 0.75
+        },
+        {
+          "bar": 15,
+          "beat": 2.0,
+          "note": 64,
+          "durationBeats": 0.75
+        },
+        {
+          "bar": 15,
+          "beat": 3.5,
+          "note": 62,
+          "durationBeats": 0.5
+        }
+      ]
+    },
+    {
+      "slug": "late-night",
+      "time": "00:00-05:00",
+      "title": "Below the Last Buoy",
+      "bpm": 58,
+      "key": "B minor / deep-water whole tone",
+      "palette": {
+        "lead": "glass",
+        "keys": "glass",
+        "brush": 0.05
+      },
+      "chords": [
+        {
+          "notes": [
+            59,
+            62,
+            66,
+            69
+          ],
+          "bass": 35
+        },
+        {
+          "notes": [
+            57,
+            61,
+            66,
+            71
+          ],
+          "bass": 33
+        },
+        {
+          "notes": [
+            54,
+            59,
+            62,
+            66
+          ],
+          "bass": 30
+        },
+        {
+          "notes": [
+            56,
+            60,
+            62,
+            66
+          ],
+          "bass": 32
+        },
+        {
+          "notes": [
+            55,
+            59,
+            62,
+            66
+          ],
+          "bass": 31
+        },
+        {
+          "notes": [
+            54,
+            57,
+            62,
+            66
+          ],
+          "bass": 30
+        },
+        {
+          "notes": [
+            52,
+            56,
+            59,
+            62
+          ],
+          "bass": 28
+        },
+        {
+          "notes": [
+            57,
+            60,
+            64,
+            68
+          ],
+          "bass": 33
+        },
+        {
+          "notes": [
+            59,
+            62,
+            66,
+            71
+          ],
+          "bass": 35
+        },
+        {
+          "notes": [
+            60,
+            64,
+            66,
+            70
+          ],
+          "bass": 36
+        },
+        {
+          "notes": [
+            57,
+            61,
+            64,
+            69
+          ],
+          "bass": 33
+        },
+        {
+          "notes": [
+            54,
+            58,
+            62,
+            66
+          ],
+          "bass": 30
+        },
+        {
+          "notes": [
+            55,
+            59,
+            62,
+            66
+          ],
+          "bass": 31
+        },
+        {
+          "notes": [
+            52,
+            56,
+            61,
+            64
+          ],
+          "bass": 28
+        },
+        {
+          "notes": [
+            57,
+            62,
+            64,
+            69
+          ],
+          "bass": 33
+        },
+        {
+          "notes": [
+            59,
+            62,
+            66,
+            69
+          ],
+          "bass": 35
+        }
+      ],
+      "melody": [
+        {
+          "bar": 0,
+          "beat": 0.5,
+          "note": 59,
+          "durationBeats": 1
+        },
+        {
+          "bar": 1,
+          "beat": 2.75,
+          "note": 68,
+          "durationBeats": 0.75
+        },
+        {
+          "bar": 2,
+          "beat": 1.5,
+          "note": 66,
+          "durationBeats": 1.25
+        },
+        {
+          "bar": 3,
+          "beat": 3.25,
+          "note": 61,
+          "durationBeats": 0.5
+        },
+        {
+          "bar": 4,
+          "beat": 0.75,
+          "note": 74,
+          "durationBeats": 0.75
+        },
+        {
+          "bar": 5,
+          "beat": 2.5,
+          "note": 69,
+          "durationBeats": 1
+        },
+        {
+          "bar": 6,
+          "beat": 1,
+          "note": 64,
+          "durationBeats": 0.75
+        },
+        {
+          "bar": 7,
+          "beat": 3,
+          "note": 70,
+          "durationBeats": 0.5
+        },
+        {
+          "bar": 8,
+          "beat": 0.25,
+          "note": 59,
+          "durationBeats": 1.5
+        },
+        {
+          "bar": 9,
+          "beat": 2.25,
+          "note": 68,
+          "durationBeats": 0.75
+        },
+        {
+          "bar": 10,
+          "beat": 0.75,
+          "note": 66,
+          "durationBeats": 0.75
+        },
+        {
+          "bar": 10,
+          "beat": 2.5,
+          "note": 64,
+          "durationBeats": 0.5
+        },
+        {
+          "bar": 11,
+          "beat": 3.25,
+          "note": 61,
+          "durationBeats": 0.5
+        },
+        {
+          "bar": 12,
+          "beat": 1.25,
+          "note": 71,
+          "durationBeats": 1
+        },
+        {
+          "bar": 13,
+          "beat": 2.75,
+          "note": 66,
+          "durationBeats": 0.75
+        },
+        {
+          "bar": 14,
+          "beat": 0.5,
+          "note": 64,
+          "durationBeats": 0.75
+        },
+        {
+          "bar": 14,
+          "beat": 2,
+          "note": 69,
+          "durationBeats": 0.5
+        },
+        {
+          "bar": 15,
+          "beat": 1.5,
+          "note": 59,
+          "durationBeats": 2
+        }
+      ]
+    }
+  ]
+}

@@ -31,6 +31,18 @@ coarse grid so they block up with the facets. No textures.
 Traits are pure functions of (name, size, MIME, hash), so a shared fish could be a
 URL rather than a database row.
 
+## Soundtrack sketches
+
+`soundtrack/scores.json` stores six time-of-day songs as chords and MIDI-note
+events. `soundtrack/render.py` synthesizes listening proofs without external
+packages. The WAV files are local build artifacts, not site assets.
+
+```sh
+npm run soundtrack:check
+npm run soundtrack
+npm run soundtrack -- --play
+```
+
 ## What happens to a catch
 
 A landed fish is **not** logged. Three buttons decide, and you get exactly one:
