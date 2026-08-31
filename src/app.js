@@ -628,6 +628,10 @@ function FishStage(canvas) {
 
 /* ============================================================ sound & music */
 const elRadio = $("#radio"), elRadioNm = $("#radionm");
+function startMusic() {
+  const c = audio();
+  if (c) initMusic(c, null, isOn(), worldNow());
+}
 function updateRadioUI(track = getMusicTrack()) {
   if (elRadioNm && track) {
     elRadioNm.textContent = track.title;
@@ -643,7 +647,7 @@ function syncSound() {
 }
 $("#snd").addEventListener("click", e => {
   e.stopPropagation();
-  if (audio()) initMusic(audio(), null, isOn());
+  startMusic();
   setOn(!isOn());
   syncSound();
   if (isOn()) sfx("tick");
@@ -651,7 +655,7 @@ $("#snd").addEventListener("click", e => {
 if (elRadio) {
   elRadio.addEventListener("click", e => {
     e.stopPropagation();
-    if (audio()) initMusic(audio(), null, isOn());
+    startMusic();
     updateRadioUI(nextMusicTrack());
     elRadio.classList.remove("pop");
     void elRadio.offsetWidth;
@@ -907,7 +911,7 @@ function stepWake(dt, now) {
 function enter(s, now) {
   state = s; t0 = now;
   if (s === "cast") {
-    if (audio()) initMusic(audio(), null, isOn());
+    startMusic();
     from = { x: tip().x - 26, y: tip().y + 20 }; say("casting"); sfx("cast");
   }
   if (s === "wait") { say(hex32(fish.hash)); splash(1.35, now); sfx("plop"); }
@@ -1286,9 +1290,15 @@ async function haul(files) {
   openDex();
 }
 
+let musicUnlocked = false;
 const unlock = () => {
-  if (isOn() && audio()) initMusic(audio(), null, isOn());
+  if (musicUnlocked) return;
+  musicUnlocked = true;
+  startMusic();
 };
+/* Autoplay is forbidden, so the first real gesture is the earliest safe page-load start. */
+addEventListener("pointerdown", unlock, { once: true, capture: true });
+addEventListener("keydown", unlock, { once: true, capture: true });
 $("#cast").addEventListener("click", e => {
   e.stopPropagation(); unlock();
   const btn = e.currentTarget;

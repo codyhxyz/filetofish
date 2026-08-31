@@ -402,7 +402,7 @@ async function getOrLoadInstrument(instName) {
   return inst;
 }
 
-export function initMusic(audioContext, masterDestination, soundEnabled = true) {
+export function initMusic(audioContext, masterDestination, soundEnabled = true, date = new Date()) {
   AC = audioContext;
   isSoundOn = soundEnabled;
 
@@ -411,9 +411,9 @@ export function initMusic(audioContext, masterDestination, soundEnabled = true) 
     MASTER_FADE = AC.createGain();
     DUCK_GAIN = AC.createGain();
 
-    // Start with gentle volume immediately and ramp smoothly up over 10s
-    MASTER_FADE.gain.setValueAtTime(0.06, AC.currentTime);
-    MASTER_FADE.gain.linearRampToValueAtTime(0.38, AC.currentTime + 10.0);
+    // The one startup ramp prevents a first-gesture jump scare. Track changes do not replay it.
+    MASTER_FADE.gain.setValueAtTime(0.0001, AC.currentTime);
+    MASTER_FADE.gain.exponentialRampToValueAtTime(0.38, AC.currentTime + 1.25);
 
     DUCK_GAIN.gain.setValueAtTime(1.0, AC.currentTime);
 
@@ -425,8 +425,7 @@ export function initMusic(audioContext, masterDestination, soundEnabled = true) 
   // Initialization is idempotent: radio clicks must not reset the selected track.
   if (!musicInitialized) {
     musicInitialized = true;
-    const hr = new Date().getHours();
-    const idx = getTrackIndexForHour(hr);
+    const idx = getTrackIndexForHour(date.getHours());
     setMusicTrack(idx >= 0 ? idx : 0);
   }
 }
@@ -476,13 +475,19 @@ export function getMusicTrack() {
   return TRACKS[currentTrackIndex];
 }
 
+export const MUSIC_TIME_SLOTS = [
+  { from: 0, to: 5, slug: "late_night" },
+  { from: 5, to: 8, slug: "dawn" },
+  { from: 8, to: 11, slug: "morning" },
+  { from: 11, to: 17, slug: "day" },
+  { from: 17, to: 20, slug: "sunset" },
+  { from: 20, to: 24, slug: "night" },
+];
+
 export function getTrackIndexForHour(hour) {
-  if (hour >= 5 && hour < 8) return TRACKS.findIndex(t => t.slug === "dawn");
-  if (hour >= 8 && hour < 11) return TRACKS.findIndex(t => t.slug === "morning");
-  if (hour >= 11 && hour < 17) return TRACKS.findIndex(t => t.slug === "day");
-  if (hour >= 17 && hour < 20) return TRACKS.findIndex(t => t.slug === "sunset");
-  if (hour >= 20 || hour < 0) return TRACKS.findIndex(t => t.slug === "night");
-  return TRACKS.findIndex(t => t.slug === "late_night");
+  const h = ((Number(hour) % 24) + 24) % 24;
+  const slot = MUSIC_TIME_SLOTS.find(t => h >= t.from && h < t.to);
+  return TRACKS.findIndex(t => t.slug === slot.slug);
 }
 
 export function syncMusicToTime(date, force = false) {
