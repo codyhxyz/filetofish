@@ -1748,6 +1748,7 @@ function buildWorld(files, label) {
   if (phase === "dock") {
     moorDock(back - 34);
     setWorldVisible(false);
+    beginJump();
   } else enterOceanAt(back, eye);
   guide.root.visible = true;
   lastChat = performance.now() + 4000;

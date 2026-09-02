@@ -402,7 +402,7 @@ Scanning builds the ocean while it remains hidden; the dock, player and camera
 are re-moored together above the eventual arrival point, so the completed scan
 does not produce a visible camera cut.
 
-When data is ready, walking to the open edge reveals `E · jump in`. The jump is
+When data is ready, the jump begins. The jump is
 a fixed 1.25-second arc through the existing surface plane, with a synthesised
 splash at the crossing. The chase camera follows the same body throughout. On
 completion the generated ocean becomes visible, the dock re-moors thirteen
