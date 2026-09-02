@@ -146,8 +146,22 @@ body.has-catch #plate{opacity:1; transform:translate(-50%,0);}
 .tool:hover .lb,.music-volume:hover .lb{opacity:1; color:#fff;}
 .tool:hover .ic{background:rgba(10,42,52,.8); border-color:rgba(255,255,255,.9); transform:translateY(-2px);}
 .tool:active .ic{transform:translateY(1px) scale(.94);}
-.music-volume{display:flex; align-items:center; gap:.65rem; color:rgba(238,250,252,.66);}
-.music-volume output{color:#FFD9A8; font-variant-numeric:tabular-nums;}
+.sound-control{position:relative; display:flex; align-items:center; justify-content:flex-end;}
+.sound-control .music-volume{
+  position:absolute; right:3.45rem; z-index:0; display:flex; align-items:center; gap:.65rem;
+  color:rgba(238,250,252,.66); opacity:0; visibility:hidden; pointer-events:none;
+  transform:translateX(.65rem); transform-origin:right center;
+  transition:opacity .18s ease, transform .24s cubic-bezier(.16,1,.3,1), visibility 0s linear .24s;
+}
+.sound-control:hover .music-volume,
+.sound-control:focus-within .music-volume{
+  opacity:1; visibility:visible; pointer-events:auto; transform:translateX(0);
+  transition-delay:0s;
+}
+.sound-control:hover .music-volume .lb,
+.sound-control:focus-within .music-volume .lb{opacity:1; color:#fff;}
+.sound-control .music-volume output{color:#FFD9A8; font-variant-numeric:tabular-nums;}
+.sound-control .tool{position:relative; z-index:1;}
 .volume-shell{
   width:6.8rem; height:2.7rem; padding:0 .75rem; display:grid; place-items:center;
   background:rgba(6,26,33,.42); border:1px solid rgba(226,242,244,.26); border-radius:1.35rem;
@@ -362,11 +376,12 @@ body.has-catch #plate{opacity:1; transform:translate(-50%,0);}
       <path d="M15 11.5h3.5M15 15.5h3.5"/>
     </svg></span>
   </button>
-  <label class="music-volume" for="musicvol" title="music volume">
-    <span class="lb">music <output id="musicvolout" for="musicvol">70%</output></span>
-    <span class="volume-shell"><input id="musicvol" type="range" min="0" max="100" value="70" aria-label="Music volume"></span>
-  </label>
-  <button class="tool" id="snd" aria-pressed="true" aria-label="Sound">
+  <div class="sound-control">
+    <label class="music-volume" for="musicvol" title="music volume">
+      <span class="lb">music <output id="musicvolout" for="musicvol">70%</output></span>
+      <span class="volume-shell"><input id="musicvol" type="range" min="0" max="100" value="70" aria-label="Music volume"></span>
+    </label>
+    <button class="tool" id="snd" aria-pressed="true" aria-label="Sound">
     <span class="lb" id="sndlb">sound</span>
     <span class="ic">
       <svg class="on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
@@ -380,7 +395,8 @@ body.has-catch #plate{opacity:1; transform:translate(-50%,0);}
         <path d="M16 9.5l5 5M21 9.5l-5 5"/>
       </svg>
     </span>
-  </button>
+    </button>
+  </div>
   <button class="tool primary" id="cast" aria-label="Cast for a sample file">
     <span class="lb">cast a sample</span>
     <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
