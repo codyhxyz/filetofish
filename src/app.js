@@ -1319,7 +1319,14 @@ $("#cast").addEventListener("click", e => {
   const s = SAMPLES[sampleIdx++ % SAMPLES.length];
   accept({ ...s, bytes: strBytes(s.name + s.size) });
 });
-$("#hit").addEventListener("click", () => { unlock(); $("#file").click(); });
+const hit = $("#hit");
+let pickAt = null;
+hit.addEventListener("pointerdown", e => { pickAt = [e.clientX, e.clientY]; });
+hit.addEventListener("click", e => {
+  const moved = !pickAt || Math.hypot(e.clientX - pickAt[0], e.clientY - pickAt[1]) > 6;
+  pickAt = null;
+  if (!moved) { unlock(); $("#file").click(); }
+});
 $("#file").addEventListener("change", async e => {
   unlock();
   if (e.target.files.length) await haul(e.target.files);
