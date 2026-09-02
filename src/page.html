@@ -176,22 +176,66 @@ body.hint-send #fish{opacity:.62; transform:translateX(14px);}
   position:fixed; right:clamp(1.1rem,3vw,2.2rem); top:clamp(1.05rem,2.7vw,2rem); z-index:9;
   text-align:right;
 }
+#clockline{display:flex; align-items:center; justify-content:flex-end; gap:.55rem;}
 #clock{
-  font-family:var(--f-mono); line-height:1.3; cursor:grab;
-  text-shadow:0 1px 10px rgba(4,30,40,.9);
-  touch-action:none; -webkit-user-select:none; user-select:none;
+  padding:.2rem 0; border:0; background:none; font-family:var(--f-mono); line-height:1.3;
+  text-align:right; cursor:pointer; text-shadow:0 1px 10px rgba(4,30,40,.9);
 }
-#clock.turning{cursor:grabbing;}
 #clock b{
   display:block; font-weight:400; font-size:.84rem; letter-spacing:.13em;
   color:rgba(238,250,252,.94); font-variant-numeric:tabular-nums; transition:color .18s;
 }
-#clock i{
-  display:block; font-style:normal; font-size:.56rem; letter-spacing:.24em; text-transform:uppercase;
-  color:var(--wx,#FFC49A); opacity:.9; transition:opacity .18s;
+#clock span{
+  display:block; margin-top:.08rem; font-size:.48rem; letter-spacing:.18em; text-transform:uppercase;
+  color:rgba(238,250,252,.56); transition:color .18s;
 }
-#clock:hover i{opacity:1;}
-#clock:hover b{color:#fff;}
+#clock:hover b,#clock:focus-visible b{color:#fff;}
+#clock:hover span,#clock:focus-visible span,#clock[aria-expanded="true"] span{color:var(--wx,#FFC49A);}
+#clock:focus-visible{outline:2px solid #FFD9A8; outline-offset:4px;}
+#clock-w{
+  width:2.35rem; height:2.35rem; display:grid; place-items:center; border-radius:50%;
+  color:var(--wx,#FFC49A); background:rgba(6,26,33,.42); border:1px solid rgba(226,242,244,.3);
+  box-shadow:0 8px 20px -14px rgba(1,12,16,.98); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+  transition:transform .16s cubic-bezier(.2,.9,.3,1.4),background .16s,border-color .16s,color .16s;
+}
+#clock-w:hover{color:#fff; background:rgba(10,42,52,.8); border-color:rgba(255,255,255,.9); transform:translateY(-2px);}
+#clock-w:active{transform:translateY(1px) scale(.94);}
+#clock-w svg{width:1.2rem; height:1.2rem; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round;}
+#clock-w .wx{display:none;}
+#clock-w[data-weather="dawn"] .wx-dawn,
+#clock-w[data-weather="sunrise"] .wx-sunrise,
+#clock-w[data-weather="day"] .wx-day,
+#clock-w[data-weather="dusk"] .wx-dusk,
+#clock-w[data-weather="night"] .wx-night,
+#clock-w[data-weather="fog"] .wx-fog,
+#clock-w[data-weather="rain"] .wx-rain{display:block;}
+#time-reel{
+  box-sizing:border-box; width:min(18rem,calc(100vw - 2.2rem)); margin-top:.65rem; padding:.7rem .8rem .6rem;
+  color:rgba(238,250,252,.74); background:rgba(6,26,33,.82); border:1px solid rgba(226,242,244,.28);
+  backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); text-align:left;
+  animation:reel-in .2s cubic-bezier(.16,1,.3,1);
+}
+#time-reel[hidden]{display:none;}
+@keyframes reel-in{from{opacity:0; transform:translateY(-4px); clip-path:inset(0 0 100% 0)}to{opacity:1; transform:none; clip-path:inset(0)}}
+.time-reel-head,.time-marks{display:flex; align-items:center; justify-content:space-between;}
+.time-reel-head{
+  margin-bottom:.55rem; font-family:var(--f-mono); font-size:.5rem; letter-spacing:.15em; text-transform:uppercase;
+}
+#time-choice{color:#fff; font-variant-numeric:tabular-nums;}
+#time-range{
+  width:100%; height:6px; margin:.3rem 0 .5rem; appearance:none; -webkit-appearance:none; border:0; border-radius:3px;
+  background:linear-gradient(90deg,#101a3d 0%,#775f87 20%,#a9d8e2 35%,#7ec8e3 62%,#cb6c70 80%,#101a3d 100%); cursor:ew-resize;
+}
+#time-range:focus-visible{outline:2px solid #FFD9A8; outline-offset:5px;}
+#time-range::-webkit-slider-thumb{
+  width:18px; height:18px; appearance:none; -webkit-appearance:none; border:2px solid #fff; border-radius:50%;
+  background:#FFD9A8; box-shadow:0 3px 10px rgba(1,12,16,.7); cursor:grab;
+}
+#time-range::-moz-range-thumb{
+  width:14px; height:14px; border:2px solid #fff; border-radius:50%;
+  background:#FFD9A8; box-shadow:0 3px 10px rgba(1,12,16,.7); cursor:grab;
+}
+.time-marks{font-family:var(--f-mono); font-size:.43rem; letter-spacing:.08em; text-transform:uppercase; color:rgba(238,250,252,.48);}
 /* the hands have been turned: this is our hour now, not the machine's */
 #clock.held b{color:var(--wx,#FFC49A);}
 #clock-now{
@@ -299,7 +343,7 @@ body.hint-send #fish{opacity:.62; transform:translateX(14px);}
 }
 #version,#src{
   box-sizing:border-box; min-height:2.75rem; display:flex; align-items:center; gap:.45rem; padding:.65rem .8rem;
-  color:rgba(238,250,252,.7); background:rgba(6,26,33,.5); border:1px solid rgba(226,242,244,.28);
+  color:rgba(238,250,252,.88); background:rgba(6,26,33,.62); border:1px solid rgba(226,242,244,.34);
   border-radius:1.4rem; cursor:pointer; text-decoration:none; backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
   transition:color .18s,background .18s,border-color .18s,transform .12s;
 }
@@ -313,24 +357,24 @@ body.hint-send #fish{opacity:.62; transform:translateX(14px);}
 #version:active,#src:active{transform:translateY(1px);}
 #history{
   position:absolute; left:0; bottom:3.35rem; width:min(32rem,calc(100vw - 2.2rem)); max-height:min(70vh,32rem);
-  display:flex; flex-direction:column; background:rgba(6,26,33,.94); border:1px solid rgba(226,242,244,.22);
+  display:flex; flex-direction:column; background:rgba(6,26,33,.96); border:1px solid rgba(226,242,244,.28);
   box-shadow:0 24px 60px -24px rgba(1,12,16,.96); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
   text-transform:none; letter-spacing:normal;
 }
 #history header{display:flex; justify-content:space-between; gap:1rem; padding:.8rem .9rem .7rem;
   border-bottom:1px solid rgba(226,242,244,.14); font-size:.58rem; letter-spacing:.14em; text-transform:uppercase;}
 #history header b{font-weight:400; color:#fff;}
-#history header span{color:rgba(226,242,244,.5); white-space:nowrap;}
-#history ol{margin:0; padding:0 .9rem; overflow-y:auto; list-style:none; counter-reset:commits;}
+#history header span{color:rgba(226,242,244,.62); white-space:nowrap;}
+#history ol{margin:0; padding:0; overflow-y:auto; list-style:none; counter-reset:commits;}
 #history li{counter-increment:commits; border-bottom:1px solid rgba(226,242,244,.1);}
 #history li:last-child{border-bottom:0;}
 #history li a{display:grid; grid-template-columns:1.5rem 5.2rem 4.1rem minmax(0,1fr); gap:.55rem; align-items:baseline;
-  padding:.62rem 0; color:rgba(238,250,252,.82); text-decoration:none; line-height:1.35;}
-#history li a::before{content:counter(commits); color:rgba(226,242,244,.3);}
-#history time,#history code{font-family:var(--f-mono); font-size:.55rem; color:rgba(226,242,244,.5);}
-#history code{color:#FFD9A8;}
+  padding:.7rem .9rem; color:rgba(238,250,252,.82); text-decoration:none; line-height:1.35; transition:background .15s,color .15s;}
+#history li a::before{content:counter(commits); color:rgba(226,242,244,.4);}
+#history time,#history code{font-family:var(--f-mono); font-size:.55rem; color:rgba(226,242,244,.62);}
+#history code{color:#FFD9A8; text-decoration:underline; text-underline-offset:3px;}
 #history li span{overflow-wrap:anywhere;}
-#history li a:hover span{color:#fff;}
+#history li a:hover,#history li a:focus-visible{color:#fff; background:rgba(255,217,168,.1);}
 #src{
   position:fixed; left:clamp(1.1rem,3vw,2.2rem); bottom:clamp(1.15rem,3vh,2.05rem); z-index:9;
   width:max-content; font-family:var(--f-mono); font-size:.56rem; letter-spacing:.18em; text-transform:uppercase;
@@ -356,8 +400,8 @@ body.hint-send #fish{opacity:.62; transform:translateX(14px);}
   .volume-shell{width:3.75rem; height:2.5rem; padding:0 .55rem;}
   .tool.primary .ic{width:3rem; height:3rem;}
   #src{bottom:1.5rem; left:1rem;}
-  #foot{font-size:.6rem; bottom:5.6rem; max-width:88vw;}
-  #plate{bottom:7.4rem; width:min(96vw,34rem);}
+  #foot{font-size:.6rem; bottom:8rem; max-width:88vw;}
+  #plate{bottom:9.8rem; width:min(96vw,34rem);}
   #plate .acts{margin-top:.85rem;}
   #plate .acts .act{gap:.36rem;}
   #plate .acts .wide{display:none;}
@@ -470,9 +514,26 @@ body.hint-send #fish{opacity:.62; transform:translateX(14px);}
 <div class="mark">file<i>to</i>fish</div>
 
 <div id="clockbox">
-  <div id="clock" role="button" tabindex="0" aria-label="time of day"
-       title="click: change the weather · drag: turn the hands">
-    <b id="clock-t">--:--:--</b><i id="clock-w">clear</i>
+  <div id="clockline">
+    <button id="clock" type="button" aria-expanded="false" aria-controls="time-reel" title="change the time">
+      <b id="clock-t">--:--:--</b><span>wind the sky</span>
+    </button>
+    <button id="clock-w" type="button" data-weather="day" aria-label="Weather: clear. Change weather" title="change weather: clear">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <g class="wx wx-dawn"><path d="M4 18h16M7 14h10M12 5v3M6.8 9.2l2 2M17.2 9.2l-2 2"/><path d="M8 14a4 4 0 0 1 8 0"/></g>
+        <g class="wx wx-sunrise"><path d="M3 18h18M6 14h12M12 4v3M5.6 8.6l2.1 2.1M18.4 8.6l-2.1 2.1"/><path d="M8 14a4 4 0 0 1 8 0"/></g>
+        <g class="wx wx-day"><circle cx="12" cy="12" r="3.5"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6 7 7M17 17l1.4 1.4M18.4 5.6 17 7M7 17l-1.4 1.4"/></g>
+        <g class="wx wx-dusk"><path d="M3 17h18M6 13h12M12 20v-2M5.6 8.6l2.1 2.1M18.4 8.6l-2.1 2.1"/><path d="M8 13a4 4 0 0 1 8 0"/></g>
+        <g class="wx wx-night"><path d="M18.5 15.4A7 7 0 0 1 8.6 5.5a7.5 7.5 0 1 0 9.9 9.9Z"/><path d="M17.5 4v3M16 5.5h3"/></g>
+        <g class="wx wx-fog"><path d="M4 8h13M7 12h13M4 16h13"/></g>
+        <g class="wx wx-rain"><path d="M7 15h10a4 4 0 0 0 .3-8 5.5 5.5 0 0 0-10.4 1.5A3.3 3.3 0 0 0 7 15Z"/><path d="m8 18-1 2M12 18l-1 2M16 18l-1 2"/></g>
+      </svg>
+    </button>
+  </div>
+  <div id="time-reel" hidden>
+    <div class="time-reel-head"><span>one swipe = one day</span><output id="time-choice">--:--</output></div>
+    <input id="time-range" type="range" min="0" max="1439" step="5" aria-label="Time of day">
+    <div class="time-marks" aria-hidden="true"><span>midnight</span><span>dawn</span><span>noon</span><span>dusk</span><span>midnight</span></div>
   </div>
   <button id="clock-now" type="button" hidden title="give the clock back to your machine">back to now</button>
 </div>
