@@ -133,7 +133,7 @@ for (const k in SCENES) {
 const SEA_VS = "attribute vec2 a;void main(){gl_Position=vec4(a,0.,1.);}";
 const SEA_FS = `
 precision highp float;
-uniform vec2 uRes; uniform float uTime; uniform float uPx; uniform vec4 uRip[6]; uniform vec4 uTune;
+uniform vec2 uRes; uniform float uTime; uniform float uPx; uniform float uZoom; uniform vec4 uRip[6]; uniform vec4 uTune;
 uniform vec3 cDeep, cShal, cFoam, cSky, cSky2;
 uniform vec3 uSun, uKey, uSunCol, uHaze, uCloudB;
 uniform vec4 uCloudA;
@@ -260,8 +260,9 @@ vec3 sky(vec3 rd, float t){
 }
 void main(){
   vec2 uv = (gl_FragCoord.xy - 0.5*uRes)/uRes.y;
+  vec2 rayUv = uv / max(uZoom, 0.5);
   vec3 ro = vec3(0.0, 2.5, 0.0);
-  vec3 rd = normalize(vec3(uv.x, uv.y - 0.115, -1.0));
+  vec3 rd = normalize(vec3(rayUv.x, rayUv.y - 0.115, -1.0));
   float t = uTime; vec3 col;
   if (rd.y > -0.0022) col = sky(rd, t);
   else {
@@ -353,7 +354,7 @@ export function Sea(canvas) {
   const u = {
     res: U("uRes"), time: U("uTime"), px: U("uPx"), rip: U("uRip[0]"),
     deep: U("cDeep"), shal: U("cShal"), foam: U("cFoam"), sky: U("cSky"), sky2: U("cSky2"),
-    sun: U("uSun"), key: U("uKey"), sunCol: U("uSunCol"), haze: U("uHaze"), tune: U("uTune"),
+    sun: U("uSun"), key: U("uKey"), sunCol: U("uSunCol"), haze: U("uHaze"), zoom: U("uZoom"), tune: U("uTune"),
     cloudB: U("uCloudB"), cloudA: U("uCloudA"), amt: U("uAmt"), amt2: U("uAmt2"),
   };
 
@@ -376,6 +377,7 @@ export function Sea(canvas) {
     gl.uniform3fv(u.sky, V.sky); gl.uniform3fv(u.sky2, V.sky2);
     gl.uniform3fv(u.sun, V.sun); gl.uniform3fv(u.key, V.key);
     gl.uniform3fv(u.sunCol, V.sunCol); gl.uniform3fv(u.haze, V.haze);
+    gl.uniform1f(u.zoom, zoom);
     gl.uniform4fv(u.tune, tune);
     gl.uniform3fv(u.cloudB, V.cloudB);
     gl.uniform4fv(u.cloudA, V.cloudA); gl.uniform4fv(u.amt, V.amt); gl.uniform4fv(u.amt2, V.amt2);
@@ -385,6 +387,7 @@ export function Sea(canvas) {
   const rip = new Float32Array(24);
   let slot = 0, W = 0, H = 0, cw = "day";
   let mixT = 1, dirty = true, live = false, last = -1;
+  let zoom = 1;
   const tune = new Float32Array(4);
 
   return {
@@ -410,6 +413,7 @@ export function Sea(canvas) {
       to.set(cur); mixT = 1; dirty = true;
     },
     weather() { return cw; },
+    setZoom(value) { zoom = clamp(Number(value) || 1, 0.5, 4); dirty = true; },
     setTuning(values) {
       if (Array.isArray(values)) tune.set(values.slice(0, 4));
       else for (const [i, key] of ["crisp", "detail", "foam", "shine"].entries()) tune[i] = clamp(Number(values?.[key]) || 0, 0, 1);

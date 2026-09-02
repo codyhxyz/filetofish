@@ -6,6 +6,7 @@ const after = Sea($("#after"));
 const keys = ["crisp", "detail", "foam", "shine"];
 const inputs = keys.map(k => $("#" + k));
 const values = keys.map(k => $("#" + k + "-v"));
+const zoomInput = $("#zoom"), zoomValue = $("#zoom-v");
 const target = inputs.map(input => Number(input.value) / 100);
 let animation = 0;
 
@@ -15,7 +16,7 @@ function paint(next, announce = true) {
     inputs[i].value = Math.round(n * 100);
     values[i].textContent = `${Math.round(n * 100)}%`;
   });
-  if (announce) $("#status").innerHTML = `candidate: <strong>${next.map(n => Math.round(n * 100)).join(" / ")}</strong>`;
+  if (announce) $("#status").innerHTML = `candidate: <strong>${next.map(n => Math.round(n * 100)).join(" / ")}</strong> · zoom <strong>${zoomInput.value}%</strong>`;
 }
 
 inputs.forEach((input, i) => input.addEventListener("input", () => {
@@ -24,9 +25,22 @@ inputs.forEach((input, i) => input.addEventListener("input", () => {
   paint(next);
 }));
 
+zoomInput.addEventListener("input", () => {
+  if (animation) cancelAnimationFrame(animation), animation = 0;
+  const value = Number(zoomInput.value);
+  before.setZoom(value / 100);
+  after.setZoom(value / 100);
+  zoomValue.textContent = `${value}%`;
+  $("#status").innerHTML = `candidate: <strong>${inputs.map(input => input.value).join(" / ")}</strong> · zoom <strong>${value}%</strong>`;
+});
+
 $("#reset").addEventListener("click", () => {
   if (animation) cancelAnimationFrame(animation), animation = 0;
   paint([0, 0, 0, 0]);
+  zoomInput.value = 100;
+  zoomValue.textContent = "100%";
+  before.setZoom(1); after.setZoom(1);
+  $("#status").innerHTML = `candidate: <strong>0 / 0 / 0 / 0</strong> · zoom <strong>100%</strong>`;
   $("#animate").textContent = "animate test";
 });
 
@@ -61,5 +75,7 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 
+before.setZoom(1);
+after.setZoom(1);
 paint(target);
 requestAnimationFrame(frame);
