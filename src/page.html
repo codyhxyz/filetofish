@@ -188,13 +188,15 @@ body.hint-send #fish{opacity:.62; transform:translateX(14px);}
   display:block; font-weight:400; font-size:.9rem; letter-spacing:.13em;
   color:rgba(238,250,252,.94); font-variant-numeric:tabular-nums; transition:color .18s;
 }
-#clock span{
-  display:block; margin-top:.16rem; font-size:.6rem; letter-spacing:.18em; text-transform:uppercase;
-  color:rgba(238,250,252,.76); transition:color .18s;
+#clock .clock-cue{
+  display:flex; justify-content:flex-end; margin-top:.18rem; color:rgba(238,250,252,.56);
+  transition:color .18s;
 }
+#clock .clock-cue svg{width:1.05rem; height:.52rem; fill:none; stroke:currentColor; stroke-width:1.25; stroke-linecap:round;}
 #clock:hover,#clock:focus-visible{background:rgba(6,26,33,.28);}
 #clock:hover b,#clock:focus-visible b{color:#fff;}
-#clock:hover span,#clock:focus-visible span,#clock[aria-expanded="true"] span{color:var(--wx,#FFC49A);}
+#clock:hover .clock-cue,#clock:focus-visible .clock-cue,#clock[aria-expanded="true"] .clock-cue{color:var(--wx,#FFC49A);}
+#clock[aria-expanded="true"] .clock-cue svg{transform:translateX(1px);}
 #clock:focus-visible{outline:2px solid #FFD9A8; outline-offset:4px;}
 #clock-w{
   width:1.85rem; height:1.85rem; display:grid; place-items:center; border-radius:50%;
@@ -520,8 +522,9 @@ body.hint-send #fish{opacity:.62; transform:translateX(14px);}
 
 <div id="clockbox">
   <div id="clockline">
-    <button id="clock" type="button" aria-expanded="false" aria-controls="time-reel" title="change the time">
-      <b id="clock-t">--:--:--</b><span>wind the sky</span>
+    <button id="clock" type="button" aria-label="Change time" aria-expanded="false" aria-controls="time-reel" title="Change time">
+      <b id="clock-t">--:--:--</b>
+      <span class="clock-cue" aria-hidden="true"><svg viewBox="0 0 16 8"><path d="M1 4h14"/><circle cx="10.5" cy="4" r="2"/></svg></span>
     </button>
     <button id="clock-w" type="button" data-weather="day" aria-label="Weather: clear. Change weather" title="change weather: clear">
       <svg viewBox="0 0 24 24" aria-hidden="true">
