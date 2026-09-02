@@ -17,6 +17,14 @@ const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const lerp = (a, b, t) => a + (b - a) * t;
 const ease = t => (t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 
+const versionBox = $("#versionbox");
+addEventListener("pointerdown", e => {
+  if (versionBox.open && !versionBox.contains(e.target)) versionBox.open = false;
+}, true);
+addEventListener("keydown", e => {
+  if (e.key === "Escape" && versionBox.open) { versionBox.open = false; $("#version").focus(); }
+});
+
 function fnv1a(bytes, seed) {
   let h = (seed >>> 0) || 0x811c9dc5;
   for (let i = 0; i < bytes.length; i++) { h ^= bytes[i]; h = Math.imul(h, 0x01000193); }
@@ -662,9 +670,12 @@ function updateRadioUI(track = getMusicTrack()) {
 }
 
 function syncSound() {
-  $("#snd").setAttribute("aria-pressed", String(isOn()));
-  $("#sndlb").textContent = isOn() ? "sound" : "muted";
-  setMusicSoundOn(isOn());
+  const enabled = isOn();
+  const soundButton = $("#snd");
+  soundButton.setAttribute("aria-pressed", String(enabled));
+  soundButton.setAttribute("aria-label", enabled ? "Mute sound" : "Unmute sound");
+  $("#sndlb").textContent = enabled ? "sound" : "muted";
+  setMusicSoundOn(enabled);
 }
 $("#snd").addEventListener("click", e => {
   e.stopPropagation();

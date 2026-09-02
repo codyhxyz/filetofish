@@ -29,7 +29,7 @@ function versionUI() {
   const commits = rows.map(c => `<li><a href="https://github.com/codyhxyz/filetofish/commit/${esc(c.full)}" target="_blank" rel="noopener">
     <time datetime="${esc(c.date)}">${esc(c.date)}</time><code>${esc(c.short)}</code><span>${esc(c.subject)}</span>
   </a></li>`).join("");
-  return `<details id="versionbox"><summary id="version">version <b>${esc(head.short)}</b></summary>
+  return `<details id="versionbox"><summary id="version"><span>version <b>${esc(head.short)}</b></span><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg></summary>
   <section id="history" aria-label="Commit history"><header><b>commit history</b><span>${rows.length} revisions</span></header>
     <ol>${commits}</ol>
   </section></details>`;
