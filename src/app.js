@@ -1531,9 +1531,11 @@ function applyWeather(name) {
 /* Clock time maps straight to sky state every frame. Only clicked weather is
    allowed to fade over time; ambient fog/rain sits until the clock is moved. */
 function syncWeather(d, forced) {
-  if (!sea || wxManual) return;
+  if (!sea) return;
+  /* Celestial motion is independent of weather, including pinned fog/rain. */
+  if (wxManual) { sea.setCelestialTime(d); return; }
   const cur = sea.weather();
-  if (!forced && (cur === "fog" || cur === "rain")) return;
+  if (!forced && (cur === "fog" || cur === "rain")) { sea.setCelestialTime(d); return; }
   sea.setTime(d);
   showWeather();
 }

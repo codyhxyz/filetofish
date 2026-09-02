@@ -96,6 +96,33 @@ export function weatherForDate(d) {
   if (h < 20.5) return "dusk";
   return "night";
 }
+
+/* Celestial positions are continuous, unlike weather keyframes. The horizon
+   crossings are deliberately shared by the sun and moon, but their opposite
+   phases keep both bodies moving while the weather scene stays unchanged. */
+const TAU = Math.PI * 2;
+const unit3 = (x, y, z) => {
+  const l = Math.hypot(x, y, z) || 1;
+  return [x / l, y / l, z / l];
+};
+const smoothstep = (x, a, b) => {
+  const k = clamp((x - a) / (b - a), 0, 1);
+  return k * k * (3 - 2 * k);
+};
+export function celestialForDate(d) {
+  const h = d.getHours() + d.getMinutes() / 60 + d.getSeconds() / 3600 + d.getMilliseconds() / 36e5;
+  const sunPhase = (h - 6) * TAU / 24;
+  const body = phase => {
+    const s = Math.sin(phase);
+    return unit3(0.28 * Math.cos(phase) - 0.34 * s, 0.78 * s - 0.08, -1 + 0.38 * Math.max(s, 0));
+  };
+  const moonY = 0.78 * Math.sin(sunPhase + Math.PI) - 0.08;
+  return {
+    sun: body(sunPhase),
+    moon: body(sunPhase + Math.PI),
+    moonVisibility: smoothstep(moonY, -0.18, 0.08),
+  };
+}
 const TIME_STOPS = [
   [0, "night"], [4.5, "night"], [5.75, "dawn"], [7.375, "sunrise"],
   [9, "day"], [17, "day"], [19, "dusk"], [21, "night"], [24, "night"],
@@ -386,11 +413,25 @@ export function Sea(canvas) {
     cloudB: cur.subarray(27, 30), cloudA: cur.subarray(30, 34),
     amt: cur.subarray(34, 38), amt2: cur.subarray(38, 42),
   };
+  const celestial = new Float32Array(7);
+  let hasCelestial = false;
+  const updateCelestial = d => {
+    const c = celestialForDate(d);
+    celestial.set(c.sun, 0); celestial.set(c.moon, 3); celestial[6] = c.moonVisibility;
+    hasCelestial = true; dirty = true;
+  };
+  const applyCelestial = () => {
+    if (!hasCelestial) return;
+    cur.set(celestial.subarray(0, 3), 15);
+    cur.set(celestial.subarray(3, 6), 46);
+    cur[49] = celestial[6];
+  };
   const renorm = o => {
     const l = Math.hypot(cur[o], cur[o + 1], cur[o + 2]) || 1;
     cur[o] /= l; cur[o + 1] /= l; cur[o + 2] /= l;
   };
   const upload = () => {
+    applyCelestial();
     renorm(15); renorm(18); renorm(46);
     gl.uniform3fv(u.deep, V.deep); gl.uniform3fv(u.shal, V.shal); gl.uniform3fv(u.foam, V.foam);
     gl.uniform3fv(u.sky, V.sky); gl.uniform3fv(u.sky2, V.sky2);
@@ -430,8 +471,10 @@ export function Sea(canvas) {
       const [a, b, k] = timeBlendForDate(d), pa = PACK[a], pb = PACK[b];
       cw = weatherForDate(d);
       for (let i = 0; i < NF; i++) cur[i] = pa[i] + (pb[i] - pa[i]) * k;
+      updateCelestial(d); applyCelestial();
       to.set(cur); mixT = 1; dirty = true;
     },
+    setCelestialTime(d) { updateCelestial(d); },
     weather() { return cw; },
     setZoom(value) { zoom = clamp(Number(value) || 1, 0.5, 4); dirty = true; },
     setTuning(values) {
