@@ -176,31 +176,36 @@ body.hint-send #fish{opacity:.62; transform:translateX(14px);}
   position:fixed; right:clamp(1.1rem,3vw,2.2rem); top:clamp(1.05rem,2.7vw,2rem); z-index:9;
   text-align:right;
 }
-#clockline{display:flex; align-items:center; justify-content:flex-end; gap:.55rem;}
+#clockline{display:flex; align-items:center; justify-content:flex-end; gap:.9rem;}
+/* Make the time control the obvious invitation; weather is a quiet secondary
+   control so it does not steal the sky's only useful affordance. */
 #clock{
-  padding:.2rem 0; border:0; background:none; font-family:var(--f-mono); line-height:1.3;
+  padding:.55rem .7rem; border:0; border-radius:.35rem; background:none; font-family:var(--f-mono); line-height:1.3;
   text-align:right; cursor:pointer; text-shadow:0 1px 10px rgba(4,30,40,.9);
+  transition:background .18s;
 }
 #clock b{
-  display:block; font-weight:400; font-size:.84rem; letter-spacing:.13em;
+  display:block; font-weight:400; font-size:.9rem; letter-spacing:.13em;
   color:rgba(238,250,252,.94); font-variant-numeric:tabular-nums; transition:color .18s;
 }
 #clock span{
-  display:block; margin-top:.08rem; font-size:.48rem; letter-spacing:.18em; text-transform:uppercase;
-  color:rgba(238,250,252,.56); transition:color .18s;
+  display:block; margin-top:.16rem; font-size:.6rem; letter-spacing:.18em; text-transform:uppercase;
+  color:rgba(238,250,252,.76); transition:color .18s;
 }
+#clock:hover,#clock:focus-visible{background:rgba(6,26,33,.28);}
 #clock:hover b,#clock:focus-visible b{color:#fff;}
 #clock:hover span,#clock:focus-visible span,#clock[aria-expanded="true"] span{color:var(--wx,#FFC49A);}
 #clock:focus-visible{outline:2px solid #FFD9A8; outline-offset:4px;}
 #clock-w{
-  width:2.35rem; height:2.35rem; display:grid; place-items:center; border-radius:50%;
-  color:var(--wx,#FFC49A); background:rgba(6,26,33,.42); border:1px solid rgba(226,242,244,.3);
-  box-shadow:0 8px 20px -14px rgba(1,12,16,.98); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
-  transition:transform .16s cubic-bezier(.16,1,.3,1),background .16s,border-color .16s,color .16s;
+  width:1.85rem; height:1.85rem; display:grid; place-items:center; border-radius:50%;
+  color:rgba(238,250,252,.48); background:transparent; border:1px solid transparent;
+  box-shadow:none; opacity:.72;
+  transition:transform .16s cubic-bezier(.16,1,.3,1),background .16s,border-color .16s,color .16s,opacity .16s;
 }
-#clock-w:hover{color:#fff; background:rgba(10,42,52,.8); border-color:rgba(255,255,255,.9); transform:translateY(-2px);}
+#clock-w:hover,#clock-w:focus-visible{color:#fff; background:rgba(10,42,52,.62); border-color:rgba(226,242,244,.52); opacity:1; transform:translateY(-1px);}
 #clock-w:active{transform:translateY(1px) scale(.94);}
-#clock-w svg{width:1.2rem; height:1.2rem; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round;}
+#clock-w svg{width:1rem; height:1rem; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round;}
+@media (pointer:coarse){#clock-w{width:2.75rem; height:2.75rem;}}
 #clock-w .wx{display:none;}
 #clock-w[data-weather="dawn"] .wx-dawn,
 #clock-w[data-weather="sunrise"] .wx-sunrise,
