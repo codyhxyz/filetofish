@@ -205,6 +205,37 @@ body.has-catch #plate{opacity:1; transform:translate(-50%,0);}
   max-width:min(64vw,30rem); overflow:hidden; text-overflow:ellipsis;
 }
 #foot b{font-weight:400; color:rgba(238,250,252,.95);}
+#versionbox{
+  position:fixed; left:clamp(1.1rem,3vw,2.2rem); bottom:clamp(3.25rem,7vh,4.1rem); z-index:9;
+  font-family:var(--f-mono); font-size:.56rem; letter-spacing:.15em; text-transform:uppercase;
+  text-shadow:0 1px 10px rgba(4,30,40,.9);
+}
+#version{cursor:pointer; color:rgba(238,250,252,.45); list-style:none;}
+#version::-webkit-details-marker{display:none;}
+#version::after{content:" +"; color:rgba(255,217,168,.7);}
+#versionbox[open] #version{color:#fff;}
+#versionbox[open] #version::after{content:" −";}
+#version b{font-weight:400; color:#FFD9A8;}
+#history{
+  position:absolute; left:0; bottom:1.7rem; width:min(32rem,calc(100vw - 2.2rem)); max-height:min(70vh,32rem);
+  display:flex; flex-direction:column; background:rgba(6,26,33,.94); border:1px solid rgba(226,242,244,.22);
+  box-shadow:0 24px 60px -24px rgba(1,12,16,.96); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
+  text-transform:none; letter-spacing:normal;
+}
+#history header{display:flex; justify-content:space-between; gap:1rem; padding:.8rem .9rem .7rem;
+  border-bottom:1px solid rgba(226,242,244,.14); font-size:.58rem; letter-spacing:.14em; text-transform:uppercase;}
+#history header b{font-weight:400; color:#fff;}
+#history header span{color:rgba(226,242,244,.5); white-space:nowrap;}
+#history ol{margin:0; padding:0 .9rem; overflow-y:auto; list-style:none; counter-reset:commits;}
+#history li{counter-increment:commits; border-bottom:1px solid rgba(226,242,244,.1);}
+#history li:last-child{border-bottom:0;}
+#history li a{display:grid; grid-template-columns:1.5rem 5.2rem 4.1rem minmax(0,1fr); gap:.55rem; align-items:baseline;
+  padding:.62rem 0; color:rgba(238,250,252,.82); text-decoration:none; line-height:1.35;}
+#history li a::before{content:counter(commits); color:rgba(226,242,244,.3);}
+#history time,#history code{font-family:var(--f-mono); font-size:.55rem; color:rgba(226,242,244,.5);}
+#history code{color:#FFD9A8;}
+#history li span{overflow-wrap:anywhere;}
+#history li a:hover span{color:#fff;}
 #src{
   position:fixed; left:clamp(1.1rem,3vw,2.2rem); bottom:clamp(1.15rem,3vh,2.05rem); z-index:9;
   font-family:var(--f-mono); font-size:.56rem; letter-spacing:.18em; text-transform:uppercase;
@@ -411,6 +442,7 @@ body.has-catch #plate{opacity:1; transform:translate(-50%,0);}
   </button>
 </div>
 
+<!--VERSION_UI-->
 <a id="src" href="https://github.com/codyhxyz/filetofish" target="_blank" rel="noopener">source</a>
 
 <div id="drop"><span>let go</span></div>

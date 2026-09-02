@@ -1,5 +1,6 @@
 import * as esbuild from "esbuild";
 import fs from "node:fs";
+import { execFileSync } from "node:child_process";
 
 const ENT = {"·":"&#183;","—":"&#8212;","→":"&#8594;","×":"&#215;",
              "…":"&#8230;","–":"&#8211;","✓":"&#10003;","✗":"&#10007;",
@@ -11,16 +12,43 @@ const asciiHtml = t => {
 };
 const asciiJs = t =>
   [...t].map(c => c.charCodeAt(0) < 128 ? c : "\\u" + c.charCodeAt(0).toString(16).padStart(4, "0")).join("");
+const esc = s => String(s).replace(/[&<>\"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"})[c]);
+
+function versionUI() {
+  let rows;
+  try {
+    rows = execFileSync("git", ["log", "--format=%H%x1f%h%x1f%ad%x1f%s", "--date=short"], { encoding: "utf8" })
+      .trim().split("\n").filter(Boolean).map(line => {
+        const [full, short, date, subject] = line.split("\x1f");
+        return { full, short, date, subject };
+      });
+  } catch (e) {
+    rows = [{ full: "", short: "local", date: "", subject: "development build" }];
+  }
+  const head = rows[0] || { short: "local" };
+  const commits = rows.map(c => `<li><a href="https://github.com/codyhxyz/filetofish/commit/${esc(c.full)}" target="_blank" rel="noopener">
+    <time datetime="${esc(c.date)}">${esc(c.date)}</time><code>${esc(c.short)}</code><span>${esc(c.subject)}</span>
+  </a></li>`).join("");
+  return `<details id="versionbox"><summary id="version">version <b>${esc(head.short)}</b></summary>
+  <section id="history" aria-label="Commit history"><header><b>commit history</b><span>${rows.length} revisions</span></header>
+    <ol>${commits}</ol>
+  </section></details>`;
+}
 
 /* inline a bundled entry into its page shell at the <!--APP_BUNDLE--> marker */
-async function page(entry, shell) {
+async function page(entry, shell, injections = {}) {
   const out = await esbuild.build({
     entryPoints: [entry],
     bundle: true, minify: true, format: "iife", target: "es2020",
     write: false, legalComments: "none",
   });
   const js = asciiJs(out.outputFiles[0].text.replace(/<\/script/gi, "<\\/script"));
-  const html = fs.readFileSync(shell, "utf8");
+  let html = fs.readFileSync(shell, "utf8");
+  for (const [marker, value] of Object.entries(injections)) {
+    const token = `<!--${marker}-->`;
+    if (!html.includes(token)) throw new Error("missing marker in " + shell + ": " + token);
+    html = html.replace(token, value);
+  }
   if (!html.includes("<!--APP_BUNDLE-->")) throw new Error("missing marker in " + shell);
   const cut = html.indexOf("<!--APP_BUNDLE-->");
   const doc = asciiHtml(html.slice(0, cut)) + `<script>\n${js}\n</script>`
@@ -29,7 +57,7 @@ async function page(entry, shell) {
   return { doc, js };
 }
 
-const { doc, js } = await page("src/app.js", "src/page.html");
+const { doc, js } = await page("src/app.js", "src/page.html", { VERSION_UI: versionUI() });
 
 // 1) artifact build: the host injects <head>, so ship the body only
 fs.mkdirSync("mockups", {recursive: true});
