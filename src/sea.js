@@ -120,7 +120,7 @@ for (const k in SCENES) {
 const SEA_VS = "attribute vec2 a;void main(){gl_Position=vec4(a,0.,1.);}";
 const SEA_FS = `
 precision highp float;
-uniform vec2 uRes; uniform float uTime; uniform float uPx; uniform vec4 uRip[6];
+uniform vec2 uRes; uniform float uTime; uniform float uPx; uniform vec4 uRip[6]; uniform vec4 uTune;
 uniform vec3 cDeep, cShal, cFoam, cSky, cSky2;
 uniform vec3 uSun, uKey, uSunCol, uHaze, uCloudB;
 uniform vec4 uCloudA;
@@ -145,6 +145,15 @@ float hgt(vec2 p, float t){
           + sin((p.x*1.05 + p.y*0.82) + t*1.30)*0.17;
   return h + (fbm(p*0.80 + vec2(t*0.12,-t*0.08)) - 0.5)*0.80;
 }
+/* Optional above-water detail. At zero the production surface is unchanged;
+   the lab can sharpen the normal and crest texture without another shader. */
+float fineHgt(vec2 p, float t){
+  vec2 q = p*2.8 + vec2(t*0.18, -t*0.15);
+  return sin(q.x*2.1 + q.y*1.4 + t*1.8)*0.48
+       + sin(q.y*3.3 - q.x*0.7 - t*1.3)*0.30
+       + (vnoise(q*1.8) - 0.5)*0.35;
+}
+float surfaceH(vec2 p, float t){ return hgt(p,t) + uTune.y*0.06*fineHgt(p,t); }
 vec2 ripples(vec2 p, float t){
   vec2 o = vec2(0.);
   for(int i=0;i<6;i++){
@@ -246,7 +255,7 @@ void main(){
     float dist = -ro.y/rd.y;
     vec2 p = (ro + rd*dist).xz;
     float fade = 1.0 - smoothstep(mix(14.0,6.0,FOG), mix(68.0,22.0,FOG), dist);
-    float h = hgt(p,t);
+    float h = surfaceH(p,t);
     vec2 rp = ripples(p,t);
     float dz = 0.0;
     if (RAIN > 0.001) {
@@ -257,16 +266,18 @@ void main(){
       dz = (da.y + db.y*0.70)*at;
     }
     h += rp.x;
-    float e = 0.34;
-    float hx = hgt(p+vec2(e,0.0),t), hz = hgt(p+vec2(0.0,e),t);
+    float e = mix(0.34, 0.12, uTune.x);
+    float hx = surfaceH(p+vec2(e,0.0),t), hz = surfaceH(p+vec2(0.0,e),t);
     vec3 n = normalize(vec3(-(hx-h)/e, 1.0, -(hz-h)/e));
     float lit = clamp(dot(n,uKey),0.0,1.0)*0.72 + (h*0.5+0.5)*0.46;
-    float g = fbm(p*0.42 + vec2(t*0.050, t*0.030))*2.6 + h*0.50;
+    float g = fbm(p*0.42 + vec2(t*0.050, t*0.030))*2.6 + h*0.50
+            + uTune.y*fineHgt(p*0.72,t)*0.34;
     float w = FW(g);
-    float sw = w*(1.0 + FOG*2.2);
+    float sw = w*(1.0 + FOG*2.2)*mix(1.0, 0.58, uTune.x);
     float d = abs(fract(g) - 0.5);
     float thick = clamp(max(0.042, w*1.15), 0.0, 0.20);
-    float foam = 1.0 - smoothstep(thick - sw*1.05, thick + sw*1.05, d);
+    float edge = mix(1.05, 0.48, uTune.z);
+    float foam = 1.0 - smoothstep(thick - sw*edge, thick + sw*edge, d);
     foam *= fade * (1.0 - smoothstep(0.11, 0.28, w));
     foam *= 0.55 + 0.45*smoothstep(-0.65, 0.50, h);
     foam = max(foam, smoothstep(0.30, 0.95, rp.y)*fade*0.9);
@@ -280,8 +291,9 @@ void main(){
        For day the two are the same value, so nothing moves there. */
     vec3 far = mix(mix(cSky,cShal,0.42), uHaze, clamp(0.34 + FOG*0.60, 0.0, 1.0));
     col = mix(col, far, smoothstep(mix(18.0,5.0,FOG), mix(84.0,26.0,FOG), dist));
+    float specPow = mix(46.0, 96.0, uTune.w);
     col = mix(col, mix(vec3(1.0), uSunCol, 0.5),
-              step(0.34, pow(max(dot(reflect(rd,n),uSun),0.0),46.0))*fade*0.85*SPEC);
+              step(0.34, pow(max(dot(reflect(rd,n),uSun),0.0),specPow))*fade*0.85*SPEC);
     if (GLIT > 0.001) {
       /* half-vector slope: the facet tilt this pixel would need to mirror the
          sun. Small near the sun's azimuth, growing sideways -- that is the
@@ -291,7 +303,8 @@ void main(){
       float wash = exp(-sl*sl*4.6) + 0.32*exp(-sl*sl*0.85);
       wash = mix(wash, floor(wash*5.0 + 0.5)*0.2, 0.45);
       vec3 fn = normalize(n + vec3(sin(p.x*6.3 + t*2.1), 0.0, cos(p.y*5.9 - t*1.7))*0.22);
-      float spark = smoothstep(0.9925, 0.9948, max(dot(reflect(rd,fn),uSun),0.0))*fade;
+      float spark = smoothstep(mix(0.9925,0.9970,uTune.w), mix(0.9948,0.9990,uTune.w),
+                               max(dot(reflect(rd,fn),uSun),0.0))*fade;
       float gm = clamp((wash*0.52 + spark*0.85)*(0.5 + 0.5*smoothstep(-0.40,0.50,h))*GLIT, 0.0, 1.0);
       col = mix(col, min(uSunCol*1.30, vec3(1.0)), gm);
     }
@@ -327,7 +340,7 @@ export function Sea(canvas) {
   const u = {
     res: U("uRes"), time: U("uTime"), px: U("uPx"), rip: U("uRip[0]"),
     deep: U("cDeep"), shal: U("cShal"), foam: U("cFoam"), sky: U("cSky"), sky2: U("cSky2"),
-    sun: U("uSun"), key: U("uKey"), sunCol: U("uSunCol"), haze: U("uHaze"),
+    sun: U("uSun"), key: U("uKey"), sunCol: U("uSunCol"), haze: U("uHaze"), tune: U("uTune"),
     cloudB: U("uCloudB"), cloudA: U("uCloudA"), amt: U("uAmt"), amt2: U("uAmt2"),
   };
 
@@ -350,6 +363,7 @@ export function Sea(canvas) {
     gl.uniform3fv(u.sky, V.sky); gl.uniform3fv(u.sky2, V.sky2);
     gl.uniform3fv(u.sun, V.sun); gl.uniform3fv(u.key, V.key);
     gl.uniform3fv(u.sunCol, V.sunCol); gl.uniform3fv(u.haze, V.haze);
+    gl.uniform4fv(u.tune, tune);
     gl.uniform3fv(u.cloudB, V.cloudB);
     gl.uniform4fv(u.cloudA, V.cloudA); gl.uniform4fv(u.amt, V.amt); gl.uniform4fv(u.amt2, V.amt2);
   };
@@ -358,6 +372,7 @@ export function Sea(canvas) {
   const rip = new Float32Array(24);
   let slot = 0, W = 0, H = 0, cw = "day";
   let mixT = 1, dirty = true, live = false, last = -1;
+  const tune = new Float32Array(4);
 
   return {
     ripple(x, z, s, now) { rip.set([x, z, now, s], slot * 4); slot = (slot + 1) % 6; },
@@ -376,6 +391,12 @@ export function Sea(canvas) {
       dirty = true;
     },
     weather() { return cw; },
+    setTuning(values) {
+      if (Array.isArray(values)) tune.set(values.slice(0, 4));
+      else for (const [i, key] of ["crisp", "detail", "foam", "shine"].entries()) tune[i] = clamp(Number(values?.[key]) || 0, 0, 1);
+      dirty = true;
+    },
+    tuning() { return [...tune]; },
     palette() { return paletteOf(cw); },
     /* same shape as palette(), but light/ambient follow the cross-fade so a
        per-frame caller can grade the fish exactly to what the sea is doing.

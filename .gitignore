@@ -8,6 +8,7 @@ dist/sfx/
 dist/score/
 mockups/
 dist/ocean/
+dist/render-world/
 .impeccable/review/
 soundtrack/previews/
 .pi/subagents/

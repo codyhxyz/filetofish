@@ -79,7 +79,7 @@ fs.writeFileSync("dist/_headers",
   "/*\n  X-Content-Type-Options: nosniff\n  Referrer-Policy: strict-origin-when-cross-origin\n" +
   "  Permissions-Policy: geolocation=(), microphone=(), camera=()\n" +
   "/sfx/*\n  X-Robots-Tag: noindex\n" +
-  "/score/*\n  X-Robots-Tag: noindex\n");
+  "/score/*\n  X-Robots-Tag: noindex\n/render-world/*\n  X-Robots-Tag: noindex\n");
 
 // 3) the sfx audition page -- shares src/sfx.js with the site, so it cannot drift
 const aud = await page("src/audition.js", "src/audition.html");
@@ -119,7 +119,26 @@ ${score.doc.replace(/<title>[\s\S]*?<\/title>\s*/i, "")}
 </body>
 </html>`);
 
-// 5) the ocean mockup -- the file-viewer prototype, deployed at /ocean
+// 5) RenderWorld -- the above-water shader comparison and tuning bench
+const rw = await page("src/render-world.js", "src/render-world.html");
+const rwTitle = (rw.doc.match(/<title>([\s\S]*?)<\/title>/i) || [, "RenderWorld"])[1];
+fs.mkdirSync("dist/render-world", {recursive: true});
+fs.writeFileSync("dist/render-world/index.html", `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>${rwTitle}</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#07181D">
+<link rel="icon" href="${FAVICON}">
+</head>
+<body>
+${rw.doc.replace(/<title>[\s\S]*?<\/title>\s*/i, "")}
+</body>
+</html>`);
+
+// 6) the ocean mockup -- the file-viewer prototype, deployed at /ocean
 const oc = await page("src/ocean.js", "src/ocean.html");
 const ocTitle = (oc.doc.match(/<title>([\s\S]*?)<\/title>/i) || [, "ocean"])[1];
 fs.mkdirSync("dist/ocean", {recursive: true});
@@ -139,4 +158,5 @@ ${oc.doc.replace(/<title>[\s\S]*?<\/title>\s*/i, "")}
 </html>`);
 
 console.log(`site ${(doc.length/1024).toFixed(0)} KB | audition ${(aud.doc.length/1024).toFixed(0)} KB`
-          + ` | score ${(score.doc.length/1024).toFixed(0)} KB | ocean ${(oc.doc.length/1024).toFixed(0)} KB`);
+          + ` | score ${(score.doc.length/1024).toFixed(0)} KB | render-world ${(rw.doc.length/1024).toFixed(0)} KB`
+          + ` | ocean ${(oc.doc.length/1024).toFixed(0)} KB`);

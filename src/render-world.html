@@ -1,0 +1,66 @@
+<!--
+THESIS: RenderWorld makes the water shader itself the instrument, not a settings page.
+OWN-WORLD: Deep marine blue, chalk white, and coral controls in the filetofish lab grammar.
+STORY: Compare the shipped surface with a sharper candidate, then tune or animate the candidate.
+FIRST VIEWPORT: Two equal live water panes lead; controls sit below them with the current values inline.
+FORM: A live comparison bench extending the established above-water surface.
+FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance
+-->
+<title>filetofish &#183; RenderWorld</title>
+<style>
+:root{--bg:#07181d;--panel:#0b242a;--ink:#eaf7f7;--dim:rgba(226,242,244,.58);--line:rgba(190,230,236,.18);--accent:#ffc49a;--sea:#7ec8e3;--mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,monospace;--display:Futura,"Futura PT","Avenir Next","Century Gothic",system-ui,sans-serif}
+*{box-sizing:border-box}
+html{background:var(--bg)}
+body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 50% -15%,#16414b 0%,var(--bg) 62%);color:var(--ink);font-family:var(--display);-webkit-font-smoothing:antialiased}
+button,select,input{font:inherit;color:inherit}
+button,select{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.wrap{max-width:96rem;margin:auto;padding:clamp(1.25rem,3vw,2.6rem) clamp(1rem,3vw,2.6rem) 4rem}
+header{display:flex;align-items:flex-end;gap:1.5rem;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:1.2rem}
+h1{margin:0;font-size:clamp(1.5rem,3vw,2.25rem);font-weight:500;letter-spacing:-.025em;line-height:1}h1 i{font-style:normal;color:var(--accent)}
+.lede{max-width:48ch;margin:0;color:var(--dim);font: .72rem/1.7 var(--mono);letter-spacing:.02em}.spacer{flex:1}
+.link{color:var(--dim);font:.65rem var(--mono);letter-spacing:.12em;text-decoration:none;text-transform:uppercase;border-bottom:1px solid var(--line);padding-bottom:.25rem}.link:hover{color:var(--ink);border-color:var(--ink)}
+.stage{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1px;background:var(--line);border:1px solid var(--line);margin-top:1.5rem}
+.view{position:relative;min-width:0;background:#0a2026;overflow:hidden}.view canvas{display:block;width:100%;height:min(52vw,34rem)}
+.tag{position:absolute;z-index:1;left:1rem;top:.9rem;font: .6rem var(--mono);letter-spacing:.16em;text-transform:uppercase;text-shadow:0 1px 10px #001015}.tag b{font-weight:400;color:var(--accent)}
+.view.after{box-shadow:inset 0 0 0 1px rgba(255,196,154,.2)}
+.controls{display:grid;grid-template-columns:minmax(15rem,1.1fr) minmax(18rem,1.6fr);gap:1px;background:var(--line);border:1px solid var(--line);border-top:0}
+.control-copy,.control-body{background:var(--panel);padding:1.15rem 1.25rem}.control-copy h2{margin:0;font-size:1rem;font-weight:500}.control-copy p{margin:.55rem 0 0;color:var(--dim);font:.68rem/1.7 var(--mono);max-width:42ch}
+.control-body{display:flex;flex-direction:column;gap:1rem}.topline{display:flex;align-items:center;gap:.7rem;flex-wrap:wrap}.topline label{font:.62rem var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}select{background:#092027;border:1px solid var(--line);padding:.45rem .6rem;font:.65rem var(--mono);letter-spacing:.06em;min-width:8rem} 
+.buttons{display:flex;gap:.5rem;flex-wrap:wrap;margin-left:auto}.btn{background:none;border:1px solid rgba(190,230,236,.3);padding:.47rem .7rem;font:.6rem var(--mono);letter-spacing:.12em;text-transform:uppercase}.btn:hover{background:var(--ink);border-color:var(--ink);color:#07181d}.btn.hero{border-color:var(--accent);color:var(--accent)}.btn.hero:hover{background:var(--accent)}
+.sliders{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.9rem 1.35rem}.slider{display:grid;gap:.45rem}.slider-head{display:flex;align-items:baseline;justify-content:space-between;gap:1rem}.slider label{font-size:.7rem}.value{font:.62rem var(--mono);color:var(--accent);font-variant-numeric:tabular-nums}input[type=range]{appearance:none;width:100%;height:3px;background:rgba(190,230,236,.24);accent-color:var(--accent);cursor:ew-resize}input[type=range]::-webkit-slider-thumb{appearance:none;width:14px;height:14px;border:0;border-radius:50%;background:var(--accent)}input[type=range]::-moz-range-thumb{width:14px;height:14px;border:0;border-radius:50%;background:var(--accent)}.hint{color:var(--dim);font:.58rem var(--mono);line-height:1.5}
+.status{min-height:1em;color:var(--dim);font:.6rem var(--mono);letter-spacing:.08em}.status strong{font-weight:400;color:var(--sea)}
+@media(max-width:760px){.stage,.controls{grid-template-columns:1fr}.view canvas{height:58vw;min-height:13rem}.controls{border-top:1px solid var(--line)}.sliders{grid-template-columns:1fr}.buttons{margin-left:0}}
+</style>
+<main class="wrap">
+  <header>
+    <h1>RenderWorld <i>/ water lab</i></h1>
+    <p class="lede">The left pane is the production surface. The right pane is the same above-water shader with live crispness controls.</p>
+    <span class="spacer"></span><a class="link" href="/">back to filetofish</a>
+  </header>
+  <section class="stage" aria-label="Before and after water comparison">
+    <div class="view"><div class="tag"><b>before</b> / production</div><canvas id="before" aria-label="Production water shader"></canvas></div>
+    <div class="view after"><div class="tag"><b>after</b> / live candidate</div><canvas id="after" aria-label="Tunable water shader"></canvas></div>
+  </section>
+  <section class="controls" aria-label="Water shader controls">
+    <div class="control-copy">
+      <h2>Make the surface yours</h2>
+      <p>Move one control at a time to see what changes. The production pane never changes. “Animate test” sweeps the candidate from soft to crisp and back.</p>
+    </div>
+    <div class="control-body">
+      <div class="topline">
+        <label for="weather">weather</label>
+        <select id="weather"><option value="day">clear day</option><option value="sunrise">sunrise</option><option value="dusk">dusk</option><option value="rain">rain</option></select>
+        <div class="buttons"><button class="btn" id="reset" type="button">reset</button><button class="btn hero" id="animate" type="button">animate test</button></div>
+      </div>
+      <div class="sliders">
+        <div class="slider"><div class="slider-head"><label for="crisp">normal sharpness</label><span class="value" id="crisp-v">0%</span></div><input id="crisp" type="range" min="0" max="100" value="72"><span class="hint">narrows the surface sampling for harder facets</span></div>
+        <div class="slider"><div class="slider-head"><label for="detail">surface detail</label><span class="value" id="detail-v">68%</span></div><input id="detail" type="range" min="0" max="100" value="68"><span class="hint">adds small directional wave texture to the crests</span></div>
+        <div class="slider"><div class="slider-head"><label for="foam">foam edge</label><span class="value" id="foam-v">78%</span></div><input id="foam" type="range" min="0" max="100" value="78"><span class="hint">tightens the contour instead of widening it into haze</span></div>
+        <div class="slider"><div class="slider-head"><label for="shine">highlight focus</label><span class="value" id="shine-v">76%</span></div><input id="shine" type="range" min="0" max="100" value="76"><span class="hint">makes sun hits smaller and more legible</span></div>
+      </div>
+      <div class="status" id="status" aria-live="polite">candidate: <strong>72 / 68 / 78 / 76</strong></div>
+    </div>
+  </section>
+</main>
+<!--APP_BUNDLE-->
