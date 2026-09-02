@@ -1502,26 +1502,25 @@ for (const [id, cls] of [["#release", "hint-release"],
 }
 
 /* ---------------------------------------------------------------- clock */
-/* The strip in the corner is the world's clock, not the machine's. Click it and
-   the weather steps on; take hold of it and turn, and the hands come with your
-   hand -- a full circle is twelve hours, same as the real thing. Whatever hour
-   you let go on is the hour the sky believes, until you hand it back. */
+/* The clock opens a full-day reel: one swipe crosses all 24 hours and the sky
+   answers immediately. Weather gets its own visible control beside it. */
 const elClock = $("#clock"), elClockT = $("#clock-t"), elClockW = $("#clock-w");
-const elClockNow = $("#clock-now");
+const elClockNow = $("#clock-now"), elTimeReel = $("#time-reel");
+const elTimeRange = $("#time-range"), elTimeChoice = $("#time-choice");
 let wxManual = false, shown = "", shownWx = "";
 let tOff = 0;                                     /* ms laid over the machine clock */
 const pad2 = n => (n < 10 ? "0" : "") + n;
 const DAY = 864e5;
-/* only the hour of the day is ever read, so keep the offset inside one turn of
-   the earth however long someone keeps spinning */
 const wrapOff = ms => ms - Math.round(ms / DAY) * DAY;
 const worldNow = () => new Date(Date.now() + tOff);
 
 function showWeather() {
-  const p = sea.palette(), key = p.label + p.css;
+  const name = sea.weather(), p = sea.palette(), key = name + p.css;
   if (key === shownWx) return;
   shownWx = key;
-  elClockW.textContent = p.label;
+  elClockW.dataset.weather = name;
+  elClockW.setAttribute("aria-label", `Weather: ${p.label}. Change weather`);
+  elClockW.title = `change weather: ${p.label}`;
   document.body.style.setProperty("--wx", p.css || "#FFC49A");
 }
 function applyWeather(name) {
@@ -1538,22 +1537,27 @@ function syncWeather(d, forced) {
   sea.setTime(d);
   showWeather();
 }
-/* held time is a separate thing from a pinned sky: turning the hands hands the
-   weather back to the hour it lands on */
+function syncReel(d) {
+  const minute = d.getHours() * 60 + d.getMinutes();
+  elTimeRange.value = minute;
+  elTimeRange.setAttribute("aria-valuetext", `${pad2(d.getHours())}:${pad2(d.getMinutes())}`);
+  elTimeChoice.textContent = `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+}
 function setOffset(ms) {
   tOff = wrapOff(ms);
   const held = Math.abs(tOff) > 500;
   wxManual = wxManual && !held;
   elClock.classList.toggle("held", held);
   elClockNow.hidden = !held;
-  syncWeather(worldNow(), true);
+  const d = worldNow();
+  syncReel(d);
+  syncWeather(d, true);
 }
 const nudge = ms => setOffset(tOff + ms);
 
 if (sea) {
   /* it is whatever it is outside, except when the weather rolls in -- or when
-     a link pins it, so a particular sky can be shared. `?t=19:30` pins the hour
-     the same way, which is also how you look at a sky that is nine hours off. */
+     a link pins it, so a particular sky can be shared. `?t=19:30` pins the hour. */
   const tp = /[?&]t=(\d{1,2})(?::(\d{2}))?/.exec(location.search);
   if (tp) {
     const d = new Date();
@@ -1562,7 +1566,7 @@ if (sea) {
   }
   const pin = /[?&]wx=([a-z]+)/.exec(location.search);
   if (pin && WEATHERS.indexOf(pin[1]) >= 0) { wxManual = true; applyWeather(pin[1]); }
-  else if (!tp) {                                 /* a pinned hour has already dressed the sky */
+  else if (!tp) {
     const roll = Math.random();
     if (roll < 0.18) applyWeather(roll < 0.10 ? "rain" : "fog");
     else syncWeather(new Date(), true);
@@ -1576,6 +1580,7 @@ function tickClock(now) {
   if (s !== shown) {
     shown = s;
     elClockT.textContent = s;
+    syncReel(d);
     syncMusicToTime(d);
     updateRadioUI();
   }
@@ -1587,64 +1592,33 @@ function cycleWeather() {
   applyWeather(WEATHERS[(WEATHERS.indexOf(sea.weather()) + 1) % WEATHERS.length]);
   sfx("tick");
 }
-
-/* ---- turning the hands ---- */
-/* Angle, not pixels: the further out you take the pointer the finer the hour
-   gets, which is how a real dial behaves. Inside MIN_R the angle is all noise,
-   so it is watched but not spent. */
-const MIN_R = 26, MS_PER_RAD = 12 * 3600e3 / TAU;
-let spin = null;
-
-elClock.addEventListener("pointerdown", e => {
-  if (e.button > 0) return;
-  e.stopPropagation();                            // the caught fish is not being spun
-  e.preventDefault();
-  const r = elClock.getBoundingClientRect();
-  const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
-  spin = {
-    id: e.pointerId, cx, cy, a: Math.atan2(e.clientY - cy, e.clientX - cx),
-    base: tOff, turn: 0, far: 0, x: e.clientX, y: e.clientY, h: worldNow().getHours(),
-  };
-  try { elClock.setPointerCapture(e.pointerId); } catch (err) { }
-  elClock.focus({ preventScroll: true });         // preventDefault ate the focus; arrows still work
-  elClock.classList.add("turning");
-});
-/* the turn is followed on the window, not the strip: the hand leaves the strip
-   almost immediately, and a capture that does not take must not strand it */
-addEventListener("pointermove", e => {
-  if (!spin || e.pointerId !== spin.id) return;
-  const dx = e.clientX - spin.cx, dy = e.clientY - spin.cy;
-  const a = Math.atan2(dy, dx);
-  let da = a - spin.a;
-  if (da > Math.PI) da -= TAU; else if (da < -Math.PI) da += TAU;
-  spin.a = a;                                     // tracked even in the dead middle,
-  spin.far = Math.max(spin.far, Math.hypot(e.clientX - spin.x, e.clientY - spin.y));
-  if (Math.hypot(dx, dy) < MIN_R) return;         // so leaving it never jumps
-  spin.turn += da;
-  setOffset(spin.base + spin.turn * MS_PER_RAD);
-  const h = worldNow().getHours();
-  if (h !== spin.h) { spin.h = h; sfx("tick"); }  // one tick an hour, under the thumb
-});
-function endSpin(e) {
-  if (!spin || e.pointerId !== spin.id) return;
-  const tap = spin.far < 4;                       // never moved: it was a click on the weather
-  spin = null;
-  elClock.classList.remove("turning");
-  if (tap) cycleWeather();
+function openReel(open, focus = false) {
+  elTimeReel.hidden = !open;
+  elClock.setAttribute("aria-expanded", String(open));
+  if (open) {
+    syncReel(worldNow());
+    if (focus) elTimeRange.focus({ preventScroll: true });
+  }
 }
-addEventListener("pointerup", endSpin);
-addEventListener("pointercancel", endSpin);
-/* the crown, for anyone who would rather not draw circles */
+
+elClock.addEventListener("click", e => { e.stopPropagation(); openReel(elTimeReel.hidden, true); });
 elClock.addEventListener("wheel", e => {
   e.preventDefault();
   nudge(-Math.sign(e.deltaY) * 6e5);
 }, { passive: false });
-elClock.addEventListener("keydown", e => {
-  const k = e.key;
-  if (k === "Enter" || k === " ") { e.preventDefault(); cycleWeather(); }
-  else if (k === "ArrowRight" || k === "ArrowUp") { e.preventDefault(); nudge(k === "ArrowUp" ? 36e5 : 9e5); }
-  else if (k === "ArrowLeft" || k === "ArrowDown") { e.preventDefault(); nudge(k === "ArrowDown" ? -36e5 : -9e5); }
-  else if (k === "Escape" && tOff) { e.preventDefault(); setOffset(0); sfx("tick"); }
+elClockW.addEventListener("click", e => { e.stopPropagation(); cycleWeather(); });
+elTimeRange.addEventListener("input", () => {
+  const before = worldNow().getHours();
+  const minute = +elTimeRange.value, d = new Date();
+  d.setHours(Math.floor(minute / 60), minute % 60, 0, 0);
+  setOffset(d - Date.now());
+  if (worldNow().getHours() !== before) sfx("tick");
+});
+addEventListener("pointerdown", e => {
+  if (!elTimeReel.hidden && !$("#clockbox").contains(e.target)) openReel(false);
+});
+addEventListener("keydown", e => {
+  if (e.key === "Escape" && !elTimeReel.hidden) { openReel(false); elClock.focus(); }
 });
 elClockNow.addEventListener("click", e => {
   e.stopPropagation();
