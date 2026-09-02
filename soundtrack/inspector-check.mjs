@@ -11,7 +11,7 @@ assert.throws(() => noteToMidi("nope"), /Invalid note/);
 assert.equal(SOUNDFONT_BANK, "MusyngKite");
 assert.equal(clampMusicVolume(-1), 0);
 assert.equal(clampMusicVolume(2), 1);
-assert.equal(clampMusicVolume("bad"), 0.7);
+assert.equal(clampMusicVolume("bad"), 1);
 const values = new Map([["ftf.music.volume", "0.84"]]);
 const storage = { getItem: key => values.get(key), setItem: (key, value) => values.set(key, value) };
 assert.equal(readMusicVolume(storage), 0.84);

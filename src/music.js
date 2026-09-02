@@ -330,6 +330,8 @@ function expandTrack(track) {
 export function compileTimeline(track) {
   expandTrack(track);
   const events = [];
+  // Match the calibrated SoundFont studio mix: its reference is 1.1 / 0.8 bass,
+  // 0.45 / 0.40 chords, and 0.90 melody. Lower values made production inaudible.
   const numBars = track.chords.length;
   const beatsPerBar = track.meter;
 
@@ -339,10 +341,10 @@ export function compileTimeline(track) {
 
     // The arrangement breathes: bass anchors the intro/outro, then drops out briefly.
     if (c.layer !== "lead") {
-      events.push({ channel: "bass", beat: barStart + 0.0, note: c.bass, durBeats: 1.4, gain: c.layer === "bass" || c.layer === "outro" ? 0.72 : 0.85 });
+      events.push({ channel: "bass", beat: barStart + 0.0, note: c.bass, durBeats: 1.4, gain: c.layer === "bass" || c.layer === "outro" ? 0.72 : 1.1 });
       if (beatsPerBar === 4 && c.layer !== "bass") {
         const bassOct2 = c.bass.replace(/\d/, d => parseInt(d) + 1);
-        events.push({ channel: "bass", beat: barStart + 2.0, note: bassOct2, durBeats: 1.2, gain: 0.65 });
+        events.push({ channel: "bass", beat: barStart + 2.0, note: bassOct2, durBeats: 1.2, gain: 0.8 });
       }
     }
 
@@ -350,14 +352,14 @@ export function compileTimeline(track) {
     if (["chords", "full"].includes(c.layer)) {
       if (beatsPerBar === 4) {
         c.notes.forEach(n => {
-          events.push({ channel: "chords", beat: barStart + 0.5, note: n, durBeats: 1.0, gain: 0.35, isSwung: true });
-          events.push({ channel: "chords", beat: barStart + 2.5, note: n, durBeats: 0.8, gain: 0.30, isSwung: true });
+          events.push({ channel: "chords", beat: barStart + 0.5, note: n, durBeats: 1.0, gain: 0.45, isSwung: true });
+          events.push({ channel: "chords", beat: barStart + 2.5, note: n, durBeats: 0.8, gain: 0.40, isSwung: true });
         });
       } else {
         // 3/4 Waltz
         c.notes.forEach(n => {
-          events.push({ channel: "chords", beat: barStart + 1.0, note: n, durBeats: 0.8, gain: 0.35 });
-          events.push({ channel: "chords", beat: barStart + 2.0, note: n, durBeats: 0.8, gain: 0.30 });
+          events.push({ channel: "chords", beat: barStart + 1.0, note: n, durBeats: 0.8, gain: 0.45 });
+          events.push({ channel: "chords", beat: barStart + 2.0, note: n, durBeats: 0.8, gain: 0.40 });
         });
       }
     }
@@ -369,7 +371,7 @@ export function compileTimeline(track) {
       beat: m.bar * beatsPerBar + m.b,
       note: m.note,
       durBeats: m.dur,
-      gain: m.vel * 0.70,
+      gain: m.vel * 0.90,
       isSwung: !!m.isSwung
     });
   });
@@ -407,7 +409,7 @@ async function getOrLoadInstrument(instName) {
   return loading;
 }
 
-export function initMusic(audioContext, masterDestination, soundEnabled = true, date = new Date(), outputGain = 1) {
+export function initMusic(audioContext, masterDestination, soundEnabled = true, date = new Date()) {
   AC = audioContext;
   isSoundOn = soundEnabled;
 
@@ -424,7 +426,6 @@ export function initMusic(audioContext, masterDestination, soundEnabled = true, 
 
     DUCK_GAIN.connect(MASTER_FADE);
     MASTER_FADE.connect(BUS);
-    BUS.gain.setValueAtTime(outputGain, AC.currentTime);
     BUS.connect(masterDestination || AC.destination);
   }
 

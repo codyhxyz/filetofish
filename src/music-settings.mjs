@@ -1,5 +1,5 @@
 export const SOUNDFONT_BANK = "MusyngKite";
-export const DEFAULT_MUSIC_VOLUME = 0.7;
+export const DEFAULT_MUSIC_VOLUME = 1;
 const KEY = "ftf.music.volume";
 
 export function clampMusicVolume(value) {
