@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { groupPhrases, midiToName, noteToMidi } from "../src/music-analysis.mjs";
-import { clampMusicVolume, readMusicVolume, writeMusicVolume } from "../src/music-settings.mjs";
+import { SOUNDFONT_BANK, clampMusicVolume, readMusicVolume, writeMusicVolume } from "../src/music-settings.mjs";
 
 assert.equal(noteToMidi("C4"), 60);
 assert.equal(noteToMidi("Db5"), 73);
@@ -8,6 +8,7 @@ assert.equal(noteToMidi("C#5"), 73);
 assert.equal(midiToName(73), "C#5");
 assert.throws(() => noteToMidi("nope"), /Invalid note/);
 
+assert.equal(SOUNDFONT_BANK, "MusyngKite");
 assert.equal(clampMusicVolume(-1), 0);
 assert.equal(clampMusicVolume(2), 1);
 assert.equal(clampMusicVolume("bad"), 0.7);

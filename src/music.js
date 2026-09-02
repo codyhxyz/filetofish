@@ -3,7 +3,7 @@
    gradual smooth fade-in, instant hotswapping, and gameplay ducking. */
 
 import Soundfont from "soundfont-player";
-import { readMusicVolume, writeMusicVolume } from "./music-settings.mjs";
+import { SOUNDFONT_BANK, readMusicVolume, writeMusicVolume } from "./music-settings.mjs";
 
 export const TRACKS = [
   {
@@ -296,7 +296,6 @@ let isPlaying = false;
 let isSoundOn = true;
 let musicVolume = readMusicVolume();
 
-const SOUNDFONT_BANK = "MusngKite"; // The warm acoustic soundbank!
 const instrumentCache = new Map();
 const channels = { bass: null, chords: null, lead: null };
 const activeNodes = new Set();
@@ -397,12 +396,15 @@ async function getOrLoadInstrument(instName) {
   if (instrumentCache.has(key)) {
     return instrumentCache.get(key);
   }
-  const inst = await Soundfont.instrument(AC, instName, {
+  const loading = Soundfont.instrument(AC, instName, {
     soundfont: SOUNDFONT_BANK,
     destination: DUCK_GAIN || BUS
+  }).catch(error => {
+    instrumentCache.delete(key);
+    throw error;
   });
-  instrumentCache.set(key, inst);
-  return inst;
+  instrumentCache.set(key, loading);
+  return loading;
 }
 
 export function initMusic(audioContext, masterDestination, soundEnabled = true, date = new Date()) {
@@ -429,7 +431,7 @@ export function initMusic(audioContext, masterDestination, soundEnabled = true, 
   if (!musicInitialized) {
     musicInitialized = true;
     const idx = getTrackIndexForHour(date.getHours());
-    setMusicTrack(idx >= 0 ? idx : 0);
+    setMusicTrack(idx >= 0 ? idx : 0).catch(() => { });
   }
 }
 
@@ -458,7 +460,10 @@ export async function setMusicTrack(indexOrSlug) {
     channels.bass = b;
     channels.chords = c;
     channels.lead = l;
-  } catch (e) {}
+  } catch (error) {
+    if (request === trackRequest) channels.bass = channels.chords = channels.lead = null;
+    throw error;
+  }
 
   if (request === trackRequest && (wasPlaying || !isPlaying) && isSoundOn && AC && AC.state === "running") {
     startPlayback();
@@ -470,7 +475,7 @@ export async function setMusicTrack(indexOrSlug) {
 export function nextMusicTrack() {
   isRadioManual = true;
   const nextIdx = (currentTrackIndex + 1) % TRACKS.length;
-  setMusicTrack(nextIdx);
+  setMusicTrack(nextIdx).catch(() => { });
   return TRACKS[nextIdx];
 }
 
@@ -498,7 +503,7 @@ export function syncMusicToTime(date, force = false) {
   const hr = date.getHours();
   const idx = getTrackIndexForHour(hr);
   if (idx >= 0 && idx !== currentTrackIndex) {
-    setMusicTrack(idx);
+    setMusicTrack(idx).catch(() => { });
   }
 }
 
