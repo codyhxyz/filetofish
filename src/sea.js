@@ -6,6 +6,7 @@
    css is an accent for UI text. Everything below `haze` is shader state and
    gets cross-faded, never read by app.js. */
 export const WEATHERS = ["dawn", "sunrise", "day", "dusk", "night", "fog", "rain"];
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 
 /* amt  = fog, rain, stars, glitter      (uAmt)
    amt2 = sun disc, sun glow, foam, spec (uAmt2)

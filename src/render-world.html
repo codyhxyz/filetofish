@@ -28,7 +28,7 @@ h1{margin:0;font-size:clamp(1.5rem,3vw,2.25rem);font-weight:500;letter-spacing:-
 .control-copy,.control-body{background:var(--panel);padding:1.15rem 1.25rem}.control-copy h2{margin:0;font-size:1rem;font-weight:500}.control-copy p{margin:.55rem 0 0;color:var(--dim);font:.68rem/1.7 var(--mono);max-width:42ch}
 .control-body{display:flex;flex-direction:column;gap:1rem}.topline{display:flex;align-items:center;gap:.7rem;flex-wrap:wrap}.topline label{font:.62rem var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}select{background:#092027;border:1px solid var(--line);padding:.45rem .6rem;font:.65rem var(--mono);letter-spacing:.06em;min-width:8rem} 
 .buttons{display:flex;gap:.5rem;flex-wrap:wrap;margin-left:auto}.btn{background:none;border:1px solid rgba(190,230,236,.3);padding:.47rem .7rem;font:.6rem var(--mono);letter-spacing:.12em;text-transform:uppercase}.btn:hover{background:var(--ink);border-color:var(--ink);color:#07181d}.btn.hero{border-color:var(--accent);color:var(--accent)}.btn.hero:hover{background:var(--accent)}
-.control-copy strong{font-weight:500;color:var(--accent)}.sliders{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.9rem 1.35rem}.slider{display:grid;gap:.45rem}.slider-head{display:flex;align-items:baseline;justify-content:space-between;gap:1rem}.slider label{font-size:.7rem}.value{font:.62rem var(--mono);color:var(--accent);font-variant-numeric:tabular-nums}input[type=range]{appearance:none;width:100%;height:3px;background:rgba(190,230,236,.24);accent-color:var(--accent);cursor:ew-resize}input[type=range]::-webkit-slider-thumb{appearance:none;width:14px;height:14px;border:0;border-radius:50%;background:var(--accent)}input[type=range]::-moz-range-thumb{width:14px;height:14px;border:0;border-radius:50%;background:var(--accent)}.hint{color:var(--dim);font:.58rem var(--mono);line-height:1.5}
+.sliders{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.9rem 1.35rem}.slider{display:grid;gap:.45rem}.slider-head{display:flex;align-items:baseline;justify-content:space-between;gap:1rem}.slider label{font-size:.7rem}.value{font:.62rem var(--mono);color:var(--accent);font-variant-numeric:tabular-nums}input[type=range]{appearance:none;width:100%;height:3px;background:rgba(190,230,236,.24);accent-color:var(--accent);cursor:ew-resize}input[type=range]::-webkit-slider-thumb{appearance:none;width:14px;height:14px;border:0;border-radius:50%;background:var(--accent)}input[type=range]::-moz-range-thumb{width:14px;height:14px;border:0;border-radius:50%;background:var(--accent)}.hint{color:var(--dim);font:.58rem var(--mono);line-height:1.5}
 .status{min-height:1em;color:var(--dim);font:.6rem var(--mono);letter-spacing:.08em}.status strong{font-weight:400;color:var(--sea)}
 @media(max-width:760px){.stage,.controls{grid-template-columns:1fr}.view canvas{height:58vw;min-height:13rem}.controls{border-top:1px solid var(--line)}.sliders{grid-template-columns:1fr}.buttons{margin-left:0}}
 </style>
@@ -44,8 +44,8 @@ h1{margin:0;font-size:clamp(1.5rem,3vw,2.25rem);font-weight:500;letter-spacing:-
   </section>
   <section class="controls" aria-label="Water shader controls">
     <div class="control-copy">
-      <h2>Make the surface yours</h2>
-      <p>Move one control at a time to see what changes. The production pane never changes. The missing quality was probably <strong>inspectability</strong>: without scale, crispness has nowhere to announce itself. “Animate test” sweeps the candidate from soft to crisp and back.</p>
+      <h2>Candidate controls</h2>
+      <p>Tune the right pane. The left pane stays on the production surface. “Animate test” sweeps the candidate from soft to crisp and back.</p>
     </div>
     <div class="control-body">
       <div class="topline">
