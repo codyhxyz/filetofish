@@ -11,6 +11,8 @@ const LAYER_NAMES = {
 };
 const ROW_HEIGHT = 18;
 const TOP = 24;
+// Devtool playback compensates for the production mix so notes are inspectable.
+const PREVIEW_OUTPUT_GAIN = 2;
 
 let track = TRACKS[0];
 let events = [];
@@ -182,7 +184,7 @@ async function loadAudioTrack() {
   if (!AudioContext) throw new Error("This browser does not support Web Audio.");
   if (!audioContext) {
     audioContext = new AudioContext();
-    initMusic(audioContext, null, false, new Date(0));
+    initMusic(audioContext, null, false, new Date(0), PREVIEW_OUTPUT_GAIN);
   }
   await audioContext.resume();
   if (audioTrack !== track.slug) {

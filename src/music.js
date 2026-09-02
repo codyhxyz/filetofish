@@ -407,7 +407,7 @@ async function getOrLoadInstrument(instName) {
   return loading;
 }
 
-export function initMusic(audioContext, masterDestination, soundEnabled = true, date = new Date()) {
+export function initMusic(audioContext, masterDestination, soundEnabled = true, date = new Date(), outputGain = 1) {
   AC = audioContext;
   isSoundOn = soundEnabled;
 
@@ -424,6 +424,7 @@ export function initMusic(audioContext, masterDestination, soundEnabled = true, 
 
     DUCK_GAIN.connect(MASTER_FADE);
     MASTER_FADE.connect(BUS);
+    BUS.gain.setValueAtTime(outputGain, AC.currentTime);
     BUS.connect(masterDestination || AC.destination);
   }
 
