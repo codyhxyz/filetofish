@@ -3,7 +3,7 @@ import {
   initMusic, setMusicTrack, nextMusicTrack, getMusicTrack,
   syncMusicToTime, setMusicSoundOn, getMusicVolume, setMusicVolume, duckMusic
 } from "./music.js";
-import { Sea, WEATHERS, weatherForDate } from "./sea.js";
+import { Sea, WEATHERS } from "./sea.js";
 import {
   Scene, PerspectiveCamera, OrthographicCamera, WebGLRenderer, Mesh, Group,
   BufferGeometry, BufferAttribute, ShaderMaterial, SphereGeometry, ConeGeometry, PlaneGeometry,
@@ -1260,8 +1260,7 @@ function frame(nowMs) {
 
   tickClock(now);
   if (sea) {
-    /* the catch is lit by whatever sky it was pulled out of, riding the sea's
-       own cross-fade so the fish never pops a frame ahead of the water */
+    /* the catch is lit by the exact same clock blend or weather fade as the sea */
     const p = sea.paletteNow ? sea.paletteNow() : sea.palette();
     lit[0] = p.light[0]; lit[1] = p.light[1]; lit[2] = p.light[2];
     litAmb = p.ambient;
@@ -1474,7 +1473,7 @@ for (const [id, hint] of [["#release", "nothing kept, no link"],
    you let go on is the hour the sky believes, until you hand it back. */
 const elClock = $("#clock"), elClockT = $("#clock-t"), elClockW = $("#clock-w");
 const elClockNow = $("#clock-now");
-let wxManual = false, wxNext = 0, shown = "";
+let wxManual = false, shown = "", shownWx = "";
 let tOff = 0;                                     /* ms laid over the machine clock */
 const pad2 = n => (n < 10 ? "0" : "") + n;
 const DAY = 864e5;
@@ -1483,22 +1482,26 @@ const DAY = 864e5;
 const wrapOff = ms => ms - Math.round(ms / DAY) * DAY;
 const worldNow = () => new Date(Date.now() + tOff);
 
-function applyWeather(name) {
-  if (!sea) return;
-  sea.setWeather(name);
-  const p = sea.palette();
+function showWeather() {
+  const p = sea.palette(), key = p.label + p.css;
+  if (key === shownWx) return;
+  shownWx = key;
   elClockW.textContent = p.label;
   document.body.style.setProperty("--wx", p.css || "#FFC49A");
 }
-/* the sky answers to the hands, unless a click has pinned one on. `forced` is a
-   hand on the clock, which is allowed to blow the fog off; the every-30s poll is
-   not -- weather that rolled in gets to sit. */
-function syncWeather(forced) {
+function applyWeather(name) {
+  if (!sea) return;
+  sea.setWeather(name);
+  showWeather();
+}
+/* Clock time maps straight to sky state every frame. Only clicked weather is
+   allowed to fade over time; ambient fog/rain sits until the clock is moved. */
+function syncWeather(d, forced) {
   if (!sea || wxManual) return;
-  const base = weatherForDate(worldNow()), cur = sea.weather();
-  if (cur === base) return;
+  const cur = sea.weather();
   if (!forced && (cur === "fog" || cur === "rain")) return;
-  applyWeather(base);
+  sea.setTime(d);
+  showWeather();
 }
 /* held time is a separate thing from a pinned sky: turning the hands hands the
    weather back to the hour it lands on */
@@ -1508,7 +1511,7 @@ function setOffset(ms) {
   wxManual = wxManual && !held;
   elClock.classList.toggle("held", held);
   elClockNow.hidden = !held;
-  syncWeather(true);
+  syncWeather(worldNow(), true);
 }
 const nudge = ms => setOffset(tOff + ms);
 
@@ -1526,7 +1529,8 @@ if (sea) {
   if (pin && WEATHERS.indexOf(pin[1]) >= 0) { wxManual = true; applyWeather(pin[1]); }
   else if (!tp) {                                 /* a pinned hour has already dressed the sky */
     const roll = Math.random();
-    applyWeather(roll < 0.10 ? "rain" : roll < 0.18 ? "fog" : weatherForDate(new Date()));
+    if (roll < 0.18) applyWeather(roll < 0.10 ? "rain" : "fog");
+    else syncWeather(new Date(), true);
   }
 }
 /* Try now. If the browser suspends the context, the gesture listeners retry. */
@@ -1540,7 +1544,7 @@ function tickClock(now) {
     syncMusicToTime(d);
     updateRadioUI();
   }
-  if (now > wxNext) { wxNext = now + 30; syncWeather(false); }  // the sky keeps its own time
+  syncWeather(d, false);                           // millisecond clock resolution
 }
 function cycleWeather() {
   if (!sea) return;

@@ -4,7 +4,7 @@
   "description": "Drop in any file, it comes back as a fish. The same file always gives the same fish.",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "node test/sea-time.mjs",
     "soundtrack": "python3 soundtrack/render.py",
     "soundtrack:check": "python3 soundtrack/render.py --check",
     "soundtrack:suite": "python3 soundtrack/ac_suite.py",

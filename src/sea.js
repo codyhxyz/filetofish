@@ -82,7 +82,9 @@ const SCENES = {
   },
 };
 
-/* time of day picks the base sky; fog/rain are chosen by the caller */
+/* Labels still use broad periods; the rendered sky never does. Visual
+   keyframes hold through midday/deep night, then map every clock instant
+   directly through sunrise and sunset instead of starting a timed cross-fade. */
 export function weatherForDate(d) {
   const h = d.getHours() + d.getMinutes() / 60;
   if (h < 5.0) return "night";     /* deep dark */
@@ -91,6 +93,17 @@ export function weatherForDate(d) {
   if (h < 17.75) return "day";
   if (h < 20.5) return "dusk";
   return "night";
+}
+const TIME_STOPS = [
+  [0, "night"], [4.5, "night"], [5.75, "dawn"], [7.375, "sunrise"],
+  [9, "day"], [17, "day"], [19, "dusk"], [21, "night"], [24, "night"],
+];
+export function timeBlendForDate(d) {
+  const h = d.getHours() + d.getMinutes() / 60 + d.getSeconds() / 3600 + d.getMilliseconds() / 36e5;
+  let i = 1;
+  while (h > TIME_STOPS[i][0]) i++;
+  const a = TIME_STOPS[i - 1], b = TIME_STOPS[i];
+  return [a[1], b[1], (h - a[0]) / (b[0] - a[0])];
 }
 
 const PAL = {};
@@ -101,9 +114,9 @@ for (const k in SCENES) {
 export function paletteOf(name) { return PAL[name] || PAL.day; }
 
 /* ------------------------------------------------------- packed uniforms */
-/* One flat float array per scene so the cross-fade is a single lerp loop.
-   Slots 42..45 are the fish grade -- not uploaded, but they ride along so
-   paletteNow() can hand app.js light that matches what is on screen. */
+/* One flat float array per scene so clock interpolation and weather fades use
+   the same small loop. Slots 42..45 are the fish grade -- not uploaded, but
+   they ride along so paletteNow() can hand app.js matching light. */
 const NF = 46;
 const nrm = v => { const l = Math.hypot(v[0], v[1], v[2]) || 1; return [v[0] / l, v[1] / l, v[2] / l]; };
 const PACK = {};
@@ -389,6 +402,12 @@ export function Sea(canvas) {
       cw = name; to.set(PACK[name]);
       if (live) { from.set(cur); mixT = 0; } else { cur.set(to); mixT = 1; }
       dirty = true;
+    },
+    setTime(d) {
+      const [a, b, k] = timeBlendForDate(d), pa = PACK[a], pb = PACK[b];
+      cw = weatherForDate(d);
+      for (let i = 0; i < NF; i++) cur[i] = pa[i] + (pb[i] - pa[i]) * k;
+      to.set(cur); mixT = 1; dirty = true;
     },
     weather() { return cw; },
     setTuning(values) {
