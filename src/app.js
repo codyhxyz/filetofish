@@ -792,8 +792,7 @@ let bob = { x: 0, y: 0 }, target = { x: 0, y: 0 }, from = { x: 0, y: 0 };
 /* where a fish leaving re-enters the water, and the trail it leaves heading out */
 let sendTo = { x: 0, y: 0 }, goneNote = "sent", goneWake = false, sentSplash = false, wake = null;
 let stowTo = { x: 0, y: 0 };
-let said = "drop a file";
-const say = s => { said = s; elStatus.textContent = s; };
+const say = s => { elStatus.textContent = s; };
 /* the blank flexes as a damped spring, so releasing a load whips through on its own */
 let bend = 0, bendV = 0;
 let rodTip = { x: 0, y: 0 };
@@ -953,12 +952,21 @@ function enter(s, now) {
   if (s === "caught") {
     document.body.classList.add("has-catch");
     duckMusic(0.15, 2.2);
-    const seen = !!DEX[fish.speciesKey];
-    $("#p-rar").textContent = fish.rarity + (seen ? "" : " · new species");
+    $("#p-rar").textContent = fish.rarity;
     $("#p-rar").style.color = (RARE_LOOK[fish.rarity] || RARE_LOOK.Common).css;
     $("#p-nm").textContent = fish.name;
     $("#p-sub").textContent = `${fish.cm.toFixed(0)} cm · ${fish.file.name} · ${fmtBytes(fish.file.size)}`;
-    for (const id of ["#release", "#keep", "#send"]) $(id).disabled = false;
+    for (const id of ["#release", "#keep", "#send"]) {
+      const b = $(id); b.disabled = false; b.classList.remove("chosen", "spent");
+    }
+    /* what keeping is worth *here*, printed on the button that does it -- the
+       decision belongs on the option it decides, not in a line further up */
+    const prev = DEX[fish.speciesKey], n = dexCount(), total = SPECIES.length;
+    $("#keep").classList.toggle("fresh", !prev);
+    $("#keep-cost").textContent =
+      !prev ? `new species · ${n + 1}/${total}`
+      : (RANK[fish.rarity] || 0) > (RANK[prev.r] || 0) ? `beats your ${prev.r.toLowerCase()} one`
+      : `already logged · ${n}/${total}`;
     /* a whole folder is already logged by the time it lands, so there is
        nothing left to decide about it except who else gets to see it */
     $("#release").hidden = $("#keep").hidden = !!fish.bulk;
@@ -1400,13 +1408,22 @@ function printCard(f, cx, cy) {
 
 /* the three things you can do with a fish in your hands. exactly one of them,
    which is what makes any of them mean anything. */
-const decided = () => { for (const id of ["#release", "#keep", "#send"]) $(id).disabled = true; };
+/* the one you took flares and holds; the two you did not fall away. dimming all
+   three equally read as "nothing happened" -- a decision should look decided. */
+const decided = pick => {
+  for (const id of ["#release", "#keep", "#send"]) {
+    const b = $(id);
+    b.disabled = true;
+    b.classList.add(id === pick ? "chosen" : "spent");
+  }
+  document.body.classList.remove("hint-release", "hint-keep", "hint-send");
+};
 const clearHash = () => history.replaceState(null, "", location.pathname + location.search);
 
 $("#release").addEventListener("click", e => {
   e.stopPropagation();
   if (!fish || state !== "caught") return;
-  decided();
+  decided("#release");
   sentSplash = false; goneWake = false;
   goneNote = "put back · nothing logged";
   clearHash();
@@ -1416,7 +1433,7 @@ $("#release").addEventListener("click", e => {
 $("#keep").addEventListener("click", e => {
   e.stopPropagation();
   if (!fish || state !== "caught") return;
-  decided();
+  decided("#keep");
   const r = $("#dexbtn").getBoundingClientRect();
   stowTo = { x: r.left + r.width / 2, y: r.top + r.height / 2 };
   const fresh = record(fish);                    // only now does it go in the book
@@ -1433,7 +1450,7 @@ $("#keep").addEventListener("click", e => {
 $("#send").addEventListener("click", e => {
   e.stopPropagation();
   if (!fish || state !== "caught") return;
-  decided();
+  decided("#send");
   const url = shareURL(fish);
   const copied = copyText(url);
   goneWake = true;
@@ -1456,14 +1473,21 @@ $("#send").addEventListener("click", e => {
     REDUCED ? 200 : 640);
 });
 
-/* what each choice costs, said out loud on hover -- a trade you cannot see is
-   not a trade */
-for (const [id, hint] of [["#release", "nothing kept, no link"],
-                          ["#keep", "logged in the dex, yours to look at"],
-                          ["#send", "they collect it · you give it up"]]) {
+/* Each option's price is printed on its own face, so the status line no longer
+   repeats it. What hover does instead is let you try the choice on: the world
+   shows you where the fish would end up while there is still time to change
+   your mind. Put it back and the sea comes back up. Keep it and the book in the
+   corner answers. Send it and the fish already starts to leave. */
+for (const [id, cls] of [["#release", "hint-release"],
+                         ["#keep", "hint-keep"],
+                         ["#send", "hint-send"]]) {
   const b = $(id);
-  b.addEventListener("pointerenter", () => { if (state === "caught") elStatus.textContent = hint; });
-  b.addEventListener("pointerleave", () => { elStatus.textContent = said; });
+  const on = () => { if (state === "caught" && !b.disabled) document.body.classList.add(cls); };
+  const off = () => document.body.classList.remove(cls);
+  b.addEventListener("pointerenter", on);
+  b.addEventListener("pointerleave", off);
+  b.addEventListener("focus", on);
+  b.addEventListener("blur", off);
 }
 
 /* ---------------------------------------------------------------- clock */

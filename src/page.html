@@ -55,7 +55,7 @@ body.has-catch #rig{opacity:.22;}
 
 /* the catch record: name, rarity, and the file it came from */
 #plate{
-  position:fixed; left:50%; bottom:clamp(3.6rem,8vh,5.5rem); transform:translate(-50%,10px);
+  position:fixed; left:50%; bottom:clamp(4.4rem,10vh,7rem); transform:translate(-50%,10px);
   z-index:5; text-align:center; opacity:0; transition:opacity .45s ease, transform .45s ease;
   pointer-events:none; width:min(92vw,34rem);
 }
@@ -74,27 +74,102 @@ body.has-catch #plate{opacity:1; transform:translate(-50%,0);}
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
 }
 
+/* The three ends a fish can come to. They are deliberately the same size and the
+   same material: ranking them primary / secondary / ghost would be the interface
+   answering a question that belongs to the player. They differ in character
+   instead -- quiet, bright, warm -- and each one says its own price out loud,
+   because a trade you cannot see is not a trade. */
 #plate .acts{
-  display:flex; gap:.6rem; justify-content:center; align-items:center; flex-wrap:wrap;
-  margin-top:.95rem; pointer-events:auto;
+  display:flex; gap:clamp(.35rem,2.4vw,1.1rem); justify-content:center; align-items:flex-start;
+  margin-top:1.05rem; pointer-events:auto;
 }
-#plate .acts button{
-  font-family:var(--f-mono); font-size:.66rem; letter-spacing:.18em; text-transform:uppercase;
-  color:#0B1E24; background:#EAF7FA; border:1px solid #EAF7FA; padding:.62rem 1.15rem;
-  transition:transform .16s cubic-bezier(.2,.9,.3,1.4), box-shadow .16s, background .16s,
-             color .16s, border-color .16s;
-  box-shadow:0 6px 22px -10px rgba(0,0,0,.9);
+#plate .acts .act{
+  display:flex; flex-direction:column; align-items:center; gap:.55rem;
+  width:clamp(5.4rem,28vw,9.2rem); text-align:center;
+  opacity:0; transform:translateY(10px);
+  transition:opacity .36s ease, transform .36s cubic-bezier(.16,1,.3,1);
 }
-#plate .acts button.ghost{
-  background:none; box-shadow:none; color:rgba(238,250,252,.72); border-color:rgba(238,250,252,.32);
+/* they arrive one after another, so the choice gets a beat before it is offered */
+body.has-catch #plate .acts .act{opacity:1; transform:none;}
+body.has-catch #plate .acts .act:nth-child(1){transition-delay:.10s;}
+body.has-catch #plate .acts .act:nth-child(2){transition-delay:.18s;}
+body.has-catch #plate .acts .act:nth-child(3){transition-delay:.26s;}
+
+/* the same glass coin the tool rail is made of, scaled up for the moment */
+#plate .acts .ic{
+  width:clamp(2.45rem,10.6vw,3.35rem); height:clamp(2.45rem,10.6vw,3.35rem);
+  border-radius:50%; display:grid; place-items:center; flex:0 0 auto;
+  background:rgba(6,26,33,.5); border:1px solid rgba(226,242,244,.38);
+  color:rgba(236,249,251,.92);
+  backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+  box-shadow:0 10px 24px -14px rgba(1,12,16,.98);
+  transition:transform .16s cubic-bezier(.2,.9,.3,1.4), background .18s, border-color .18s,
+             color .18s, box-shadow .18s;
 }
-#plate .acts button.ghost.warm{color:rgba(255,201,154,.9); border-color:rgba(255,196,154,.5);}
-#plate .acts button:hover{transform:translateY(-2px); background:#fff; color:#0B1E24; border-color:#fff;
-  box-shadow:0 12px 26px -12px rgba(0,0,0,.9);}
-#plate .acts button.ghost.warm:hover{background:#FFC49A; border-color:#FFC49A;}
-#plate .acts button:active{transform:translateY(1px) scale(.985);}
-#plate .acts button[disabled]{opacity:.4; pointer-events:none;}
+#plate .acts svg{
+  width:clamp(1.12rem,4.9vw,1.5rem); height:clamp(1.12rem,4.9vw,1.5rem); display:block;
+  transition:transform .24s cubic-bezier(.2,.9,.3,1.4);
+}
+#plate .acts .vb{
+  font-size:clamp(.72rem,2.5vw,.94rem); line-height:1.16; letter-spacing:-.01em;
+  color:rgba(240,251,253,.95); text-shadow:0 2px 12px rgba(4,30,40,.85); text-wrap:balance;
+}
+#plate .acts .cost{
+  font-family:var(--f-mono); font-size:clamp(.43rem,1.65vw,.53rem); letter-spacing:.15em;
+  text-transform:uppercase; line-height:1.32; color:rgba(228,244,246,.74);
+  text-shadow:0 1px 9px rgba(4,30,40,.96); transition:color .18s;
+  margin-top:-.34rem;                    /* the price belongs to the verb above it */
+}
+
+/* keep it: the only one that ends with the fish still yours, so it is the solid
+   one, and it wears the dex's own icon -- the corner it is about to fly to */
+#plate .acts #keep .ic{
+  background:rgba(233,247,250,.93); border-color:rgba(243,253,255,.95); color:#0B1E24;
+  box-shadow:0 12px 26px -13px rgba(1,12,16,1);
+}
+#plate .acts #keep.fresh .cost{color:#FFD9A8;}
+/* send it: warm, the way everything that leaves this page is warm */
+#plate .acts #send .ic{background:rgba(255,196,154,.14); border-color:rgba(255,196,154,.62); color:#FFD9A8;}
+#plate .acts #send .vb{color:rgba(255,224,196,.96);}
+#plate .acts #send .cost{color:rgba(255,201,154,.76);}
+
+#plate .acts .act:hover .ic{transform:translateY(-3px);}
+#plate .acts #release:hover .ic{background:rgba(10,42,52,.82); border-color:rgba(255,255,255,.92); color:#fff;}
+#plate .acts #keep:hover .ic{background:#fff; border-color:#fff;}
+#plate .acts #send:hover .ic{background:#FFC49A; border-color:#FFC49A; color:#0B1E24;}
+#plate .acts .act:hover .cost{color:rgba(255,255,255,.9);}
+#plate .acts #send:hover .cost{color:#FFD9A8;}
+/* the icon leans the way the fish is about to go */
+#plate .acts #release:hover svg{transform:translateY(2.5px);}
+#plate .acts #send:hover svg{transform:translate(2.5px,-2.5px);}
+#plate .acts #keep:hover svg{transform:scale(1.07);}
+#plate .acts .act:active .ic{transform:translateY(1px) scale(.94);}
+#plate .acts .act:focus-visible{outline:none;}
+#plate .acts .act:focus-visible .ic{outline:2px solid #FFD9A8; outline-offset:4px;}
+
+/* the choice lands: the one you took flares, the two you did not fall away.
+   fading all three to 40% opacity said "nothing happened" instead. */
+body.has-catch #plate .acts .act.spent{
+  opacity:0; transform:translateY(6px) scale(.92); pointer-events:none;
+  transition:opacity .22s ease, transform .22s ease; transition-delay:0s;
+}
+#plate .acts .act.chosen{pointer-events:none;}
+#plate .acts .act.chosen .ic{animation:actpick .38s cubic-bezier(.2,.9,.3,1.4);}
+#plate .acts #release.chosen .ic{background:rgba(10,42,52,.82); border-color:rgba(255,255,255,.92); color:#fff;}
+#plate .acts #keep.chosen .ic{background:#fff; border-color:#fff;}
+#plate .acts #send.chosen .ic{background:#FFC49A; border-color:#FFC49A; color:#0B1E24;}
+@keyframes actpick{0%{transform:none}38%{transform:scale(1.18)}100%{transform:none}}
 #plate .acts .narrow{display:none;}
+
+/* trying a choice on before you make it: each option lights its own destination,
+   so the trade is visible while there is still time to change your mind */
+#fish{transition:opacity .32s ease, transform .32s ease;}
+body.hint-release #veil{opacity:.5;}
+body.hint-release #rig{opacity:.44;}
+body.hint-keep #dexbtn{color:#FFD9A8;}
+body.hint-keep #dexbtn .lb{opacity:1; color:#FFD9A8;}
+body.hint-keep #dexbtn .ic{background:rgba(255,196,154,.2); border-color:#FFD9A8; transform:translateY(-2px);}
+body.hint-send #fish{opacity:.62; transform:translateX(14px);}
 
 /* ---------------------------------------------------------------- clock */
 #clockbox{
@@ -260,12 +335,13 @@ body.has-catch #plate{opacity:1; transform:translate(-50%,0);}
   .tool.primary .ic{width:3rem; height:3rem;}
   #src{bottom:1.5rem; left:1rem;}
   #foot{font-size:.6rem; bottom:5.6rem; max-width:88vw;}
-  #plate{bottom:8.6rem; width:min(96vw,34rem);}
-  #plate .acts{gap:.4rem; margin-top:.8rem;}
-  #plate .acts button{font-size:.56rem; padding:.5rem .62rem; letter-spacing:.1em;}
+  #plate{bottom:7.4rem; width:min(96vw,34rem);}
+  #plate .acts{margin-top:.85rem;}
+  #plate .acts .act{gap:.36rem;}
   #plate .acts .wide{display:none;}
   #plate .acts .narrow{display:inline;}
   #plate .nm{font-size:clamp(1.7rem,7vw,2.4rem);}
+  #plate .sub{font-size:.62rem;}
 }
 
 #drop{
@@ -353,7 +429,11 @@ body.has-catch #plate{opacity:1; transform:translate(-50%,0);}
   .slots{grid-template-columns:repeat(auto-fill,minmax(58px,1fr));}
   #dex-panel header{gap:.8rem;}
 }
-@media (prefers-reduced-motion:reduce){*{transition-duration:.001ms !important; animation:none !important;}}
+@media (prefers-reduced-motion:reduce){
+  *{transition-duration:.001ms !important; animation:none !important;}
+  /* a stagger with no duration is just three late arrivals */
+  #plate .acts .act{transition-delay:0s !important;}
+}
 </style>
 
 <div id="world">
@@ -379,11 +459,37 @@ body.has-catch #plate{opacity:1; transform:translate(-50%,0);}
   <div class="rar" id="p-rar"></div>
   <div class="nm" id="p-nm"></div>
   <div class="sub" id="p-sub"></div>
-  <div class="acts">
-    <button id="release" class="ghost" title="let it go: nothing kept, no link">put it back</button>
-    <button id="keep">keep it</button>
-    <button id="send" class="ghost warm" title="they collect it, and you give it up"><span
-      class="wide">send this fish to a friend</span><span class="narrow">send to a friend</span></button>
+  <div class="acts" role="group" aria-label="what happens to this fish">
+    <button id="release" class="act" type="button">
+      <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+        stroke-linejoin="round" stroke-linecap="round" aria-hidden="true">
+        <path d="M2.6 6.2c2.1-1.5 4.2-1.5 6.3 0s4.2 1.5 6.3 0 4.2-1.5 6.2 0"/>
+        <path d="M12 10.4v7.4"/>
+        <path d="m8.5 14.3 3.5 3.5 3.5-3.5"/>
+      </svg></span>
+      <span class="vb">put it back</span>
+      <span class="cost">nothing kept</span>
+    </button>
+    <button id="keep" class="act" type="button">
+      <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+        stroke-linejoin="round" stroke-linecap="round" aria-hidden="true">
+        <path d="M12 7.1C10.1 5.2 7.4 4.4 3.6 4.6v12.9c3.8-.2 6.5.6 8.4 2.5 1.9-1.9 4.6-2.7 8.4-2.5V4.6c-3.8-.2-6.5.6-8.4 2.5z"/>
+        <path d="M12 7.1V20"/>
+        <path d="M6.3 8.6h2.9M6.3 11.6h2.9M14.8 8.6h2.9M14.8 11.6h2.9"/>
+      </svg></span>
+      <span class="vb">keep it</span>
+      <span class="cost" id="keep-cost">yours to look at</span>
+    </button>
+    <button id="send" class="act" type="button">
+      <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+        stroke-linejoin="round" stroke-linecap="round" aria-hidden="true">
+        <path d="M2.6 18.4c2.1-1.5 4.2-1.5 6.3 0s4.2 1.5 6.3 0 4.2-1.5 6.2 0"/>
+        <path d="M5.6 15.8 17.4 4.6"/>
+        <path d="M9.7 4.6h7.7v7.3"/>
+      </svg></span>
+      <span class="vb"><span class="wide">send it to a friend</span><span class="narrow">send it</span></span>
+      <span class="cost">theirs &#183; not yours</span>
+    </button>
   </div>
 </div>
 
