@@ -7,7 +7,7 @@ import { Sea, WEATHERS, weatherForDate } from "./sea.js";
 import {
   Scene, PerspectiveCamera, OrthographicCamera, WebGLRenderer, Mesh, Group,
   BufferGeometry, BufferAttribute, ShaderMaterial, SphereGeometry, ConeGeometry, PlaneGeometry,
-  WebGLRenderTarget, NearestFilter, Color, Vector2, Vector3, Box3, DoubleSide, Points,
+  WebGLRenderTarget, NearestFilter, Color, Vector2, Vector3, Raycaster, Box3, DoubleSide, Points,
 } from "three";
 
 const TAU = Math.PI * 2;
@@ -414,6 +414,7 @@ function FishStage(canvas) {
   renderer.setClearColor(0x000000, 0);
   const scene = new Scene();
   const camera = new PerspectiveCamera(34, 1, 0.1, 100);
+  const raycaster = new Raycaster(), pointer = new Vector2();
   camera.position.set(0, 1.05, 3.35);
   camera.lookAt(0, 0, 0);
 
@@ -526,6 +527,15 @@ function FishStage(canvas) {
       fish = buildFish(f); scene.add(fish.group); fish.group.visible = false;
       look = RARE_LOOK[f.rarity] || RARE_LOOK.Common;
       sizeK = f.scale01;
+    },
+    hitTest(clientX, clientY) {
+      if (!fish || !fish.group.visible) return false;
+      const r = canvas.getBoundingClientRect();
+      if (!r.width || !r.height) return false;
+      pointer.set((clientX - r.left) / r.width * 2 - 1, 1 - (clientY - r.top) / r.height * 2);
+      fish.group.updateMatrixWorld(true);
+      raycaster.setFromCamera(pointer, camera);
+      return raycaster.intersectObject(fish.group, true).length > 0;
     },
     /* render one fish at the canonical item angle into an offscreen canvas */
     snapshotCanvas(f, w, h, sizeFactor) {
@@ -1320,12 +1330,32 @@ $("#cast").addEventListener("click", e => {
   accept({ ...s, bytes: strBytes(s.name + s.size) });
 });
 const hit = $("#hit");
-let pickAt = null;
-hit.addEventListener("pointerdown", e => { pickAt = [e.clientX, e.clientY]; });
+let pickAt = null, pickOnFish = false;
+const setHitCursor = (e, dragging = false) => {
+  const onFish = stage.hitTest(e.clientX, e.clientY);
+  hit.classList.toggle("fish-hover", onFish);
+  hit.classList.toggle("fish-drag", dragging);
+  return onFish;
+};
+hit.addEventListener("pointermove", e => setHitCursor(e, pickOnFish));
+hit.addEventListener("pointerdown", e => {
+  pickAt = [e.clientX, e.clientY];
+  pickOnFish = setHitCursor(e, true);
+});
+hit.addEventListener("pointerup", e => {
+  hit.classList.remove("fish-drag");
+  setHitCursor(e);
+});
+hit.addEventListener("pointercancel", () => {
+  pickAt = null; pickOnFish = false;
+  hit.classList.remove("fish-hover", "fish-drag");
+});
 hit.addEventListener("click", e => {
   const moved = !pickAt || Math.hypot(e.clientX - pickAt[0], e.clientY - pickAt[1]) > 6;
-  pickAt = null;
-  if (!moved) { unlock(); $("#file").click(); }
+  const onFish = pickOnFish || setHitCursor(e);
+  pickAt = null; pickOnFish = false;
+  hit.classList.remove("fish-drag");
+  if (!moved && !onFish) { unlock(); $("#file").click(); }
 });
 $("#file").addEventListener("change", async e => {
   unlock();
