@@ -130,7 +130,7 @@ body.has-catch #plate{opacity:1; transform:translate(-50%,0);}
   display:flex; flex-direction:column; align-items:flex-end; gap:.5rem;
 }
 .tool{display:flex; align-items:center; gap:.65rem; color:rgba(238,250,252,.66);}
-.tool .lb{
+.tool .lb,.music-volume .lb{
   font-family:var(--f-mono); font-size:.56rem; letter-spacing:.17em; text-transform:uppercase;
   text-shadow:0 1px 10px rgba(4,30,40,.92); opacity:.6; transition:opacity .18s, color .18s;
   white-space:nowrap;
@@ -143,9 +143,26 @@ body.has-catch #plate{opacity:1; transform:translate(-50%,0);}
 }
 .tool svg{width:1.2rem; height:1.2rem; display:block;}
 .tool:hover{color:#fff;}
-.tool:hover .lb{opacity:1; color:#fff;}
+.tool:hover .lb,.music-volume:hover .lb{opacity:1; color:#fff;}
 .tool:hover .ic{background:rgba(10,42,52,.8); border-color:rgba(255,255,255,.9); transform:translateY(-2px);}
 .tool:active .ic{transform:translateY(1px) scale(.94);}
+.music-volume{display:flex; align-items:center; gap:.65rem; color:rgba(238,250,252,.66);}
+.music-volume output{color:#FFD9A8; font-variant-numeric:tabular-nums;}
+.volume-shell{
+  width:6.8rem; height:2.7rem; padding:0 .75rem; display:grid; place-items:center;
+  background:rgba(6,26,33,.42); border:1px solid rgba(226,242,244,.26); border-radius:1.35rem;
+  backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+}
+#musicvol{
+  --volume:70%; width:100%; height:2px; margin:0; appearance:none; -webkit-appearance:none;
+  border:0; border-radius:1px; cursor:pointer;
+  background:linear-gradient(to right,#FFD9A8 var(--volume),rgba(226,242,244,.24) var(--volume));
+}
+#musicvol::-webkit-slider-thumb{
+  width:16px; height:16px; border:1px solid rgba(11,30,36,.72); border-radius:50%;
+  appearance:none; -webkit-appearance:none; background:#FFD9A8;
+}
+#musicvol::-moz-range-thumb{width:16px; height:16px; border:1px solid rgba(11,30,36,.72); border-radius:50%; background:#FFD9A8;}
 .tool.primary .ic{
   width:3.3rem; height:3.3rem; background:rgba(255,196,154,.14); border-color:rgba(255,196,154,.72);
   color:#FFD9A8;
@@ -190,8 +207,9 @@ body.has-catch #plate{opacity:1; transform:translate(-50%,0);}
    everything else moves up out of its way */
 @media (max-width:560px){
   #tools{flex-direction:row; align-items:center; gap:.45rem; bottom:1rem; right:1rem;}
-  .tool .lb{display:none;}
+  .tool .lb,.music-volume .lb{display:none;}
   .tool .ic{width:2.5rem; height:2.5rem;}
+  .volume-shell{width:3.75rem; height:2.5rem; padding:0 .55rem;}
   .tool.primary .ic{width:3rem; height:3rem;}
   #src{bottom:1.5rem; left:1rem;}
   #foot{font-size:.6rem; bottom:5.6rem; max-width:88vw;}
@@ -344,6 +362,10 @@ body.has-catch #plate{opacity:1; transform:translate(-50%,0);}
       <path d="M15 11.5h3.5M15 15.5h3.5"/>
     </svg></span>
   </button>
+  <label class="music-volume" for="musicvol" title="music volume">
+    <span class="lb">music <output id="musicvolout" for="musicvol">70%</output></span>
+    <span class="volume-shell"><input id="musicvol" type="range" min="0" max="100" value="70" aria-label="Music volume"></span>
+  </label>
   <button class="tool" id="snd" aria-pressed="true" aria-label="Sound">
     <span class="lb" id="sndlb">sound</span>
     <span class="ic">

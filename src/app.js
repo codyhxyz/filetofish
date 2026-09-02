@@ -1,7 +1,7 @@
 import { sfx, isOn, setOn, audio } from "./sfx.js";
 import {
   initMusic, setMusicTrack, nextMusicTrack, getMusicTrack,
-  syncMusicToTime, setMusicSoundOn, duckMusic
+  syncMusicToTime, setMusicSoundOn, getMusicVolume, setMusicVolume, duckMusic
 } from "./music.js";
 import { Sea, WEATHERS, weatherForDate } from "./sea.js";
 import {
@@ -628,6 +628,13 @@ function FishStage(canvas) {
 
 /* ============================================================ sound & music */
 const elRadio = $("#radio"), elRadioNm = $("#radionm");
+const elMusicVol = $("#musicvol"), elMusicVolOut = $("#musicvolout");
+function syncMusicVolume(volume = getMusicVolume()) {
+  const percent = Math.round(volume * 100);
+  elMusicVol.value = String(percent);
+  elMusicVol.style.setProperty("--volume", `${percent}%`);
+  elMusicVolOut.textContent = `${percent}%`;
+}
 async function startMusic() {
   if (!isOn()) return;
   const c = audio();
@@ -665,7 +672,15 @@ if (elRadio) {
     elRadio.classList.add("pop");
   });
 }
+elMusicVol.addEventListener("input", e => {
+  e.stopPropagation();
+  syncMusicVolume(setMusicVolume(+elMusicVol.value / 100));
+  if (isOn()) startMusic();
+});
+elMusicVol.addEventListener("click", e => e.stopPropagation());
+elMusicVol.addEventListener("pointerdown", e => e.stopPropagation());
 syncSound();
+syncMusicVolume();
 updateRadioUI();
 
 

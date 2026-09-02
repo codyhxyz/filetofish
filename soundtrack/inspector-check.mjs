@@ -1,11 +1,21 @@
 import assert from "node:assert/strict";
 import { groupPhrases, midiToName, noteToMidi } from "../src/music-analysis.mjs";
+import { clampMusicVolume, readMusicVolume, writeMusicVolume } from "../src/music-settings.mjs";
 
 assert.equal(noteToMidi("C4"), 60);
 assert.equal(noteToMidi("Db5"), 73);
 assert.equal(noteToMidi("C#5"), 73);
 assert.equal(midiToName(73), "C#5");
 assert.throws(() => noteToMidi("nope"), /Invalid note/);
+
+assert.equal(clampMusicVolume(-1), 0);
+assert.equal(clampMusicVolume(2), 1);
+assert.equal(clampMusicVolume("bad"), 0.7);
+const values = new Map([["ftf.music.volume", "0.84"]]);
+const storage = { getItem: key => values.get(key), setItem: (key, value) => values.set(key, value) };
+assert.equal(readMusicVolume(storage), 0.84);
+writeMusicVolume(0.42, storage);
+assert.equal(values.get("ftf.music.volume"), "0.42");
 
 const layers = [
   ...Array(8).fill("chords"),

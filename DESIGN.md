@@ -139,6 +139,11 @@ adding a knob needs no UI work. The page is `noindex` and costs 12 KB; delete
 
 ## Inspecting the soundtrack
 
+The in-game music slider controls the soundtrack bus from 0-100%, defaults to
+70%, and persists as `ftf.music.volume`. It is separate from the sound on/off
+control so the music can sit under the fishing cues without being locked to the
+old quiet 38% mix.
+
 **`/score`** is the read-only production score. It imports `TRACKS` and
 `compileTimeline()` from `src/music.js`, so the phrase map and piano roll show the
 same expanded 32-bar events that the scheduler plays. `soundtrack/scores.json` is

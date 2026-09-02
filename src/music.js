@@ -3,6 +3,7 @@
    gradual smooth fade-in, instant hotswapping, and gameplay ducking. */
 
 import Soundfont from "soundfont-player";
+import { readMusicVolume, writeMusicVolume } from "./music-settings.mjs";
 
 export const TRACKS = [
   {
@@ -293,6 +294,7 @@ let currentTrackIndex = 0;
 let isRadioManual = false;
 let isPlaying = false;
 let isSoundOn = true;
+let musicVolume = readMusicVolume();
 
 const SOUNDFONT_BANK = "MusngKite"; // The warm acoustic soundbank!
 const instrumentCache = new Map();
@@ -509,13 +511,24 @@ export function setMusicSoundOn(enabled) {
   }
 }
 
+export const getMusicVolume = () => musicVolume;
+export function setMusicVolume(value) {
+  musicVolume = writeMusicVolume(value);
+  if (MASTER_FADE && hasStartedMusic && AC) {
+    const now = AC.currentTime;
+    MASTER_FADE.gain.cancelScheduledValues(now);
+    MASTER_FADE.gain.setTargetAtTime(musicVolume, now, 0.025);
+  }
+  return musicVolume;
+}
+
 export function auditionMusicNote(channel, note, durationSec = 0.6, gain = 0.6) {
   const instrument = channels[channel];
   if (!AC || !instrument) return false;
   const now = AC.currentTime;
   if (!hasStartedMusic) {
     hasStartedMusic = true;
-    MASTER_FADE.gain.setValueAtTime(0.38, now);
+    MASTER_FADE.gain.setValueAtTime(musicVolume, now);
   }
   try {
     const node = instrument.play(note, now, { duration: durationSec, gain });
@@ -587,7 +600,7 @@ function startPlayback() {
     hasStartedMusic = true;
     MASTER_FADE.gain.cancelScheduledValues(now);
     MASTER_FADE.gain.setValueAtTime(0.0001, now);
-    MASTER_FADE.gain.exponentialRampToValueAtTime(0.38, now + 1.25);
+    MASTER_FADE.gain.exponentialRampToValueAtTime(Math.max(0.0001, musicVolume), now + 1.25);
   }
   transportStartTime = now + 0.05;
   nextEventIndex = 0;
