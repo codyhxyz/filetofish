@@ -51,8 +51,11 @@ Seven skies — `dawn`, `sunrise`, `day`, `dusk`, `night`, `fog`, `rain` — liv
 The load-bearing trick is that the **visible sun and the key light are separate
 vectors**. The sun can sit on the horizon for the glitter path while the swell
 still gets a high key, so the cel bands never flatten out at sunrise or dusk. The
-glitter path itself comes off the half-vector slope rather than a `pow(dot)` hack,
-which is why it narrows at the horizon and spreads toward the camera.
+moon also has its own direction and visibility: the radiant twelve-ray sun sets
+while a larger cratered crescent rises on a separate path, and the water reflection
+hands over between them. The glitter path itself comes off the half-vector slope
+rather than a `pow(dot)` hack, which is why it narrows at the horizon and spreads
+toward the camera.
 
 Which sky you get is your actual local time (`weatherForDate`), with a small chance
 of fog or rain rolling in instead. A monochrome icon beside the clock shows the

@@ -9,7 +9,8 @@ export const WEATHERS = ["dawn", "sunrise", "day", "dusk", "night", "fog", "rain
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 
 /* amt  = fog, rain, stars, glitter      (uAmt)
-   amt2 = sun disc, sun glow, foam, spec (uAmt2)
+   amt2 = disc, glow, foam, spec          (uAmt2)
+   moon = its own direction + visibility (uMoonDir/uMoon)
    cloudA = cloud light colour + coverage bias (uCloudA)
    sun  = the disc you can see; key = the direction that shades the swell.
    Keeping them apart is what lets the sun sit on the horizon without the
@@ -58,10 +59,10 @@ const SCENES = {
     label: "night", css: "#8CA6F0", light: [0.52, 0.62, 0.96], ambient: 0.55,
     deep: [0.012, 0.030, 0.095], shal: [0.100, 0.200, 0.400], foam: [0.60, 0.72, 0.94],
     sky: [0.055, 0.085, 0.220], sky2: [0.010, 0.020, 0.075],
-    sun: [-0.24, 0.155, -1.0], key: [-0.26, 0.66, -0.72], sunCol: [0.88, 0.92, 1.00],
+    sun: [0.24, -0.08, -1.0], key: [-0.26, 0.66, -0.72], sunCol: [0.88, 0.92, 1.00],
     haze: [0.100, 0.140, 0.300],
     cloudB: [0.060, 0.080, 0.180], cloudA: [0.170, 0.200, 0.360, 0.00],
-    amt: [0.06, 0.0, 1.00, 0.70], amt2: [1.0, 0.20, 0.28, 0.40],
+    amt: [0.06, 0.0, 1.00, 0.70], amt2: [0.0, 0.20, 0.28, 0.40], moon: [-0.24, 0.155, -1.0, 1.0],
   },
   fog: {
     label: "fog", css: "#B9C7CC", light: [0.90, 0.93, 0.95], ambient: 0.86,
@@ -116,17 +117,18 @@ export function paletteOf(name) { return PAL[name] || PAL.day; }
 
 /* ------------------------------------------------------- packed uniforms */
 /* One flat float array per scene so clock interpolation and weather fades use
-   the same small loop. Slots 42..45 are the fish grade -- not uploaded, but
-   they ride along so paletteNow() can hand app.js matching light. */
-const NF = 46;
+   the same small loop. Slots 42..45 are the fish grade; 46..49 are the moon's
+   independent direction and visibility. */
+const NF = 50;
 const nrm = v => { const l = Math.hypot(v[0], v[1], v[2]) || 1; return [v[0] / l, v[1] / l, v[2] / l]; };
 const PACK = {};
+const MOON_DOWN = [0.38, 0.02, -1.0, 0.0];
 for (const k in SCENES) {
-  const s = SCENES[k], a = new Float32Array(NF);
+  const s = SCENES[k], a = new Float32Array(NF), moon = s.moon || MOON_DOWN;
   a.set(s.deep, 0); a.set(s.shal, 3); a.set(s.foam, 6); a.set(s.sky, 9); a.set(s.sky2, 12);
   a.set(nrm(s.sun), 15); a.set(nrm(s.key), 18); a.set(s.sunCol, 21); a.set(s.haze, 24);
   a.set(s.cloudB, 27); a.set(s.cloudA, 30); a.set(s.amt, 34); a.set(s.amt2, 38);
-  a.set(s.light, 42); a[45] = s.ambient;
+  a.set(s.light, 42); a[45] = s.ambient; a.set(nrm(moon), 46); a[49] = moon[3];
   PACK[k] = a;
 }
 
@@ -140,6 +142,8 @@ uniform vec3 uSun, uKey, uSunCol, uHaze, uCloudB;
 uniform vec4 uCloudA;
 uniform vec4 uAmt;
 uniform vec4 uAmt2;
+uniform vec3 uMoonDir;
+uniform float uMoon;
 #define FOG  uAmt.x
 #define RAIN uAmt.y
 #define STAR uAmt.z
@@ -235,6 +239,17 @@ float rainLayer(vec2 q, float t, float cw, float ch, float spd, float slant){
   float s = (1.0 - smoothstep(0.0, len, fy))*step(0.38, hh);
   return s*(1.0 - smoothstep(0.055, 0.165, abs(fract(rp.x) - 0.5)));
 }
+float sunBody(vec3 dv){
+  float r = length(dv), a = atan(dv.y, dv.x);
+  float core = 1.0 - smoothstep(0.027, 0.034, r);
+  float rays = (1.0 - smoothstep(0.030, 0.075, r))*pow(0.5 + 0.5*cos(a*12.0 + uTime*0.08), 10.0);
+  return max(core, rays*0.72);
+}
+float moonBody(vec3 dv){
+  float outer = 1.0 - smoothstep(0.033, 0.039, length(dv));
+  float shadow = 1.0 - smoothstep(0.027, 0.034, length(dv.xy - vec2(0.017, 0.003)));
+  return outer*(0.16 + 0.84*(1.0 - shadow));
+}
 vec3 sky(vec3 rd, float t){
   vec3 s = mix(cSky, cSky2, pow(clamp(rd.y*3.0,0.0,1.0), 0.72));
   float c = fbm(rd.xz/max(rd.y,0.030)*0.15 + vec2(t*0.010, 0.0));
@@ -248,14 +263,15 @@ vec3 sky(vec3 rd, float t){
   }
   s = mix(s, uCloudA.rgb, m1*0.92);
   s = mix(s, uCloudB, m2*0.55);
-  float sn = max(dot(rd, uSun), 0.0);
-  s += uSunCol*((pow(sn,4.0)*0.28 + pow(sn,26.0)*0.55)*GLOW + pow(sn,220.0)*0.80*DISC);
-  if (DISC > 0.001) {
-    vec3 dv = rd - uSun;
+  float sn = max(dot(rd, uSun), 0.0), mn = max(dot(rd, uMoonDir), 0.0);
+  s += uSunCol*(pow(sn,4.0)*0.28 + pow(sn,26.0)*0.55)*GLOW*smoothstep(0.0,0.1,DISC);
+  s += vec3(0.42,0.52,0.82)*pow(mn,34.0)*GLOW*uMoon*0.18;
+  if (DISC > 0.001) s = mix(s, min(uSunCol*1.42, vec3(1.0)), sunBody(rd - uSun)*DISC);
+  if (uMoon > 0.001) {
+    vec3 dv = rd - uMoonDir;
     float cr = (1.0 - smoothstep(0.005, 0.011, length(dv.xy - vec2(0.008, 0.005))))
              + (1.0 - smoothstep(0.004, 0.009, length(dv.xy + vec2(0.010,-0.006))));
-    float disc = (1.0 - smoothstep(0.025, 0.031, length(dv)))*DISC;
-    s = mix(s, uSunCol*(1.30 - 0.22*clamp(cr*STAR,0.0,1.0)), disc);
+    s = mix(s, vec3(0.72,0.80,1.0)*(1.0 - 0.18*clamp(cr,0.0,1.0)), moonBody(dv)*uMoon);
   }
   return mix(s, uHaze, 1.0 - smoothstep(0.0, mix(0.085, 0.50, FOG), rd.y));
 }
@@ -307,19 +323,20 @@ void main(){
     vec3 far = mix(mix(cSky,cShal,0.42), uHaze, clamp(0.34 + FOG*0.60, 0.0, 1.0));
     col = mix(col, far, smoothstep(mix(18.0,5.0,FOG), mix(84.0,26.0,FOG), dist));
     float specPow = mix(46.0, 96.0, uTune.w);
+    vec3 shineDir = normalize(mix(uSun, uMoonDir, clamp(uMoon,0.0,1.0)));
     col = mix(col, mix(vec3(1.0), uSunCol, 0.5),
-              step(0.34, pow(max(dot(reflect(rd,n),uSun),0.0),specPow))*fade*0.85*SPEC);
+              step(0.34, pow(max(dot(reflect(rd,n),shineDir),0.0),specPow))*fade*0.85*SPEC);
     if (GLIT > 0.001) {
       /* half-vector slope: the facet tilt this pixel would need to mirror the
          sun. Small near the sun's azimuth, growing sideways -- that is the
          glitter path, narrow at the horizon and spreading toward the camera. */
-      vec3 hv = normalize(uSun - rd);
+      vec3 hv = normalize(shineDir - rd);
       float sl = length(hv.xz)/max(hv.y, 0.05);
       float wash = exp(-sl*sl*4.6) + 0.32*exp(-sl*sl*0.85);
       wash = mix(wash, floor(wash*5.0 + 0.5)*0.2, 0.45);
       vec3 fn = normalize(n + vec3(sin(p.x*6.3 + t*2.1), 0.0, cos(p.y*5.9 - t*1.7))*0.22);
       float spark = smoothstep(mix(0.9925,0.9970,uTune.w), mix(0.9948,0.9990,uTune.w),
-                               max(dot(reflect(rd,fn),uSun),0.0))*fade;
+                               max(dot(reflect(rd,fn),shineDir),0.0))*fade;
       float gm = clamp((wash*0.52 + spark*0.85)*(0.5 + 0.5*smoothstep(-0.40,0.50,h))*GLIT, 0.0, 1.0);
       col = mix(col, min(uSunCol*1.30, vec3(1.0)), gm);
     }
@@ -357,6 +374,7 @@ export function Sea(canvas) {
     deep: U("cDeep"), shal: U("cShal"), foam: U("cFoam"), sky: U("cSky"), sky2: U("cSky2"),
     sun: U("uSun"), key: U("uKey"), sunCol: U("uSunCol"), haze: U("uHaze"), zoom: U("uZoom"), tune: U("uTune"),
     cloudB: U("uCloudB"), cloudA: U("uCloudA"), amt: U("uAmt"), amt2: U("uAmt2"),
+    moonDir: U("uMoonDir"), moon: U("uMoon"),
   };
 
   /* live uniform block + the two ends of the cross-fade */
@@ -373,7 +391,7 @@ export function Sea(canvas) {
     cur[o] /= l; cur[o + 1] /= l; cur[o + 2] /= l;
   };
   const upload = () => {
-    renorm(15); renorm(18);
+    renorm(15); renorm(18); renorm(46);
     gl.uniform3fv(u.deep, V.deep); gl.uniform3fv(u.shal, V.shal); gl.uniform3fv(u.foam, V.foam);
     gl.uniform3fv(u.sky, V.sky); gl.uniform3fv(u.sky2, V.sky2);
     gl.uniform3fv(u.sun, V.sun); gl.uniform3fv(u.key, V.key);
@@ -382,6 +400,7 @@ export function Sea(canvas) {
     gl.uniform4fv(u.tune, tune);
     gl.uniform3fv(u.cloudB, V.cloudB);
     gl.uniform4fv(u.cloudA, V.cloudA); gl.uniform4fv(u.amt, V.amt); gl.uniform4fv(u.amt2, V.amt2);
+    gl.uniform3fv(u.moonDir, cur.subarray(46, 49)); gl.uniform1f(u.moon, cur[49]);
   };
 
   const DUR = 2.0;                 /* seconds for a full weather change */
