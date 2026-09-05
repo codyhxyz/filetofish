@@ -77,6 +77,57 @@ mid-cross-fade light, which grades the fish through a uniform in the post pass a
 the rod through a CSS filter on the SVG. A fish landed at midnight is a fish at
 midnight.
 
+## Light
+
+The sea used to be display-referred: every colour in the seven weathers was a
+screen colour, mixed in 0..1 and clamped, which is why nothing in it could ever
+look *bright*, only white. It is now lit in linear radiance and turned into
+screen colour once, at the end, by `finish()`: exposure plus Narkowicz's ACES
+fit plus a one-LSB dither. `unmapc()` is that curve's exact algebraic inverse,
+so the hand-tuned weather palettes are not thrown away -- they are inverted
+into radiance and act as the floor the physical terms add to. A sky built from
+palette alone comes back out of `finish()` as the old frame exactly.
+
+What the light is made of, each behind a switch (`?fx=`, see below):
+
+- **Sky** (`sky`): analytic single scattering, Rayleigh plus Mie, driven by the
+  sun and moon directions. Aerosol is a ground layer, not a full column, or a
+  53-degree lens with the sun in it is nothing but forward scatter. Overcast
+  hands the frame back to the palette, because a rainstorm has no beam to
+  scatter. The sun is a soft-limbed disc at radiance ~27 inside a Mie glare;
+  the twelve-spoke starburst is gone. Clouds are two-tone with a sun-facing
+  silver lining. The moon runs the same scattering, cooler and dimmer.
+- **Rays** (`rays`): crepuscular shafts, an 18-sample hashed march from each
+  sky pixel toward the sun through the procedural cloud field, so light breaks
+  where the clouds do. Skipped below the horizon and far from the sun. They
+  need their own cloud projection: the ordinary one divides by `rd.y` and
+  turns to noise at the horizon, where the shafts live.
+- **Water** (`water`): Schlick Fresnel reflection of `skyBase()` (the sky
+  without the march), quantised to three cel bands, so far water mirrors the
+  sky and the hard horizon band is gone. A normalised GGX lobe replaces the
+  stepped specular: roughness grows with distance as the normal flattens, so
+  sub-pixel chop becomes lobe width instead of crawl. Backlit crests glow a
+  turquoise pulled from the shallow colour when the sun is low and behind the
+  wave. Foam takes the sun as a unit-peak tint, not as radiance -- as radiance
+  it turned to lava.
+- **Bloom** (`bloom`): the scene renders to a half-float target with `uRaw`
+  set, a soft-knee bright pass at 2.6 radiance feeds three blurred mips, and
+  one composite applies `finish(hdr + bloom)`. The threshold sits above the
+  sky (~1..2.5) and lit foam, so only the disc, the moon, the sun path and the
+  sparkle glow; at 1.15 the day washed out and night foam went electric blue.
+  WebGL1 with half-float is preferred over WebGL2 because SwiftShader refuses
+  `fwidth` in a GLSL ES 1.00 shader under a WebGL2 context, and losing that
+  loses the foam; RGBA8 is the last resort and the classic single pass the one
+  after that.
+
+`?fx=none` is the classic frame, byte for byte: every new term is multiplied
+by its switch. `?fx=sky,water` turns on only those; `?fx=-bloom` everything but.
+The shader carries a region contract in a comment above it (sky, water, post)
+because these three were built in parallel against it.
+
+The fish is untouched: it still takes `paletteNow()` and its four-step lamp.
+The blocks stay blocks; only the light changed.
+
 ## Sound
 
 Entirely synthesised in WebAudio -- no samples, no assets, no licensing, 0 bytes of
@@ -253,7 +304,7 @@ wrangler pages deploy dist --project-name=filetofish --branch=main --commit-dirt
 ```
 
 Creds come from `~/.claude/secrets/cloudflare.env` via `~/.zshrc`. See the
-`cloudflare-ops` skill. Whole app is ~145 KB gzipped, static, $0 per catch.
+`cloudflare-ops` skill. Whole app is ~189 KB gzipped, static, $0 per catch.
 
 ## Gotchas hit along the way
 
