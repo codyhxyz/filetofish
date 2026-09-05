@@ -164,15 +164,40 @@ for (const k in SCENES) {
    - SKY:    sunBody/moonBody/clouds/sky() and SEA_FINISH_GLSL. Owns exposure and
              tonemap. sky() returns linear scene radiance: the classic values were
              ~0..1 with 1.0 = bright daytime sky; the sun disc may be >> 1.
-   - WATER:  the `else` (below-horizon) branch of main(). May call sky() for
-             reflection and must tolerate HDR values coming back from it.
+             skyBase(rd,t) is the same sky without the crepuscular ray march --
+             call that one for reflections. Under FX_SKY the whole frame is
+             linear radiance by the time it reaches finish(), so a palette
+             colour used as a final colour must be lifted with unmapc() first
+             (unmapc is the exact inverse of finish()'s curve, so unmapc(x)
+             through finish() is x again).
+   - WATER:  the `else` (below-horizon) branch of main(). May call sky() or
+             skyBase() for reflection and must tolerate HDR values coming back;
+             under FX_SKY its own output has to be radiance too -- wrap cDeep,
+             cShal, cFoam, uHaze and friends in unmapc().
    - POST:   the JS in Sea(): context, programs, render targets, render(). Uses
              uRaw=1 to receive HDR and applies finish() in its own composite.
    Every new term is gated on its FX_* switch so ?fx=none is the classic frame. */
 export const SEA_FINISH_GLSL = `
-/* exposure + tonemap + output transform. Identity until the SKY region fills it
-   in; must stay identity when FX_SKY == 0 so the classic frame is unchanged. */
-vec3 finish(vec3 c){ return c; }
+/* Exposure, tonemap and output transform, in one place. Identity while
+   FX_SKY == 0 so the classic frame is untouched; with the sky on, sky() and
+   skyBase() hand back linear scene radiance (1.0 = a bright daytime sky, the
+   sun disc ~27) and this is the only step that turns it into screen colour.
+   The curve is Narkowicz's fit of the ACES RRT+ODT, which already carries the
+   output transform, so nothing is applied after it -- and unmapc() in the sea
+   shader is its exact algebraic inverse, which is how the scene palette
+   survives the round trip. A one-LSB triangular dither keeps the long smooth
+   gradients off the 8-bit banding.
+   Needs FX_SKY defined (uFx.x); a post pass inlining this chunk must too. */
+vec3 ftfTonemap(vec3 x){
+  x = max(x, 0.0);
+  return clamp((x*(2.51*x + 0.03))/(x*(2.43*x + 0.59) + 0.14), 0.0, 1.0);
+}
+vec3 finish(vec3 c){
+  if (FX_SKY < 0.5) return c;
+  vec3 o = ftfTonemap(c*1.05);
+  float d = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233)))*43758.5453);
+  return clamp(o + (d - 0.5)*(1.0/255.0), 0.0, 1.0);
+}
 `;
 const SEA_VS = "attribute vec2 a;void main(){gl_Position=vec4(a,0.,1.);}";
 const SEA_FS = `
@@ -302,18 +327,92 @@ float rainLayer(vec2 q, float t, float cw, float ch, float spd, float slant){
   float s = (1.0 - smoothstep(0.0, len, fy))*step(0.38, hh);
   return s*(1.0 - smoothstep(0.055, 0.165, abs(fract(rp.x) - 0.5)));
 }
+/* ------------------------------------------------------------------- sky */
+/* FX_SKY swaps the flat two-colour gradient for analytic single scattering:
+   Rayleigh for the blue column, Mie for the forward lobe that turns the horizon
+   around the sun orange at dawn and dusk. The scene palette is not thrown away
+   -- it is run backwards through the tonemap (unmapc) and used as the
+   multiple-scattering floor, so dawn, fog and rain still read as themselves,
+   the 2 s cross-fade still interpolates something meaningful, and a sky built
+   from the palette alone comes back out of finish() as the classic frame
+   exactly. Everything from here down is linear radiance: 1.0 is a bright
+   daytime sky and the sun disc is ~27, which is what gives bloom something to
+   find. finish() is the only place it becomes screen colour. */
+#define SKY_4PI 12.566371
+const vec3 BETA_R   = vec3(0.0630, 0.1512, 0.3600);   /* Rayleigh, ~lambda^-4 */
+const vec3 MOON_COL = vec3(0.70, 0.80, 1.00);
+const float SUN_I   = 13.5;   /* key light radiance */
+const float DISC_I  = 27.0;   /* the disc itself -- far over 1 so it blooms */
+const float MOON_I  = 1.00;   /* the moon runs the same scattering, cooler */
+
+/* exact inverse of the curve in finish(): finished palette colour -> radiance */
+float invAces1(float y){
+  float a = 2.43*y - 2.51, b = 0.59*y - 0.03, c = 0.14*y;
+  return (-b - sqrt(max(b*b - 4.0*a*c, 0.0)))/(2.0*a);
+}
+vec3 unmapc(vec3 c){
+  c = clamp(c, 0.0, 0.965);   /* the curve runs away at 1.0; 0.965 -> ~3.5 */
+  return vec3(invAces1(c.r), invAces1(c.g), invAces1(c.b));
+}
+float phaseR(float c){ return 0.0596831*(1.0 + c*c); }
+float phaseM(float c, float g){
+  float g2 = g*g, d = max(1.0 + g2 - 2.0*g*c, 1e-4);
+  return (1.0 - g2)/(SKY_4PI*d*sqrt(d));
+}
+/* rd.y only reaches ~0.36 inside this frame, so elevation is stretched before
+   the airmass: the visible band has to carry the whole horizon-to-zenith run. */
+float airmass(float y){ return 1.0/(clamp(y*2.75, 0.0, 1.0)*0.90 + 0.105); }
+/* single scattering through a uniform slab. Splitting the light's own
+   transmittance -- Rayleigh high in the column, Mie down in the haze where it
+   reddens far harder -- is what keeps the anti-solar sky blue while the sun's
+   own quarter of the horizon goes orange. */
+vec3 inscat(vec3 rd, vec3 L, vec3 bM, vec3 bE, vec3 omT, float g){
+  float c = dot(rd, L), sam = airmass(L.y);
+  /* aerosol is a layer sitting on the sea, not a full column: looking up you
+     see far less of it. Without this the Mie lobe whitens the whole frame at
+     sunrise, because a 53 degree lens with the sun in it is all forward
+     scatter -- with it, the fire stays down on the horizon where it belongs. */
+  vec3 bMv = bM*(0.18 + 0.82*exp(-clamp(rd.y*2.75, 0.0, 1.0)*2.0));
+  return (BETA_R*phaseR(c)*exp(-bE*sam*0.42) + bMv*phaseM(c, g)*exp(-bE*sam*1.30))/bE*omT;
+}
+vec2 cloudUV(vec3 rd, float t){ return rd.xz/max(rd.y, 0.030)*0.15 + vec2(t*0.010, 0.0); }
+/* one octave, lifted by the mean of the three fbm() octaves it drops: close
+   enough to the drawn cloud for the shafts to land in the gaps, a quarter of
+   the cost, and the march can afford eighteen of them. */
+float cloudLo(vec2 q){ return 0.5*vnoise(q) + 0.219; }
+/* the march needs its own projection. cloudUV() divides by rd.y, so within a
+   few degrees of the horizon the cloud field explodes into noise the samples
+   cannot resolve and every shaft averages itself away; flooring the divisor
+   flattens that band into the coherent layer the shafts need. */
+vec2 cloudUVLo(vec3 rd, float t){ return rd.xz/max(rd.y, 0.105)*0.15 + vec2(t*0.010, 0.0); }
+float sunLit(){ return smoothstep(-0.40, -0.01, uSun.y); }
+vec3 sunHue(){ return uSunCol/max(max(uSunCol.r, uSunCol.g), max(uSunCol.b, 0.002)); }
+
 float sunBody(vec3 dv){
-  float r = length(dv), a = atan(dv.y, dv.x);
-  float core = 1.0 - smoothstep(0.027, 0.034, r);
-  float rays = (1.0 - smoothstep(0.030, 0.075, r))*pow(0.5 + 0.5*cos(a*12.0 + uTime*0.08), 10.0);
-  return max(core, rays*0.72);
+  float r = length(dv);
+  if (FX_SKY < 0.5) {
+    float a = atan(dv.y, dv.x);
+    float core = 1.0 - smoothstep(0.027, 0.034, r);
+    float rays = (1.0 - smoothstep(0.030, 0.075, r))*pow(0.5 + 0.5*cos(a*12.0 + uTime*0.08), 10.0);
+    return max(core, rays*0.72);
+  }
+  /* a disc with a soft, slightly darkened limb. The twelve spokes are gone --
+     what surrounds the sun now is the Mie lobe, which is the real thing. */
+  return (1.0 - smoothstep(0.0235, 0.0310, r))*(1.0 - 0.26*smoothstep(0.004, 0.028, r));
 }
 float moonBody(vec3 dv){
-  float outer = 1.0 - smoothstep(0.033, 0.039, length(dv));
-  float shadow = 1.0 - smoothstep(0.027, 0.034, length(dv.xy - vec2(0.017, 0.003)));
-  return outer*(0.16 + 0.84*(1.0 - shadow));
+  float r = length(dv);
+  if (FX_SKY < 0.5) {
+    float outer = 1.0 - smoothstep(0.033, 0.039, r);
+    float shadow = 1.0 - smoothstep(0.027, 0.034, length(dv.xy - vec2(0.017, 0.003)));
+    return outer*(0.16 + 0.84*(1.0 - shadow));
+  }
+  float outer = 1.0 - smoothstep(0.0325, 0.0378, r);
+  float shadow = 1.0 - smoothstep(0.026, 0.0335, length(dv.xy - vec2(0.017, 0.003)));
+  return outer*(0.12 + 0.88*(1.0 - shadow));
 }
-vec3 sky(vec3 rd, float t){
+/* the frame as it shipped: a two-colour ramp, thresholded clouds, a pow() glow */
+vec3 skyClassic(vec3 rd, float t){
   vec3 s = mix(cSky, cSky2, pow(clamp(rd.y*3.0,0.0,1.0), 0.72));
   float c = fbm(rd.xz/max(rd.y,0.030)*0.15 + vec2(t*0.010, 0.0));
   float cv = uCloudA.w;
@@ -337,6 +436,116 @@ vec3 sky(vec3 rd, float t){
     s = mix(s, vec3(0.72,0.80,1.0)*(1.0 - 0.18*clamp(cr,0.0,1.0)), moonBody(dv)*uMoon);
   }
   return mix(s, uHaze, 1.0 - smoothstep(0.0, mix(0.085, 0.50, FOG), rd.y));
+}
+vec3 skyScatter(vec3 rd, float t){
+  vec3 sh = sunHue();
+  float lit = sunLit();
+  float lowSun = 1.0 - smoothstep(0.03, 0.42, uSun.y);
+
+  /* -- palette floor. The warm band is pulled back toward the zenith colour
+     away from the sun's quarter of the sky, which is the one thing a flat
+     vertical ramp could never do; with the sun up it switches itself off. */
+  float k = pow(clamp(rd.y*3.0, 0.0, 1.0), 0.72);
+  float az = dot(normalize(vec3(rd.x, 0.0, rd.z)), normalize(vec3(uSun.x, 0.0, uSun.z)));
+  k = clamp(k + lowSun*lit*(1.0 - smoothstep(0.30, 0.98, az))*0.50, 0.0, 1.0);
+  /* an overcast sky has no direct beam left to scatter, so fog, rain and heavy
+     coverage hand the frame back to the palette. Without this the Rayleigh
+     column opens a blue hole in the middle of a rainstorm. */
+  float clear = 1.0 - clamp(FOG*0.85 + RAIN*0.70 + uCloudA.w*0.45, 0.0, 0.90);
+  vec3 s = unmapc(mix(cSky, cSky2, k))*(1.0 - 0.55*lit*clear);
+
+  /* -- the scattering itself. Turbidity comes off the scene: fog and rain are
+     thick with aerosol, and a cloudy scene hazes up with its own coverage. */
+  float turb = 1.0 + FOG*2.6 + RAIN*1.7 + uCloudA.w;
+  vec3 bM = vec3(0.019*turb), bE = BETA_R + bM*1.08;
+  vec3 omT = 1.0 - exp(-bE*airmass(rd.y));
+  s += inscat(rd, uSun, bM, bE, omT, 0.76)*sh*(SUN_I*lit*clear);
+  float mLit = uMoon*smoothstep(-0.16, 0.06, uMoonDir.y);
+  s += inscat(rd, uMoonDir, bM, bE, omT, 0.70)*MOON_COL*(MOON_I*mLit*clear);
+
+  /* -- clouds */
+  vec2 q = cloudUV(rd, t);
+  float d = fbm(q);
+  float cv = uCloudA.w;
+  float m1 = smoothstep(0.505 - cv*0.15, 0.545 - cv*0.15, d);
+  float m2 = smoothstep(0.585 - cv*0.17, 0.615 - cv*0.17, d);
+  if (STAR > 0.001) {
+    float cm = clamp(m1*0.92 + m2*0.55, 0.0, 1.0);
+    float st = starfield(rd.xy/max(-rd.z, 0.25), t);
+    s += vec3(0.80,0.86,1.0)*(st*STAR*0.70)*smoothstep(0.0,0.12,rd.y)*(1.0 - cm*0.9);
+  }
+  /* one step along the light ray inside the cloud plane. Thinner that way means
+     this is the sun-facing slope, and that is where the silver lining lives;
+     thicker means we are looking at the shaded back of the cloud. */
+  vec2 sd = normalize(uSun.xz/max(uSun.y, 0.16) + vec2(1e-4, 1e-4));
+  float rim = clamp((d - fbm(q + sd*0.20))*3.4, -1.0, 1.0);
+  float sc = dot(rd, uSun);
+  vec3 cA = unmapc(uCloudA.rgb), cB = unmapc(uCloudB);
+  vec3 cc = mix(cB*0.72, cA, clamp(0.30 + 0.85*rim, 0.0, 1.0));
+  cc += sh*(SUN_I*lit)*(0.050*max(rim, 0.0)*(0.30 + 0.70*pow(max(sc, 0.0), 4.0))
+                      + 0.018*phaseM(sc, 0.80)*exp(-max(d - 0.44, 0.0)*8.0));
+  s = mix(s, cc, m1*0.92);
+  s = mix(s, mix(cB, cc, 0.30), m2*0.55);
+
+  /* -- horizon haze eats the low sky, and in fog it eats all of it */
+  s = mix(s, unmapc(uHaze), 1.0 - smoothstep(0.0, mix(0.085, 0.50, FOG), rd.y));
+
+  /* -- disc and glare go on last. At sunrise the sun IS on the horizon, so it
+     has to survive the haze mix or there is no sun in the one frame that wants
+     one; the clouds still occlude it, which is what the shafts need. */
+  float th = length(rd - uSun);
+  vec3 glare = sh*(SUN_I*lit*GLOW)*(0.10*exp(-th*15.0) + 0.035*exp(-th*4.5));
+  if (DISC > 0.001) glare += sh*(DISC_I*DISC*lit)*sunBody(rd - uSun);
+  s += glare*(1.0 - m1*0.80)*(1.0 - FOG*0.55);
+
+  if (uMoon > 0.001) {
+    vec3 dv = rd - uMoonDir;
+    float mr = length(dv);
+    float cr = (1.0 - smoothstep(0.005, 0.011, length(dv.xy - vec2(0.008, 0.005))))
+             + (1.0 - smoothstep(0.004, 0.009, length(dv.xy + vec2(0.010,-0.006))));
+    vec3 mg = MOON_COL*(2.6*uMoon)*moonBody(dv)*(1.0 - 0.20*clamp(cr, 0.0, 1.0));
+    mg += MOON_COL*(uMoon*0.55)*(0.30*exp(-mr*22.0) + 0.09*exp(-mr*6.0));
+    s += mg*(1.0 - m1*0.75);
+  }
+  return s;
+}
+/* no ray march: the water calls this for reflections and should not pay for the
+   shafts twice. Same units as sky(). */
+vec3 skyBase(vec3 rd, float t){
+  if (FX_SKY < 0.5) return skyClassic(rd, t);
+  return skyScatter(rd, t);
+}
+/* Crepuscular rays. The clouds are a function of direction, so the shafts come
+   from marching the line from this pixel toward the sun and accumulating how
+   much of it is open sky. This is the only loop in the shader: it bails when
+   the sun is under the horizon or the pixel is nowhere near it, the samples are
+   one octave of noise, and the offset is hashed per pixel so the eighteen steps
+   do not band. */
+vec3 godrays(vec3 rd, float t){
+  if (uSun.y < -0.30) return vec3(0.0);
+  float sc = dot(rd, uSun);
+  float reach = smoothstep(0.42, 0.86, sc);
+  if (reach <= 0.0) return vec3(0.0);
+  float thr = 0.500 - uCloudA.w*0.15;
+  float jit = hash21(gl_FragCoord.xy + fract(t)*17.0);
+  float acc = 0.0, wsum = 0.0;
+  for (int i = 0; i < 18; i++) {
+    float f = (float(i) + jit)*(1.0/18.0);
+    vec3 p = normalize(mix(rd, uSun, f*0.88));
+    float w = 1.0 - f*0.72;
+    acc += (1.0 - smoothstep(thr - 0.045, thr + 0.045, cloudLo(cloudUVLo(p, t))))*w;
+    wsum += w;
+  }
+  /* a low sun puts the shafts through more haze, which is what makes them show
+     at sunrise and dusk even where the cloud is thin */
+  float lowSun = 1.0 - smoothstep(0.03, 0.42, uSun.y);
+  float amt = (acc/wsum)*reach*sunLit()*mix(0.42, 1.05, lowSun)*(0.40 + 0.60*GLOW);
+  return sunHue()*(amt*0.38*mix(0.32, 1.0, FX_SKY)*(1.0 - FOG*0.60)*(1.0 - RAIN*0.55));
+}
+vec3 sky(vec3 rd, float t){
+  vec3 c = skyBase(rd, t);
+  if (FX_RAYS > 0.5) c += godrays(rd, t);
+  return c;
 }
 ${SEA_FINISH_GLSL}
 void main(){
