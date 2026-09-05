@@ -414,23 +414,156 @@ export function fxFromSearch(search) {
   return FX_NAMES.map(n => negate ? (parts.includes("-" + n) ? 0 : 1) : (parts.includes(n) ? 1 : 0));
 }
 
+/* ------------------------------------------------------------------ bloom */
+/* POST region. The chain is: scene -> HDR target (uRaw = 1) -> soft-threshold
+   bright pass at half res -> quarter -> eighth, each level separably blurred,
+   then a weighted sum of the three added back and run through finish() in one
+   composite to the canvas. Gated on FX_BLOOM, so ?fx=none and ?fx=-bloom draw
+   the single pass straight to the canvas exactly as they always did.
+
+   The shipping numbers assume the HDR the SKY and WATER regions are moving to
+   and that they reach here through uRaw = 1: bright daytime sky about 1.0,
+   water below 1.0, the sun disc somewhere in 10..40, with finish() applying
+   exposure + tonemap afterwards. The threshold therefore sits just above sky
+   white, so a clear day does not wash out and only the sun, the moon, the
+   glitter path and the hottest foam crests carry a glow.
+
+   BLOOM_*_LDR are the same numbers for an already tonemapped 0..1 scene: a
+   machine with no float colour buffers, or the classic LDR sky and water
+   (?fx=bloom, ?fx=-sky). Which pair is used is decided per frame in render(). */
+const BLOOM_THRESHOLD = 1.15;      /* linear radiance where the glow starts */
+const BLOOM_STRENGTH = 0.55;       /* fraction of the blurred energy added back */
+const BLOOM_THRESHOLD_LDR = 0.86;
+const BLOOM_STRENGTH_LDR = 0.45;
+const BLOOM_KNEE = 0.30;           /* soft-knee width, as a fraction of threshold */
+const BLOOM_SAT = 0.22;            /* saturation lift: warm sun, cold moon, never white */
+const BLOOM_CLAMP = 64.0;          /* firefly guard, above the brightest sun disc */
+/* one weight per mip -- half, quarter, eighth -- summing to 1, so the bloom is
+   a sum of gaussians: tight around the source, still carrying at the edges.
+   The list is the only place the level count is written down. */
+const BLOOM_MIX = [0.42, 0.33, 0.25];
+const BLOOM_LEVELS = BLOOM_MIX.length;
+
+const POST_VS = "attribute vec2 a;varying vec2 vUv;void main(){vUv=a*0.5+0.5;gl_Position=vec4(a,0.,1.);}";
+const POST_HEAD = "precision highp float;\nvarying vec2 vUv;\nuniform sampler2D uTex;\nuniform vec2 uStep;\n";
+/* bright pass: halves the scene and keeps only what is above the knee. The
+   saturation lift is what makes the sun's bloom read orange and the moon's read
+   blue instead of both blooming to a white smear. */
+const BRIGHT_FS = POST_HEAD + `
+uniform vec3 uThresh;   /* threshold, knee, saturation */
+void main(){
+  vec3 c = texture2D(uTex, vUv + uStep*vec2(-1.0,-1.0)).rgb
+         + texture2D(uTex, vUv + uStep*vec2( 1.0,-1.0)).rgb
+         + texture2D(uTex, vUv + uStep*vec2(-1.0, 1.0)).rgb
+         + texture2D(uTex, vUv + uStep*vec2( 1.0, 1.0)).rgb;
+  c = min(c*0.25, vec3(${BLOOM_CLAMP.toFixed(1)}));
+  float br = max(c.r, max(c.g, c.b));
+  float knee = max(uThresh.y, 1e-4);
+  float soft = clamp(br - uThresh.x + knee, 0.0, 2.0*knee);
+  soft = soft*soft/(4.0*knee);
+  c *= max(soft, br - uThresh.x)/max(br, 1e-4);
+  float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
+  gl_FragColor = vec4(max(mix(vec3(l), c, 1.0 + uThresh.z), vec3(0.0)), 1.0);
+}`;
+/* 4 bilinear taps on the corners of the destination texel: a clean 4x4 box */
+const DOWN_FS = POST_HEAD + `
+void main(){
+  vec3 c = texture2D(uTex, vUv + uStep*vec2(-1.0,-1.0)).rgb
+         + texture2D(uTex, vUv + uStep*vec2( 1.0,-1.0)).rgb
+         + texture2D(uTex, vUv + uStep*vec2(-1.0, 1.0)).rgb
+         + texture2D(uTex, vUv + uStep*vec2( 1.0, 1.0)).rgb;
+  gl_FragColor = vec4(c*0.25, 1.0);
+}`;
+/* 9-tap gaussian folded onto 5 linear samples; uStep carries the axis */
+const BLUR_FS = POST_HEAD + `
+void main(){
+  vec3 c = texture2D(uTex, vUv).rgb*0.2270270270;
+  c += (texture2D(uTex, vUv + uStep*1.3846153846).rgb + texture2D(uTex, vUv - uStep*1.3846153846).rgb)*0.3162162162;
+  c += (texture2D(uTex, vUv + uStep*3.2307692308).rgb + texture2D(uTex, vUv - uStep*3.2307692308).rgb)*0.0702702703;
+  gl_FragColor = vec4(c, 1.0);
+}`;
+/* the only pass that writes the canvas. finish() is interpolated from the SKY
+   region's chunk so the two can never drift; uFx comes with it because finish()
+   is required to stay identity while FX_SKY is off. uFinish is 0 only when the
+   scene had to be rendered to an LDR target and already finished itself. */
+const COMPOSITE_FS = `precision highp float;
+varying vec2 vUv;
+uniform sampler2D uScene${BLOOM_MIX.map((_, i) => ", uB" + i).join("")};
+uniform float uStrength, uFinish, uTime;
+uniform vec4 uFx;
+#define FX_SKY   uFx.x
+#define FX_RAYS  uFx.y
+#define FX_WATER uFx.z
+#define FX_BLOOM uFx.w
+${SEA_FINISH_GLSL}
+void main(){
+  vec3 hdr = texture2D(uScene, vUv).rgb;
+  vec3 b = ${BLOOM_MIX.map((wt, i) => `texture2D(uB${i}, vUv).rgb*${wt.toFixed(3)}`).join("\n         + ")};
+  vec3 c = hdr + b*uStrength;
+  gl_FragColor = vec4(uFinish > 0.5 ? finish(c) : c, 1.0);
+}`;
+
 export function Sea(canvas) {
-  const gl = canvas.getContext("webgl", { antialias: false, alpha: false });
+  const attrs = { antialias: false, alpha: false, depth: false, stencil: false };
+  /* The context has two jobs: compile fwidth in a GLSL ES 1.00 shader (the foam
+     edge is anti-aliased against it) and give bloom a float colour buffer.
+     webgl2 is the obvious home for the second, but it is not a superset for the
+     first -- Chrome's SwiftShader backend, verified here, refuses fwidth in an
+     ESSL1 shader under webgl2 no matter what #extension line it is handed, and
+     the sea loses its foam. So both families are probed on a throwaway canvas
+     and webgl2 is taken only when it wins outright: webgl1 with
+     OES_texture_half_float already does both on every browser that matters. */
+  const derivOk = g => {
+    g.getExtension("OES_standard_derivatives");
+    const s = g.createShader(g.FRAGMENT_SHADER);
+    g.shaderSource(s, "#extension GL_OES_standard_derivatives : enable\nprecision mediump float;varying vec2 v;void main(){gl_FragColor=vec4(fwidth(v.x));}");
+    g.compileShader(s);
+    const ok = !!g.getShaderParameter(s, g.COMPILE_STATUS);
+    g.deleteShader(s);
+    return ok;
+  };
+  const probe = type => {
+    let g = null;
+    try { const c = document.createElement("canvas"); c.width = c.height = 2; g = c.getContext(type, attrs); } catch (e) { /* no such context */ }
+    if (!g) return null;
+    const r = {
+      deriv: derivOk(g),
+      float: type === "webgl2"
+        ? !!(g.getExtension("EXT_color_buffer_float") || g.getExtension("EXT_color_buffer_half_float"))
+        : !!(g.getExtension("OES_texture_half_float") && g.getExtension("EXT_color_buffer_half_float")),
+    };
+    const lose = g.getExtension("WEBGL_lose_context");
+    if (lose) lose.loseContext();
+    return r;
+  };
+  const p1 = probe("webgl");
+  const p2 = p1 && p1.deriv && p1.float ? null : probe("webgl2");
+  const gl2 = p2 && p2.deriv && p2.float ? canvas.getContext("webgl2", attrs) : null;
+  const gl = gl2 || canvas.getContext("webgl", attrs);
   if (!gl) return null;
-  const ext = gl.getExtension("OES_standard_derivatives");
+  const ext = gl.getExtension("OES_standard_derivatives") || (gl2 && p2.deriv);
   const src = (ext ? "#extension GL_OES_standard_derivatives : enable\n#define FW(x) fwidth(x)\n"
     : "#define FW(x) 0.018\n") + SEA_FS;
-  const sh = (ty, s) => {
+  const sh = (ty, s, label) => {
     const o = gl.createShader(ty); gl.shaderSource(o, s); gl.compileShader(o);
-    if (!gl.getShaderParameter(o, gl.COMPILE_STATUS)) console.error("sea shader failed to compile:\n" + gl.getShaderInfoLog(o));
+    if (!gl.getShaderParameter(o, gl.COMPILE_STATUS)) console.error(label + " shader failed to compile:\n" + gl.getShaderInfoLog(o));
     return o;
   };
-  const prog = gl.createProgram();
-  gl.attachShader(prog, sh(gl.VERTEX_SHADER, SEA_VS));
-  gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, src));
-  gl.bindAttribLocation(prog, 0, "a");
-  gl.linkProgram(prog); gl.useProgram(prog);
-  if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) console.error("sea program failed to link:\n" + gl.getProgramInfoLog(prog));
+  let linkFailed = false;
+  const build = (vs, fs, label) => {
+    const p = gl.createProgram();
+    gl.attachShader(p, sh(gl.VERTEX_SHADER, vs, label));
+    gl.attachShader(p, sh(gl.FRAGMENT_SHADER, fs, label));
+    gl.bindAttribLocation(p, 0, "a");
+    gl.linkProgram(p);
+    if (!gl.getProgramParameter(p, gl.LINK_STATUS)) {
+      linkFailed = true;
+      console.error(label + " program failed to link:\n" + gl.getProgramInfoLog(p));
+    }
+    return p;
+  };
+  const prog = build(SEA_VS, src, "sea");
+  gl.useProgram(prog);
   const buf = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, buf);
   gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
@@ -446,6 +579,124 @@ export function Sea(canvas) {
     fx: U("uFx"), raw: U("uRaw"),
   };
   gl.uniform1f(u.raw, 0);
+
+  /* ------------------------------------------------------------ post pass */
+  /* Programs first, so a broken composite (most likely: finish() growing a
+     dependency that lives outside SEA_FINISH_GLSL) just turns bloom off and
+     leaves the single-pass frame intact instead of blanking the site. */
+  linkFailed = false;
+  const pBright = build(POST_VS, BRIGHT_FS, "bloom bright");
+  const pDown = build(POST_VS, DOWN_FS, "bloom downsample");
+  const pBlur = build(POST_VS, BLUR_FS, "bloom blur");
+  const pComp = build(POST_VS, COMPOSITE_FS, "bloom composite");
+  let bloomOk = !linkFailed;
+  const pu = p => ({ tex: gl.getUniformLocation(p, "uTex"), step: gl.getUniformLocation(p, "uStep") });
+  const uBright = { ...pu(pBright), thresh: gl.getUniformLocation(pBright, "uThresh") };
+  const uDown = pu(pDown), uBlur = pu(pBlur);
+  const uComp = {
+    scene: gl.getUniformLocation(pComp, "uScene"), b: BLOOM_MIX.map((_, i) => gl.getUniformLocation(pComp, "uB" + i)),
+    strength: gl.getUniformLocation(pComp, "uStrength"), finish: gl.getUniformLocation(pComp, "uFinish"),
+    time: gl.getUniformLocation(pComp, "uTime"), fx: gl.getUniformLocation(pComp, "uFx"),
+  };
+  if (bloomOk) {
+    gl.useProgram(pBright); gl.uniform1i(uBright.tex, 0);
+    gl.useProgram(pDown); gl.uniform1i(uDown.tex, 0);
+    gl.useProgram(pBlur); gl.uniform1i(uBlur.tex, 0);
+    gl.useProgram(pComp);
+    gl.uniform1i(uComp.scene, 0);
+    uComp.b.forEach((loc, i) => gl.uniform1i(loc, i + 1));
+    gl.useProgram(prog);
+  }
+
+  /* float colour buffer if we can get one; RGBA8 is a working fallback where
+     the scene has to tonemap itself first (uRaw = 0) and bloom runs on 0..1. */
+  const pickFormat = () => {
+    if (gl2) {
+      if (gl.getExtension("EXT_color_buffer_float") || gl.getExtension("EXT_color_buffer_half_float"))
+        return { internal: gl.RGBA16F, type: gl.HALF_FLOAT, filter: gl.LINEAR, hdr: true, name: "webgl2 RGBA16F" };
+    } else {
+      const hf = gl.getExtension("OES_texture_half_float");
+      if (hf && gl.getExtension("EXT_color_buffer_half_float"))
+        return {
+          internal: gl.RGBA, type: hf.HALF_FLOAT_OES, hdr: true, name: "webgl1 half float",
+          filter: gl.getExtension("OES_texture_half_float_linear") ? gl.LINEAR : gl.NEAREST,
+        };
+    }
+    return { internal: gl.RGBA, type: gl.UNSIGNED_BYTE, filter: gl.LINEAR, hdr: false, name: "RGBA8" };
+  };
+  let fmt = bloomOk ? pickFormat() : null;
+  const targets = [];               /* [scene, l0a, l0b, l1a, l1b, ...] */
+  const makeTarget = (w, h) => {
+    const tex = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, fmt.internal, w, h, 0, gl.RGBA, fmt.type, null);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, fmt.filter);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, fmt.filter);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    const fbo = gl.createFramebuffer();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+    const ok = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    return { tex, fbo, w, h, ok };
+  };
+  const dropTargets = () => {
+    for (const t of targets) { gl.deleteTexture(t.tex); gl.deleteFramebuffer(t.fbo); }
+    targets.length = 0;
+  };
+  const allocTargets = () => {
+    dropTargets();
+    if (!bloomOk) return;
+    targets.push(makeTarget(W, H));
+    for (let i = 0; i < BLOOM_LEVELS; i++) {
+      const w = Math.max(1, W >> (i + 1)), h = Math.max(1, H >> (i + 1));
+      targets.push(makeTarget(w, h), makeTarget(w, h));
+    }
+    if (targets.every(t => t.ok)) return;
+    /* a float attachment the driver would not render to: retry once at RGBA8 */
+    if (fmt.hdr) {
+      console.error("sea bloom: " + fmt.name + " target incomplete, falling back to RGBA8");
+      fmt = { internal: gl.RGBA, type: gl.UNSIGNED_BYTE, filter: gl.LINEAR, hdr: false, name: "RGBA8" };
+      allocTargets();
+      return;
+    }
+    console.error("sea bloom: no renderable colour buffer, bloom disabled");
+    dropTargets();
+    bloomOk = false;
+  };
+  const level = i => targets[1 + i * 2];
+  const scratch = i => targets[2 + i * 2];
+  const pass = (target, program) => {
+    gl.bindFramebuffer(gl.FRAMEBUFFER, target ? target.fbo : null);
+    gl.viewport(0, 0, target ? target.w : W, target ? target.h : H);
+    gl.useProgram(program);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+  };
+  const bindTex = (unit, t) => { gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, t ? t.tex : null); };
+  /* bright + downsample + separable blur, all at reduced resolution */
+  const bloomChain = (threshold) => {
+    gl.useProgram(pBright);
+    gl.uniform3f(uBright.thresh, threshold, threshold * BLOOM_KNEE, BLOOM_SAT);
+    gl.uniform2f(uBright.step, 1 / targets[0].w, 1 / targets[0].h);
+    bindTex(0, targets[0]);
+    pass(level(0), pBright);
+    for (let i = 0; i < BLOOM_LEVELS; i++) {
+      if (i > 0) {
+        const s = level(i - 1), d = level(i);
+        gl.useProgram(pDown);
+        gl.uniform2f(uDown.step, 1 / s.w, 1 / s.h);
+        bindTex(0, s);
+        pass(d, pDown);
+      }
+      const a = level(i), b = scratch(i);
+      gl.useProgram(pBlur);
+      gl.uniform2f(uBlur.step, 1 / a.w, 0);
+      bindTex(0, a); pass(b, pBlur);
+      gl.uniform2f(uBlur.step, 0, 1 / a.h);
+      bindTex(0, b); pass(a, pBlur);
+    }
+  };
 
   /* live uniform block + the two ends of the cross-fade */
   const cur = new Float32Array(PACK.day), from = new Float32Array(NF), to = new Float32Array(PACK.day);
@@ -541,14 +792,17 @@ export function Sea(canvas) {
     render(now) {
       const dpr = Math.min(devicePixelRatio || 1, 1.5);
       const w = Math.max(2, Math.round(canvas.clientWidth * dpr)), h = Math.max(2, Math.round(canvas.clientHeight * dpr));
+      gl.useProgram(prog);
+      gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+      gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
       if (w !== W || h !== H) {
         W = w; H = h; canvas.width = w; canvas.height = h; gl.viewport(0, 0, w, h);
         gl.uniform2f(u.res, w, h);
         gl.uniform1f(u.px, dpr);     /* lets the rain size itself in CSS px */
       }
-      gl.useProgram(prog);
-      gl.bindBuffer(gl.ARRAY_BUFFER, buf);
-      gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+      /* the offscreen chain follows the canvas, and costs nothing until the
+         first frame that actually asks for bloom */
+      if (bloomOk && fxv[3] > 0.5 && (!targets.length || targets[0].w !== W || targets[0].h !== H)) allocTargets();
       const dt = last < 0 ? 0 : Math.min(0.25, Math.max(0, now - last));
       last = now;
       if (mixT < 1) {
@@ -561,7 +815,33 @@ export function Sea(canvas) {
       live = true;
       gl.uniform1f(u.time, now);
       gl.uniform4fv(u.rip, rip);
-      gl.drawArrays(gl.TRIANGLES, 0, 3);
+      const bloom = bloomOk && fxv[3] > 0.5 && targets.length > 0;
+      /* raw HDR only makes it out of the scene pass if there is somewhere with
+         the range to hold it; an RGBA8 target takes the finished frame instead */
+      const raw = bloom && fmt.hdr;
+      gl.uniform1f(u.raw, raw ? 1 : 0);
+      if (!bloom) {
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        gl.viewport(0, 0, W, H);
+        gl.drawArrays(gl.TRIANGLES, 0, 3);
+        return;
+      }
+      pass(targets[0], prog);
+      /* the HDR numbers only apply when something is actually emitting HDR:
+         a tonemapped RGBA8 target, or the classic sky and water, stay in 0..1 */
+      const wide = raw && (fxv[0] > 0.5 || fxv[2] > 0.5);
+      bloomChain(wide ? BLOOM_THRESHOLD : BLOOM_THRESHOLD_LDR);
+      gl.useProgram(pComp);
+      gl.uniform1f(uComp.strength, wide ? BLOOM_STRENGTH : BLOOM_STRENGTH_LDR);
+      gl.uniform1f(uComp.finish, raw ? 1 : 0);
+      gl.uniform1f(uComp.time, now);
+      gl.uniform4fv(uComp.fx, fxv);
+      bindTex(0, targets[0]);
+      for (let i = 0; i < BLOOM_LEVELS; i++) bindTex(i + 1, level(i));
+      pass(null, pComp);
+      /* leave no chain texture bound, or next frame's scene pass draws into a
+         target that is still on a texture unit and drivers cry feedback loop */
+      for (let i = BLOOM_LEVELS; i >= 0; i--) bindTex(i, null);
     },
   };
 }
