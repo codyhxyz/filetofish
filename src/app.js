@@ -3,7 +3,7 @@ import {
   initMusic, setMusicTrack, nextMusicTrack, getMusicTrack,
   syncMusicToTime, setMusicSoundOn, getMusicVolume, setMusicVolume, duckMusic
 } from "./music.js";
-import { Sea, WEATHERS } from "./sea.js";
+import { Sea, WEATHERS, fxFromSearch } from "./sea.js";
 import {
   Scene, PerspectiveCamera, OrthographicCamera, WebGLRenderer, Mesh, Group,
   BufferGeometry, BufferAttribute, ShaderMaterial, SphereGeometry, ConeGeometry, PlaneGeometry,
@@ -732,6 +732,7 @@ let sampleIdx = (Math.random() * SAMPLES.length) | 0;
 /* ============================================================ app */
 const seaCv = $("#sea"), fishCv = $("#fish"), rig = $("#rig");
 const sea = Sea(seaCv);
+sea.setFx(fxFromSearch(location.search));   /* ?fx= picks the lighting techniques; see sea.js */
 const stage = FishStage(fishCv);
 /* the rod is drawn the way the fish is rendered: flat facets, a hard ink
    silhouette and three shading steps -- never a smooth vector taper. */

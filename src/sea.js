@@ -160,6 +160,20 @@ for (const k in SCENES) {
 }
 
 /* ---------------------------------------------------------------- shader */
+/* REGION CONTRACT (parallel work -- keep to your region, see the notes in each):
+   - SKY:    sunBody/moonBody/clouds/sky() and SEA_FINISH_GLSL. Owns exposure and
+             tonemap. sky() returns linear scene radiance: the classic values were
+             ~0..1 with 1.0 = bright daytime sky; the sun disc may be >> 1.
+   - WATER:  the `else` (below-horizon) branch of main(). May call sky() for
+             reflection and must tolerate HDR values coming back from it.
+   - POST:   the JS in Sea(): context, programs, render targets, render(). Uses
+             uRaw=1 to receive HDR and applies finish() in its own composite.
+   Every new term is gated on its FX_* switch so ?fx=none is the classic frame. */
+export const SEA_FINISH_GLSL = `
+/* exposure + tonemap + output transform. Identity until the SKY region fills it
+   in; must stay identity when FX_SKY == 0 so the classic frame is unchanged. */
+vec3 finish(vec3 c){ return c; }
+`;
 const SEA_VS = "attribute vec2 a;void main(){gl_Position=vec4(a,0.,1.);}";
 const SEA_FS = `
 precision highp float;
@@ -171,6 +185,13 @@ uniform vec4 uAmt;
 uniform vec4 uAmt2;
 uniform vec3 uMoonDir;
 uniform float uMoon;
+/* uFx: per-technique switches from ?fx= (see fxFromSearch). 1 = on, 0 = classic.
+   uRaw: 1 = emit unfinished HDR radiance for a post pass, 0 = finish() here. */
+uniform vec4 uFx; uniform float uRaw;
+#define FX_SKY   uFx.x
+#define FX_RAYS  uFx.y
+#define FX_WATER uFx.z
+#define FX_BLOOM uFx.w
 #define FOG  uAmt.x
 #define RAIN uAmt.y
 #define STAR uAmt.z
@@ -302,6 +323,7 @@ vec3 sky(vec3 rd, float t){
   }
   return mix(s, uHaze, 1.0 - smoothstep(0.0, mix(0.085, 0.50, FOG), rd.y));
 }
+${SEA_FINISH_GLSL}
 void main(){
   vec2 uv = (gl_FragCoord.xy - 0.5*uRes)/uRes.y;
   vec2 rayUv = uv / max(uZoom, 0.5);
@@ -375,8 +397,22 @@ void main(){
             + rainLayer(uv + 3.7, t, 10.16, 62.00, 4.2, 0.17)*0.34;
     col = mix(col, min(uHaze*1.45 + 0.10, vec3(1.0)), clamp(r,0.0,1.0)*0.55*RAIN);
   }
-  gl_FragColor = vec4(col, 1.0);
+  gl_FragColor = vec4(uRaw > 0.5 ? col : finish(col), 1.0);
 }`;
+
+/* ?fx= picks which lighting techniques render. Absent: everything on.
+   ?fx=none          the classic frame, every switch off
+   ?fx=sky,water     only the listed switches on
+   ?fx=-bloom        everything on except the listed ones */
+export const FX_NAMES = ["sky", "rays", "water", "bloom"];
+export function fxFromSearch(search) {
+  const raw = new URLSearchParams(search || "").get("fx");
+  if (raw == null || raw === "") return [1, 1, 1, 1];
+  const parts = raw.split(",").map(s => s.trim().toLowerCase()).filter(Boolean);
+  if (parts.includes("none") || parts.includes("classic")) return [0, 0, 0, 0];
+  const negate = parts.every(s => s.startsWith("-"));
+  return FX_NAMES.map(n => negate ? (parts.includes("-" + n) ? 0 : 1) : (parts.includes(n) ? 1 : 0));
+}
 
 export function Sea(canvas) {
   const gl = canvas.getContext("webgl", { antialias: false, alpha: false });
@@ -402,7 +438,9 @@ export function Sea(canvas) {
     sun: U("uSun"), key: U("uKey"), sunCol: U("uSunCol"), haze: U("uHaze"), zoom: U("uZoom"), tune: U("uTune"),
     cloudB: U("uCloudB"), cloudA: U("uCloudA"), amt: U("uAmt"), amt2: U("uAmt2"),
     moonDir: U("uMoonDir"), moon: U("uMoon"),
+    fx: U("uFx"), raw: U("uRaw"),
   };
+  gl.uniform1f(u.raw, 0);
 
   /* live uniform block + the two ends of the cross-fade */
   const cur = new Float32Array(PACK.day), from = new Float32Array(NF), to = new Float32Array(PACK.day);
@@ -442,6 +480,7 @@ export function Sea(canvas) {
     gl.uniform3fv(u.cloudB, V.cloudB);
     gl.uniform4fv(u.cloudA, V.cloudA); gl.uniform4fv(u.amt, V.amt); gl.uniform4fv(u.amt2, V.amt2);
     gl.uniform3fv(u.moonDir, cur.subarray(46, 49)); gl.uniform1f(u.moon, cur[49]);
+    gl.uniform4fv(u.fx, fxv);
   };
 
   const DUR = 2.0;                 /* seconds for a full weather change */
@@ -450,6 +489,7 @@ export function Sea(canvas) {
   let mixT = 1, dirty = true, live = false, last = -1;
   let zoom = 1;
   const tune = new Float32Array(4);
+  const fxv = new Float32Array([1, 1, 1, 1]);
 
   return {
     ripple(x, z, s, now) { rip.set([x, z, now, s], slot * 4); slot = (slot + 1) % 6; },
@@ -483,6 +523,8 @@ export function Sea(canvas) {
       dirty = true;
     },
     tuning() { return [...tune]; },
+    setFx(values) { fxv.set(Array.from(values).slice(0, 4).map(v => (v ? 1 : 0))); dirty = true; },
+    fx() { return [...fxv]; },
     palette() { return paletteOf(cw); },
     /* same shape as palette(), but light/ambient follow the cross-fade so a
        per-frame caller can grade the fish exactly to what the sea is doing.
