@@ -200,6 +200,14 @@ uniform vec4 uFx; uniform float uRaw;
 #define GLOW uAmt2.y
 #define FOAM uAmt2.z
 #define SPEC uAmt2.w
+/* WATER knobs. REFL_MAX caps how much of the sky the sea is allowed to become
+   at grazing angles -- at 1.0 it is a mirror and stops being a sea. SPEC_GAIN
+   is the HDR gain on the sun/moon lobe: it is meant to clip white under the
+   identity finish() and to bloom once the post pass lands. SSS_GAIN is the
+   backlit crest glow. */
+#define REFL_MAX 0.80
+#define SPEC_GAIN 1.70
+#define SSS_GAIN 2.80
 float hash21(vec2 p){ p=fract(p*vec2(123.34,456.21)); p+=dot(p,p+45.32); return fract(p.x*p.y); }
 float vnoise(vec2 p){
   vec2 i=floor(p), f=fract(p); vec2 u=f*f*(3.0-2.0*f);
@@ -231,6 +239,13 @@ vec2 ripples(vec2 p, float t){
     }
   }
   return o;
+}
+/* WATER: an anti-aliased cel staircase -- n flat treads with a soft nose. It
+   is what lets a continuous term (the Fresnel weight, here) keep the banded
+   look of the body without the band edge crawling as the swell moves. */
+float celBand(float x, float n){
+  float s = clamp(x, 0.0, 1.0)*n;
+  return (floor(s) + smoothstep(0.30, 0.70, fract(s)))/n;
 }
 /* one raindrop impact per grid cell, phase-offset so they fire at random
    times. The wave is domain-warped and noise-broken instead of a clean circle;
@@ -370,26 +385,103 @@ void main(){
        the light instead of the muddy midpoint between a warm sky and cool sea.
        For day the two are the same value, so nothing moves there. */
     vec3 far = mix(mix(cSky,cShal,0.42), uHaze, clamp(0.34 + FOG*0.60, 0.0, 1.0));
-    col = mix(col, far, smoothstep(mix(18.0,5.0,FOG), mix(84.0,26.0,FOG), dist));
+    /* WATER: under FX_WATER the Fresnel reflection below is what carries the
+       horizon, so this flat wash is pulled back to a hint. Fog keeps it at
+       full strength -- there the wash *is* the weather. */
+    col = mix(col, far, smoothstep(mix(18.0,5.0,FOG), mix(84.0,26.0,FOG), dist)
+                        * mix(1.0, mix(0.40, 1.0, max(FOG, RAIN*0.60)), FX_WATER));
     float specPow = mix(46.0, 96.0, uTune.w);
     vec3 shineDir = normalize(mix(uSun, uMoonDir, clamp(uMoon,0.0,1.0)));
+    /* half-vector slope: the facet tilt this pixel would need to mirror the
+       sun. Small near the sun's azimuth, growing sideways -- that is the
+       glitter path, narrow at the horizon and spreading toward the camera.
+       Hoisted out of the glitter block so the microfacet lobe, the glitter and
+       the foam tint all agree about where the path is. */
+    vec3 hv = normalize(shineDir - rd);
+    float sl = length(hv.xz)/max(hv.y, 0.05);
+    float pathW = exp(-sl*sl*2.4);
+    /* WATER: which body is doing the shining. The direction stays the existing
+       sun/moon mix; the colour only goes cold once the sun disc has gone, so a
+       dusk sea whose shine vector has already handed over to the risen moon
+       still burns orange the way the sky above it does. */
+    float moonW = clamp(uMoon,0.0,1.0)*(1.0 - DISC*0.85);
+    vec3 shineCol = mix(uSunCol, vec3(0.62,0.74,1.00), moonW);
+    float shineAmt = max(DISC, clamp(uMoon,0.0,1.0)*0.85)*smoothstep(-0.05, 0.12, shineDir.y);
     col = mix(col, mix(vec3(1.0), uSunCol, 0.5),
-              step(0.34, pow(max(dot(reflect(rd,n),shineDir),0.0),specPow))*fade*0.85*SPEC);
+              step(0.34, pow(max(dot(reflect(rd,n),shineDir),0.0),specPow))
+              *fade*0.85*SPEC*(1.0 - FX_WATER));
+    if (FX_WATER > 0.5) {
+      /* Sub-pixel chop is roughness, not geometry: flatten the normal with
+         distance and hand the lost detail to the specular lobe's width. That
+         is the whole trick that stops the far water from crawling. */
+      float smear = smoothstep(6.0, 70.0, dist);
+      vec3 nr = normalize(mix(n, vec3(0.0,1.0,0.0), smear*0.88));
+      float wfade = 1.0 - smoothstep(mix(90.0,26.0,FOG), mix(380.0,96.0,FOG), dist);
+      /* body colour is water you are looking *into*: deepen the troughs so the
+         swell keeps its volume once a sky is laid on top of it. */
+      col = mix(col, cDeep, smoothstep(0.30, -0.95, h)*0.26*(1.0 - FOG));
+      /* --- Fresnel sky reflection, quantised to three cel bands -------------
+         Near water keeps its own banded body colour; far water mirrors the
+         sky. That is what dissolves the hard horizon band -- sea and sky meet
+         in the same radiance instead of two flat fills butted together. */
+      float ct = clamp(dot(-rd, nr), 0.0, 1.0);
+      float fres = 0.02 + 0.98*pow(1.0 - ct, 5.0);
+      float fq = pow(celBand(fres, 3.0), 1.6)*REFL_MAX*mix(1.0, 0.62, FOG)*mix(1.0, 0.90, RAIN);
+      vec3 rr = reflect(rd, nr);
+      float ry = abs(rr.y);
+      /* two things at once. The sky's cloud lookup divides by rd.y, so a
+         grazing reflected ray samples it at a frequency no filter can save --
+         hold the lookup at a sane elevation. What the grazing ray should have
+         returned down there is the haze anyway, so fade to it by the true
+         slope: that is the join that makes sea and sky one surface. */
+      vec3 skyRefl = sky(normalize(vec3(rr.x, max(ry, 0.11), rr.z)), t);
+      skyRefl = mix(skyRefl, uHaze, 1.0 - smoothstep(0.0, mix(0.105, 0.40, FOG), ry));
+      col = mix(col, skyRefl, fq);
+      /* --- the sun's and the moon's own reflection --------------------------
+         a normalised GGX lobe (peak 1 at any roughness) instead of a step:
+         tight and sparkling underfoot, spread into a glare band at distance,
+         which is what makes it read as a path rather than a highlight. The
+         reflected sky already carries the disc, so this is deliberately the
+         broad half of the pair and is added to it rather than layered over. */
+      float rough = mix(mix(0.085, 0.050, uTune.w), 0.30, smear);
+      float a2 = rough*rough; a2 *= a2;
+      float nh = clamp(dot(nr, hv), 0.0, 1.0);
+      float dnm = nh*nh*(a2 - 1.0) + 1.0;
+      float lobe = a2/max(dnm, 1e-6); lobe *= lobe;
+      col += shineCol*(lobe*SPEC_GAIN*SPEC*shineAmt*wfade*mix(0.35, 1.0, fres));
+      /* --- backlit crests ---------------------------------------------------
+         a wave face turned toward us has the sun behind it, so the thin water
+         at the crest glows through. Warm turquoise pulled out of cShal,
+         strongest when the sun is on the rim. This is the green-blue rim that
+         Wind Waker water lives on. */
+      vec2 vd = normalize(rd.xz + vec2(1e-5, 0.0));
+      float toward = clamp(-dot(n.xz, vd), 0.0, 1.0);
+      float toSun = pow(clamp(dot(rd, shineDir), 0.0, 1.0), 6.0);
+      float lowSun = 1.0 - smoothstep(0.06, 0.44, shineDir.y);
+      float crest = smoothstep(0.10, 0.95, h);
+      vec3 sssCol = mix(vec3(0.16,0.92,0.70), cShal, 0.28)*mix(vec3(1.0), uSunCol, 0.45);
+      /* pulled back where the sky reflection already owns the pixel, so the
+         glow stays a rim on the near swell rather than a green cast. */
+      col += sssCol*(crest*pow(toward, 1.4)*toSun*lowSun*shineAmt*wfade
+                     *(1.0 - fq*0.70)*SSS_GAIN);
+    }
     if (GLIT > 0.001) {
-      /* half-vector slope: the facet tilt this pixel would need to mirror the
-         sun. Small near the sun's azimuth, growing sideways -- that is the
-         glitter path, narrow at the horizon and spreading toward the camera. */
-      vec3 hv = normalize(shineDir - rd);
-      float sl = length(hv.xz)/max(hv.y, 0.05);
       float wash = exp(-sl*sl*4.6) + 0.32*exp(-sl*sl*0.85);
       wash = mix(wash, floor(wash*5.0 + 0.5)*0.2, 0.45);
       vec3 fn = normalize(n + vec3(sin(p.x*6.3 + t*2.1), 0.0, cos(p.y*5.9 - t*1.7))*0.22);
       float spark = smoothstep(mix(0.9925,0.9970,uTune.w), mix(0.9948,0.9990,uTune.w),
                                max(dot(reflect(rd,fn),shineDir),0.0))*fade;
-      float gm = clamp((wash*0.52 + spark*0.85)*(0.5 + 0.5*smoothstep(-0.40,0.50,h))*GLIT, 0.0, 1.0);
-      col = mix(col, min(uSunCol*1.30, vec3(1.0)), gm);
+      /* WATER: the broad wash is the GGX lobe's job now, so under FX_WATER the
+         glitter keeps only its sparkle and sits inside the new path. */
+      float gm = clamp((wash*mix(0.52, 0.18, FX_WATER) + spark*mix(0.85, 1.10, FX_WATER))
+                       *(0.5 + 0.5*smoothstep(-0.40,0.50,h))*GLIT, 0.0, 1.0);
+      col = mix(col, mix(min(uSunCol*1.30, vec3(1.0)), shineCol*1.35, FX_WATER), gm);
     }
-    col = mix(col, cFoam, foam);
+    /* WATER: foam takes the light instead of being a flat fill -- hot and the
+       colour of the sun inside the path, cool in the shadowed troughs. */
+    vec3 foamCol = cFoam*mix(vec3(0.78,0.86,1.03), shineCol*1.42,
+                             clamp(pathW*shineAmt*1.2, 0.0, 1.0));
+    col = mix(col, mix(cFoam, foamCol, FX_WATER), foam);
   }
   col = mix(col, uHaze, FOG*0.11);
   if (RAIN > 0.001) {
