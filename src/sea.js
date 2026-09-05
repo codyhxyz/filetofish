@@ -420,12 +420,17 @@ export function Sea(canvas) {
   const ext = gl.getExtension("OES_standard_derivatives");
   const src = (ext ? "#extension GL_OES_standard_derivatives : enable\n#define FW(x) fwidth(x)\n"
     : "#define FW(x) 0.018\n") + SEA_FS;
-  const sh = (ty, s) => { const o = gl.createShader(ty); gl.shaderSource(o, s); gl.compileShader(o); return o; };
+  const sh = (ty, s) => {
+    const o = gl.createShader(ty); gl.shaderSource(o, s); gl.compileShader(o);
+    if (!gl.getShaderParameter(o, gl.COMPILE_STATUS)) console.error("sea shader failed to compile:\n" + gl.getShaderInfoLog(o));
+    return o;
+  };
   const prog = gl.createProgram();
   gl.attachShader(prog, sh(gl.VERTEX_SHADER, SEA_VS));
   gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, src));
   gl.bindAttribLocation(prog, 0, "a");
   gl.linkProgram(prog); gl.useProgram(prog);
+  if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) console.error("sea program failed to link:\n" + gl.getProgramInfoLog(prog));
   const buf = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, buf);
   gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
