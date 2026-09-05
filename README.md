@@ -16,6 +16,36 @@ whole program.
 
 How it's built is in [DESIGN.md](DESIGN.md); the file viewer prototype is in [OCEAN.md](OCEAN.md).
 
+## Dial in a sky
+
+The sea reads your actual clock, which is fine until you want to show someone a
+particular sky. Three query parameters override it. They combine with `&`, and
+none of them touch the fish.
+
+| Knob | What it does |
+| --- | --- |
+| `?t=HH:MM` | Pins the hour. Minutes are optional — `?t=7` is 07:00 — and the hour wraps at 24. |
+| `?wx=<sky>` | Pins a sky: `dawn`, `sunrise`, `day`, `dusk`, `night`, `fog`, `rain`. Anything else is ignored. |
+| `?fx=<list>` | Picks which lighting passes render. Absent means all of them. |
+| `#f=...` | Not a knob — a whole fish, packed by the send button. [DESIGN.md](DESIGN.md) has the format. |
+
+`fx` has four switches: `sky` (scattering sky and tonemap), `rays` (crepuscular
+rays), `water` (Fresnel reflection and the sun path), `bloom` (glow). `?fx=none`,
+or `classic`, is the frame before all of it. A plain list turns on only what it
+names — `?fx=sky,water`. A list where *every* entry is negated turns everything
+on except those — `?fx=-bloom`. Mixing the two forms drops the negated half
+without saying so.
+
+Five to start from:
+
+- [`?t=07:30`](https://filetofish.codyh.xyz/?t=07:30) — sunrise.
+- [`?wx=dusk&t=17:30`](https://filetofish.codyh.xyz/?wx=dusk&t=17:30) — sun on the horizon, rays.
+- [`?t=19:00`](https://filetofish.codyh.xyz/?t=19:00) — dusk, crescent moon.
+- [`?t=23:00`](https://filetofish.codyh.xyz/?t=23:00) — moonlit night.
+- [`?fx=none`](https://filetofish.codyh.xyz/?fx=none) — the frame before the lighting pass, for comparison.
+
+Why the light does what it does is in [DESIGN.md](DESIGN.md).
+
 
 ## The fish are generated, not modelled
 
