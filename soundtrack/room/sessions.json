@@ -15,8 +15,8 @@
       "bars": 24,
       "defaults": {
         "bass": "acoustic_bass",
-        "chords": "orchestral_harp",
-        "lead": "celesta"
+        "chords": "acoustic_grand_piano",
+        "lead": "music_box"
       },
       "prompt": "instrumental lullaby, Db major, 58 BPM, 4/4, sleepy island dock after midnight, solo celesta melody over slow harp arpeggios and soft upright bass, sparse, gentle, no drums, no vocals",
       "sections": {
@@ -61,9 +61,9 @@
       "swing": 0.5,
       "bars": 32,
       "defaults": {
-        "bass": "pizzicato_strings",
+        "bass": "acoustic_bass",
         "chords": "acoustic_guitar_nylon",
-        "lead": "ocarina"
+        "lead": "flute"
       },
       "prompt": "instrumental folk lullaby, A major, 72 BPM, 4/4, first light over a quiet harbor, ocarina melody, fingerpicked nylon guitar, pizzicato string bass, hopeful and fresh, no drums, no vocals",
       "sections": {
@@ -110,8 +110,8 @@
       "bars": 32,
       "defaults": {
         "bass": "acoustic_bass",
-        "chords": "kalimba",
-        "lead": "clarinet"
+        "chords": "marimba",
+        "lead": "accordion"
       },
       "prompt": "instrumental cozy village morning tune, F major, 104 BPM, 4/4, light swing, bouncy clarinet melody, plucky kalimba chords, walking upright bass, cheerful video game town music, no drums, no vocals",
       "sections": {
@@ -158,8 +158,8 @@
       "bars": 32,
       "defaults": {
         "bass": "acoustic_bass",
-        "chords": "electric_guitar_jazz",
-        "lead": "steel_drums"
+        "chords": "acoustic_guitar_nylon",
+        "lead": "flute"
       },
       "prompt": "instrumental sunny fishing pier bossa nova, Bb major, 96 BPM, 4/4, swung, steel drum melody, jazz guitar comping seventh chords, upright bass, relaxed and playful, no drums, no vocals",
       "sections": {
@@ -205,9 +205,9 @@
       "swing": 0.58,
       "bars": 32,
       "defaults": {
-        "bass": "fretless_bass",
-        "chords": "electric_piano_2",
-        "lead": "muted_trumpet"
+        "bass": "acoustic_bass",
+        "chords": "electric_piano_1",
+        "lead": "vibraphone"
       },
       "prompt": "instrumental golden hour slow jazz ballad, Eb major, 78 BPM, 4/4, warm and wistful, muted trumpet melody, soft electric piano chords, fretless bass, end of a long day by the water, no drums, no vocals",
       "sections": {
@@ -255,7 +255,7 @@
       "defaults": {
         "bass": "acoustic_bass",
         "chords": "electric_piano_1",
-        "lead": "alto_sax"
+        "lead": "vibraphone"
       },
       "prompt": "instrumental late evening lounge jazz, A minor, 68 BPM, 4/4, moonlight on calm water, breathy alto sax melody, mellow rhodes electric piano chords, upright bass, intimate and calm, no drums, no vocals",
       "sections": {
