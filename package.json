@@ -4,7 +4,7 @@
   "description": "Drop in any file, it comes back as a fish. The same file always gives the same fish.",
   "main": "index.js",
   "scripts": {
-    "test": "node test/sea-time.mjs && node test/celestial-identity.mjs && node test/celestial-motion.mjs",
+    "test": "node test/sea-time.mjs && node test/celestial-identity.mjs && node test/celestial-motion.mjs && node test/room-import.mjs",
     "soundtrack": "python3 soundtrack/render.py",
     "soundtrack:check": "python3 soundtrack/render.py --check",
     "soundtrack:suite": "python3 soundtrack/ac_suite.py",
@@ -15,6 +15,8 @@
     "soundtrack:jukebox": "open soundtrack/player.html",
     "soundtrack:inspect": "node build.mjs && open dist/score/index.html",
     "soundtrack:inspect:check": "node soundtrack/inspector-check.mjs",
+    "soundtrack:room": "python3 soundtrack/room/generate.py",
+    "soundtrack:room:import": "node soundtrack/room/import.mjs",
     "soundtrack:play": "python3 soundtrack/ac_suite.py && afplay soundtrack/previews/ac_suite_album.wav",
     "soundtrack:mvp": "python3 soundtrack/dock_mvp.py && afplay soundtrack/previews/dock_mvp.wav"
   },

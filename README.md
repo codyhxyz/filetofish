@@ -73,6 +73,26 @@ npm run soundtrack:inspect        # build and open the score inspector
 npm run soundtrack:inspect:check  # check phrase grouping and pitch conversion
 ```
 
+### Redoing it with ROOM
+
+ROOM ([solo363614/ROOM-v2](https://huggingface.co/spaces/solo363614/ROOM-v2)) writes a
+track from a prompt, splits it into stems and transcribes each stem to MIDI. The six
+slots keep their hours and job, but each has a new brief in
+`soundtrack/room/sessions.json`: key, tempo, meter, prompt and a fresh SoundFont trio.
+
+```sh
+pip install gradio_client
+npm run soundtrack:room           # three takes per slot into soundtrack/room/takes/
+npm run soundtrack:room:import    # best take per slot -> src/room-tracks.json
+```
+
+The importer puts the transcribed notes on the session's beat grid, finds the
+downbeat, splits bass / chords / lead (taking the tune off the top of the harmony stem
+when there is no lead stem) and scores each take by grid fit and coverage.
+`--take day=take-2-seed123` pins a take by ear. `src/music.js` plays an imported track
+in place of the hand-written one with the same slug; an empty `room-tracks.json`
+means the hand-written six are still what ships.
+
 `soundtrack/scores.json` and `soundtrack/render.py` are older renderer-neutral
 listening sketches. Their WAV files are local build artifacts, not site assets.
 
