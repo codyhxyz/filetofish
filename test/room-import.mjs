@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { importTake, parseMidi, roleOf, writeMidi } from "../soundtrack/room/import.mjs";
+import { packEvents, unpackTrack } from "../src/music-analysis.mjs";
 
 /* ROOM's transcriber writes notes in seconds, at a file tempo that has nothing
    to do with the song, starting at an arbitrary offset. writeMidi stands in. */
@@ -43,6 +44,8 @@ function check(files, label) {
   assert.ok(!track.events.some(e => e.note === "E6"), `${label}: transcription blips dropped`);
   assert.ok(track.chords.every(c => c.layer === "full"), `${label}: bar layers derived from what plays`);
   assert.ok(track.events.every((e, i, all) => i === 0 || all[i - 1].beat <= e.beat), `${label}: events sorted`);
+  const round = unpackTrack({ ...track, events: packEvents(track.events) }).events;
+  assert.deepEqual(round, track.events.map(e => ({ ...e, gain: +e.gain.toFixed(2) })), `${label}: packed events round-trip`);
 }
 
 check([

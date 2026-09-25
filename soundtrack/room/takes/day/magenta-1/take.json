@@ -1,0 +1,61 @@
+{
+  "slug": "day",
+  "aligned": true,
+  "bpm": 96,
+  "meter": 4,
+  "models": {
+    "melody": "https://storage.googleapis.com/magentadata/js/checkpoints/music_rnn/chord_pitches_improv",
+    "accompaniment": "https://storage.googleapis.com/magentadata/js/checkpoints/music_vae/multitrack_med_chords"
+  },
+  "chords": [
+    "Bbmaj7",
+    "Gm7",
+    "Cm7",
+    "F7",
+    "Bbmaj7",
+    "Gm7",
+    "Cm7",
+    "F7",
+    "Dm7",
+    "G7",
+    "Cm7",
+    "F7",
+    "Bbmaj7",
+    "Gm7",
+    "Cm7",
+    "F7",
+    "Dm7",
+    "G7",
+    "Cm7",
+    "F7",
+    "Ebmaj7",
+    "Ebm",
+    "Dm7",
+    "G7",
+    "Cm7",
+    "F7",
+    "Bbmaj7",
+    "F7",
+    "Bbmaj7",
+    "Gm7",
+    "Cm7",
+    "F7"
+  ],
+  "form": [
+    "intro",
+    "A",
+    "A2",
+    "B",
+    "tag"
+  ],
+  "melodyScores": {
+    "A": 5.75,
+    "B": 5.99,
+    "cadence": 5.75
+  },
+  "notes": {
+    "bass": 278,
+    "chords": 340,
+    "lead": 89
+  }
+}

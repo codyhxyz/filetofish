@@ -14,7 +14,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { midiToName } from "../../src/music-analysis.mjs";
+import { midiToName, packEvents } from "../../src/music-analysis.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "../..");
@@ -347,14 +347,15 @@ function main(argv) {
     }
     const best = results.sort((a, b) => b.score - a.score || b.fit - a.fit)[0];
     if (!best || best.score === 0) { console.log(`${session.slug}: nothing usable, keeping the current track`); continue; }
-    bySlug.set(session.slug, best.track);
+    bySlug.set(session.slug, { ...best.track, events: packEvents(best.track.events) });
     imported++;
     console.log(`${session.slug}: using ${best.track.source.take}`);
   }
 
   const order = config.sessions.map(s => s.slug);
   const tracks = [...bySlug.values()].sort((a, b) => order.indexOf(a.slug) - order.indexOf(b.slug));
-  fs.writeFileSync(OUT, JSON.stringify(tracks, null, 1) + "\n");
+  // One track per line: readable diffs, no whitespace inside the event arrays.
+  fs.writeFileSync(OUT, "[\n" + tracks.map(t => JSON.stringify(t)).join(",\n") + "\n]\n");
   console.log(`${imported} imported, ${tracks.length} ROOM tracks in ${path.relative(ROOT, OUT)}`);
 }
 

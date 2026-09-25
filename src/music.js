@@ -4,6 +4,7 @@
 
 import Soundfont from "soundfont-player";
 import { SOUNDFONT_BANK, readMusicVolume, writeMusicVolume } from "./music-settings.mjs";
+import { unpackTrack } from "./music-analysis.mjs";
 import ROOM_TRACKS from "./room-tracks.json";
 
 /* Hand-written arrangements. A ROOM take imported by soundtrack/room/import.mjs
@@ -289,7 +290,10 @@ const WRITTEN_TRACKS = [
   }
 ];
 
-export const TRACKS = WRITTEN_TRACKS.map(track => ROOM_TRACKS.find(room => room.slug === track.slug) || track);
+export const TRACKS = WRITTEN_TRACKS.map(track => {
+  const room = ROOM_TRACKS.find(item => item.slug === track.slug);
+  return room ? unpackTrack(room) : track;
+});
 
 let AC = null, BUS = null, MASTER_FADE = null, DUCK_GAIN = null;
 let musicInitialized = false;

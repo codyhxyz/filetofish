@@ -1,0 +1,61 @@
+{
+  "slug": "morning",
+  "aligned": true,
+  "bpm": 104,
+  "meter": 4,
+  "models": {
+    "melody": "https://storage.googleapis.com/magentadata/js/checkpoints/music_rnn/chord_pitches_improv",
+    "accompaniment": "https://storage.googleapis.com/magentadata/js/checkpoints/music_vae/multitrack_med_chords"
+  },
+  "chords": [
+    "F6",
+    "Dm7",
+    "Gm7",
+    "C7",
+    "F6",
+    "Dm7",
+    "Gm7",
+    "C7",
+    "F6",
+    "A7",
+    "Dm7",
+    "C7",
+    "F6",
+    "Dm7",
+    "Gm7",
+    "C7",
+    "F6",
+    "A7",
+    "Dm7",
+    "C7",
+    "Bbmaj7",
+    "Bbm",
+    "Am7",
+    "D7",
+    "Gm7",
+    "C7",
+    "F6",
+    "C7",
+    "F6",
+    "Dm7",
+    "Gm7",
+    "C7"
+  ],
+  "form": [
+    "intro",
+    "A",
+    "A2",
+    "B",
+    "tag"
+  ],
+  "melodyScores": {
+    "A": 4.9,
+    "B": 5.07,
+    "cadence": 5.6
+  },
+  "notes": {
+    "bass": 120,
+    "chords": 288,
+    "lead": 105
+  }
+}
