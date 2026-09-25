@@ -95,6 +95,27 @@ export function parseMidi(bytes) {
     .sort((a, b) => a.start - b.start || a.pitch - b.pitch);
 }
 
+/* Standard MIDI File writer, one track, notes in seconds. */
+export function writeMidi(notes, fileBpm = 120, division = 220) {
+  const vlq = n => { const out = [n & 0x7f]; while ((n >>= 7)) out.unshift((n & 0x7f) | 0x80); return out; };
+  const tick = sec => Math.round(sec * fileBpm / 60 * division);
+  const events = notes.flatMap(n => [
+    { tick: tick(n.start), bytes: [0x90, n.pitch, n.vel] },
+    { tick: tick(n.end), bytes: [0x80, n.pitch, 0] },
+  ]).sort((a, b) => a.tick - b.tick || a.bytes[0] - b.bytes[0]);
+  const usPerBeat = Math.round(60e6 / fileBpm);
+  const body = [0, 0xff, 0x51, 3, usPerBeat >> 16, (usPerBeat >> 8) & 0xff, usPerBeat & 0xff];
+  let last = 0;
+  for (const e of events) { body.push(...vlq(e.tick - last), ...e.bytes); last = e.tick; }
+  body.push(0, 0xff, 0x2f, 0);
+  const u32 = n => [n >>> 24, (n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff];
+  const ascii = s => [...s].map(c => c.charCodeAt(0));
+  return Uint8Array.from([
+    ...ascii("MThd"), ...u32(6), 0, 0, 0, 1, division >> 8, division & 0xff,
+    ...ascii("MTrk"), ...u32(body.length), ...body,
+  ]);
+}
+
 /* ---- stems to channels ---- */
 
 export function roleOf(name) {
@@ -158,8 +179,10 @@ function monophonic(notes) {
   return out;
 }
 
-/* files: [{ name, bytes }], session: an entry from sessions.json */
-export function importTake(files, session) {
+/* files: [{ name, bytes }], session: an entry from sessions.json. An aligned
+   take was written on the session grid with bar 1 at time zero (the Magenta
+   composer), so there is no phase or downbeat to find. */
+export function importTake(files, session, { aligned = false } = {}) {
   const { bpm, meter, bars } = session;
   const stems = files.map(f => ({ ...f, role: roleOf(f.name) })).filter(f => f.role);
   const hasStems = stems.some(f => f.role !== "mix");
@@ -175,9 +198,9 @@ export function importTake(files, session) {
     .filter(n => n.dur >= 0.12 && n.vel >= 25);
   if (!notes.length) throw new Error("no usable notes in take");
 
-  const phase = findPhase(notes);
+  const phase = aligned ? 0 : findPhase(notes);
   for (const n of notes) n.beat -= phase;
-  const downbeat = findDownbeat(notes, meter);
+  const downbeat = aligned ? 0 : findDownbeat(notes, meter);
   const tune = notes.filter(n => n.role !== "other" || n.pitch >= 60);
   const fit = tune.length ? tune.filter(n => distToGrid(n.beat, GRID) < 0.06).length / tune.length : 0;
   for (const n of notes) {
@@ -188,7 +211,7 @@ export function importTake(files, session) {
   // Start the loop on the first bar where the bass or harmony is playing.
   const anchor = notes.filter(n => n.role !== "lead");
   const firstBeat = Math.min(...(anchor.length ? anchor : notes).map(n => n.beat));
-  const start = Math.max(0, Math.floor(firstBeat / meter)) * meter;
+  const start = aligned ? 0 : Math.max(0, Math.floor(firstBeat / meter)) * meter;
   const lastBeat = Math.max(...notes.map(n => n.beat));
   const length = Math.min(bars, Math.floor((lastBeat - start) / meter) + 1) * meter;
   const inLoop = notes
@@ -312,7 +335,7 @@ function main(argv) {
       const { files, meta } = readTake(path.join(dir, take));
       if (!files.length) { console.log(`${session.slug}/${take}: no MIDI`); continue; }
       try {
-        const result = importTake(files, session);
+        const result = importTake(files, session, { aligned: !!meta.aligned });
         result.track.source = { take, seed: meta.seed, prompt: meta.prompt || session.prompt };
         results.push(result);
         console.log(`${session.slug}/${take}: score ${result.score} fit ${result.fit.toFixed(2)} ` +

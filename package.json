@@ -16,6 +16,7 @@
     "soundtrack:inspect": "node build.mjs && open dist/score/index.html",
     "soundtrack:inspect:check": "node soundtrack/inspector-check.mjs",
     "soundtrack:room": "python3 soundtrack/room/generate.py",
+    "soundtrack:compose": "cd soundtrack/magenta && npm install --no-audit --no-fund && NODE_USE_ENV_PROXY=1 node compose.mjs",
     "soundtrack:room:import": "node soundtrack/room/import.mjs",
     "soundtrack:play": "python3 soundtrack/ac_suite.py && afplay soundtrack/previews/ac_suite_album.wav",
     "soundtrack:mvp": "python3 soundtrack/dock_mvp.py && afplay soundtrack/previews/dock_mvp.wav"

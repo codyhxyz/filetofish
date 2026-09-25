@@ -1,27 +1,8 @@
 import assert from "node:assert/strict";
-import { importTake, parseMidi, roleOf } from "../soundtrack/room/import.mjs";
+import { importTake, parseMidi, roleOf, writeMidi } from "../soundtrack/room/import.mjs";
 
-/* A stand-in for ROOM's transcriber: notes in seconds, written at a file tempo
-   that has nothing to do with the song, starting at an arbitrary offset. */
-function writeMidi(notes, fileBpm = 120, division = 220) {
-  const vlq = n => { const out = [n & 0x7f]; while ((n >>= 7)) out.unshift((n & 0x7f) | 0x80); return out; };
-  const tick = sec => Math.round(sec * fileBpm / 60 * division);
-  const events = notes.flatMap(n => [
-    { tick: tick(n.start), bytes: [0x90, n.pitch, n.vel] },
-    { tick: tick(n.end), bytes: [0x80, n.pitch, 0] },
-  ]).sort((a, b) => a.tick - b.tick || a.bytes[0] - b.bytes[0]);
-  const usPerBeat = Math.round(60e6 / fileBpm);
-  const body = [0, 0xff, 0x51, 3, usPerBeat >> 16, (usPerBeat >> 8) & 0xff, usPerBeat & 0xff];
-  let last = 0;
-  for (const e of events) { body.push(...vlq(e.tick - last), ...e.bytes); last = e.tick; }
-  body.push(0, 0xff, 0x2f, 0);
-  const u32 = n => [n >>> 24, (n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff];
-  return Uint8Array.from([
-    ..."MThd".split("").map(c => c.charCodeAt(0)), ...u32(6), 0, 0, 0, 1, division >> 8, division & 0xff,
-    ..."MTrk".split("").map(c => c.charCodeAt(0)), ...u32(body.length), ...body,
-  ]);
-}
-
+/* ROOM's transcriber writes notes in seconds, at a file tempo that has nothing
+   to do with the song, starting at an arbitrary offset. writeMidi stands in. */
 const session = { slug: "day", title: "Day", hours: "11:00-17:00", bpm: 96, meter: 4, swing: 0.62, bars: 8,
   defaults: { bass: "acoustic_bass", chords: "electric_guitar_jazz", lead: "steel_drums" } };
 const beat = 60 / session.bpm;
@@ -76,5 +57,28 @@ check([
   { name: "other.mid", bytes: writeMidi(harmony, 60) },
   { name: "mix.mid", bytes: writeMidi([...bass, ...harmony, ...tune]) },
 ], "separate lead stem, mixed file tempos");
+
+// A Magenta take is written on the grid with bar 1 at zero. Its groove can
+// skip the downbeat and its intro has no tune, so nothing may be re-aligned.
+{
+  const onGrid = (b, dur, pitch, vel = 90) => ({ start: b * beat, end: (b + dur) * beat, pitch, vel });
+  const groove = [], comp = [], line = [];
+  for (let bar = 0; bar < 8; bar++) {
+    const b = bar * 4;
+    groove.push(onGrid(b + 1.5, 0.25, 41), onGrid(b + 2, 1.25, 41), onGrid(b + 3.5, 0.25, 41));
+    for (const [x, pitch] of [[0.5, 62], [1, 58], [1.5, 65]]) comp.push(onGrid(b + x, 1, pitch, 70));
+    if (bar >= 4) line.push(onGrid(b, 1, 82), onGrid(b + 1, 1, 81), onGrid(b + 2, 2, 79));
+  }
+  const files = [
+    { name: "bass.mid", bytes: writeMidi(groove, session.bpm) },
+    { name: "chords.mid", bytes: writeMidi(comp, session.bpm) },
+    { name: "lead.mid", bytes: writeMidi(line, session.bpm) },
+  ];
+  const { track } = importTake(files, session, { aligned: true });
+  assert.equal(track.chords.length, 8, "aligned: all eight bars kept");
+  assert.deepEqual(track.chords.map(c => c.layer), [...Array(4).fill("chords"), ...Array(4).fill("full")], "aligned: intro has no tune");
+  assert.equal(track.events.find(e => e.channel === "bass").beat, 1.5, "aligned: syncopated bass stays off the downbeat");
+  assert.equal(track.events.find(e => e.channel === "lead").beat, 16, "aligned: tune enters on bar 5");
+}
 
 console.log("room import checks passed");
