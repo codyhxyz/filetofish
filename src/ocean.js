@@ -64,6 +64,7 @@ const TUNE = {
   settle: 0.14,           // seconds of stillness after which the dial detents
   damp: 5.0,              // how fast the body catches up to the intent
   lookDamp: 26,           // ...and how fast the head does. Nearly instant.
+  stickLook: 2.2,         // look stick at full tilt, radians per second
   glideTime: 0.85,        // seconds to be carried to what you are looking at
   standoff: 3.4,          // ...and where it puts you down, in body lengths
   chaseBack: 8.0,         // third-person camera: distance behind the diver
@@ -1902,13 +1903,13 @@ const cam = {
 };
 const keys = new Set();
 const down = new Set(); // physical key edges survive clearInput until keyup
-let moveX = 0, moveZ = 0, vertical = 0;
+let moveX = 0, moveZ = 0, vertical = 0, lookX = 0, lookUp = 0;
 function isBlocked() {
   return !!talkMode || !!options.isBlocked?.() || !$("#haul").hidden ||
     !$("#confirm").hidden || !$("#scan").hidden;
 }
 function clearInput() {
-  keys.clear(); moveX = moveZ = vertical = 0;
+  keys.clear(); moveX = moveZ = vertical = lookX = lookUp = 0;
   cam.vel.set(0, 0, 0); cam.depthT = cam.pos.y;
   cam.yawT = cam.yaw; cam.pitchT = cam.pitch;
   glide = null; wheelAt = 0;
@@ -1922,6 +1923,13 @@ function setMove(x, z) {
   moveX = Number.isFinite(x) ? clamp(x, -1, 1) : 0;
   moveZ = Number.isFinite(z) ? clamp(z, -1, 1) : 0;
   letGo();
+}
+/* a held look stick turns the head at a rate, not by a distance like a drag */
+function setLook(x, up) {
+  if (isBlocked()) { clearInput(); return; }
+  lookX = Number.isFinite(x) ? clamp(x, -1, 1) : 0;
+  lookUp = Number.isFinite(up) ? clamp(up, -1, 1) : 0;
+  if (lookX || lookUp) letGo();
 }
 function setVertical(y) {
   if (isBlocked()) { clearInput(); return; }
@@ -1994,7 +2002,7 @@ function enterOceanAt(back, eye) {
   updateChaseCamera(0, true);
 }
 function toggleView() {
-  if (phase === "jump" || isBlocked()) { clearInput(); return false; }
+  if (phase === "jump" || isBlocked() || options.autoPerspective) { clearInput(); return false; }
   perspective = perspective === "first" ? "third" : "first";
   player.root.visible = perspective === "third";
   updateChaseCamera(0, true);
@@ -2008,6 +2016,7 @@ function returnToDock() {
 }
 function stageDock() {
   phase = "dock";
+  if (options.autoPerspective) perspective = "first";
   body.classList.add("dock");
   body.classList.remove("jumping", "splash");
   guide.root.position.set(0, DOCK_Y, 0);
@@ -2731,6 +2740,10 @@ function frame(nowMs) {
   /* the head is quick and the body is heavy. Damping them together is what
      made aiming feel like steering something with a rudder. */
   const kl = 1 - Math.exp(-dt * TUNE.lookDamp);
+  if (!blocked && phase !== "jump" && (lookX || lookUp)) {
+    cam.yawT -= lookX * TUNE.stickLook * dt;
+    cam.pitchT = clamp(cam.pitchT + lookUp * TUNE.stickLook * 0.7 * dt, -1.22, 1.22);
+  }
   cam.yaw += (cam.yawT - cam.yaw) * kl;
   cam.pitch += (cam.pitchT - cam.pitch) * kl;
 
@@ -3150,6 +3163,6 @@ requestAnimationFrame(frame);
 return {
   cam, camera, player, guide,
   get phase() { return phase; }, get perspective() { return perspective; },
-  beginJump, returnToDock, toggleView, clearInput, setMove, setVertical, greetKelp,
+  beginJump, returnToDock, toggleView, clearInput, setMove, setLook, setVertical, greetKelp,
 };
 }
