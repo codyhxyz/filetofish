@@ -5,7 +5,6 @@
   "main": "index.js",
   "scripts": {
     "test": "node --test test/*.mjs",
-    "test:sky": "RUN_WEBGL_TESTS=1 node test/sky-render.mjs",
     "soundtrack": "python3 soundtrack/render.py",
     "soundtrack:check": "python3 soundtrack/render.py --check",
     "soundtrack:suite": "python3 soundtrack/ac_suite.py",

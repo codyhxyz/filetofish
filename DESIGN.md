@@ -13,7 +13,8 @@ cd dist && python3 -m http.server
 
 - `src/page.html` — markup + CSS, with an `<!--APP_BUNDLE-->` marker
 - `src/app.js` — the site, imports `three`, `./sfx.js` and `./sea.js`
-- `src/sea.js` — sky and water: the GLSL, the seven weathers, the cross-fade
+- `src/sea.js` — official Three.js Water/Sky objects and scene wiring
+- `src/sea-weather.mjs` — clock, celestial positions, and weather presets
 - `src/sfx.js` — synthesised audio, shared with the audition page and the ocean
 - `src/audition.{html,js}` — the /sfx tuning page
 - `build.mjs` — esbuild bundles to an IIFE and inlines it, then emits two builds:
@@ -27,11 +28,9 @@ every non-ASCII character becomes an entity or a `\u` escape or it mojibakes.
 
 Two renderers, deliberately different:
 
-- **The sea** is hand-written GLSL, no library, in seven weathers (see below).
-  Cel-banded with foam from
-  `abs(fract(fbm) - 0.5)` anti-aliased against `fwidth`, biased toward wave crests
-  so it reads as water rather than a contour map. Ripples are pushed in as uniforms
-  when the bobber lands.
+- **The sea** uses Three.js's official Water and Sky add-ons without shader modifications.
+  Water renders reflections of the scene. Sky supplies atmospheric scattering and clouds.
+  The former custom GLSL renderer, including the fan-shaped water light bands, is removed.
 - **The fish** is three.js: low-poly (11×7 body, ~200 tris), non-indexed so
   `computeVertexNormals` gives hard facets, a 4-step lamp, no specular, muted
   palette. Rendered to a low-res target and post-processed with an 8×8 Bayer dither
@@ -44,18 +43,12 @@ head-on.
 
 ## Weather
 
-Seven skies — `dawn`, `sunrise`, `day`, `dusk`, `night`, `fog`, `rain` — live in
-`src/sea.js`. Each is a flat 50-float scene (water, sky, haze, cloud, sun, moon) and
-`setWeather()` lerps the whole array over 2 s, so nothing ever snaps.
+Seven weather presets remain: `dawn`, `sunrise`, `day`, `dusk`, `night`, `fog`, and `rain`.
+They configure the library objects and retain the fish/rod lighting grades.
 
-The load-bearing trick is that the **visible sun and the key light are separate
-vectors**. The sun can sit on the horizon for the glitter path while the swell
-still gets a high key, so the cel bands never flatten out at sunrise or dusk. The
-moon also has its own direction and visibility. The sun is a small disc.
-The moon has a shaded, textured surface, and the water reflection
-hands over between them. The glitter path itself comes off the half-vector slope
-rather than a `pow(dot)` hack, which is why it narrows at the horizon and spreads
-toward the camera.
+**Sky and Water share the same sun direction.** Time changes update that direction immediately,
+including backward scrubs. The moon does not redirect the sun's water highlight.
+The library's reflected scene contains the moon instead.
 
 Which sky you get is your actual local time (`weatherForDate`), with a small chance
 of fog or rain rolling in instead. A monochrome icon beside the clock shows the
@@ -79,64 +72,29 @@ midnight.
 
 ## Light
 
-The sea used to be display-referred: every colour in the seven weathers was a
-screen colour, mixed in 0..1 and clamped, which is why nothing in it could ever
-look *bright*, only white. It is now lit in linear radiance and turned into
-screen colour once, at the end, by `finish()`: exposure plus Narkowicz's ACES
-fit plus a one-LSB dither. `unmapc()` is that curve's exact algebraic inverse,
-so the hand-tuned weather palettes are not thrown away -- they are inverted
-into radiance and act as the floor the physical terms add to. A sky built from
-palette alone comes back out of `finish()` as the old frame exactly.
+The installed Three.js package supplies the Water and Sky add-ons.
+There is no copied shader, `onBeforeCompile` patch, custom reflection pass, or bespoke bloom chain.
+The moon uses ordinary sphere geometry and a basic material, without procedural craters or exaggerated shading.
+Stars and weather particles use standard materials.
 
-What the light is made of, each behind a switch (`?fx=`, see below):
+Water's normal map is bundled as a data URL, so the standalone page does not fetch textures from a CDN.
+`src/assets/NOTICE.txt` records its pinned upstream source and license. The build embeds that notice.
 
-- **Sky** (`sky`): analytic single scattering, Rayleigh plus Mie, driven by the
-  sun and moon directions. Aerosol is a ground layer, not a full column, or a
-  53-degree lens with the sun in it is nothing but forward scatter. Overcast
-  hands the frame back to the palette, because a rainstorm has no beam to
-  scatter. The sun is a soft-limbed disc at radiance ~27 inside a Mie glare;
-  the twelve-spoke starburst is gone. Clouds are two-tone with a sun-facing
-  silver lining. The moon runs the same scattering, cooler and dimmer.
-  Stars have small pixel-sized cores and slow brightness variation that never extinguishes them.
-- **Rays** (`rays`): soft atmospheric light around the sun, reduced by fog and rain.
-  This continuous glow replaces the noisy 18-sample shafts and their radial lines.
-- **Water** (`water`): Schlick Fresnel reflection of `skyBase()` (the sky
-  without the extra atmospheric glow), quantised to three cel bands, so far water mirrors the
-  sky and the hard horizon band is gone. A normalised GGX lobe replaces the
-  stepped specular: roughness grows with distance as the normal flattens, so
-  sub-pixel chop becomes lobe width instead of crawl. Backlit crests glow a
-  turquoise pulled from the shallow colour when the sun is low and behind the
-  wave. Foam takes the sun as a unit-peak tint, not as radiance -- as radiance
-  it turned to lava.
-- **Bloom** (`bloom`): the scene renders to a half-float target with `uRaw`
-  set, a soft-knee bright pass at 2.6 radiance feeds three blurred mips, and
-  one composite applies `finish(hdr + bloom)`. The threshold sits above the
-  sky (~1..2.5) and lit foam, so only the disc, the moon, the sun path and the
-  sparkle glow; at 1.15 the day washed out and night foam went electric blue.
-  WebGL1 with half-float is preferred over WebGL2 because SwiftShader refuses
-  `fwidth` in a GLSL ES 1.00 shader under a WebGL2 context, and losing that
-  loses the foam; RGBA8 is the last resort and the classic single pass the one
-  after that.
+`/render-world/` runs one scene, not two comparison renderers.
+Its controls expose time, weather, the library's reflection distortion, and camera zoom.
+The old custom foam, sharpness, and highlight controls are removed.
+Old `fx` URL parameters no longer select a legacy renderer.
 
-`?fx=none` uses the classic palette and water path, with the refined stars, sun, and moon.
-`?fx=sky,water` turns on only those; `?fx=-bloom` everything but.
-The shader carries a region contract in a comment above it (sky, water, post)
-because these three were built in parallel against it.
-
-The fish is untouched: it still takes `paletteNow()` and its four-step lamp.
-The blocks stay blocks; only the light changed.
-
-`/render-world/` includes all seven weather choices and a candidate-only wave slider.
-`Sea.setWaveIntensity()` accepts finite numbers from 0 to 2, with a default of 1.
-It scales ambient surface height, not cast ripples or rain impacts.
-This remains a surface-shading preview, not displaced or breaking-wave geometry.
+The fish keeps its existing style and still takes `paletteNow()` for its lighting.
+The dock/swimming merger remains separate work.
 
 The fishing HUD groups track selection, mute, and volume together.
 Source and version share a compact bottom-left strip. Idle instructions are removed; catch status remains.
 Kelp accepts direct character clicks and taps on the dock, alongside the existing E/button greeting.
 The larger mode merger is proposed in `INTEGRATION.md`, not implemented.
 
-`npm test` runs lightweight checks. `npm run test:sky` explicitly starts browser/GPU checks and can consume substantial CPU.
+`npm test` runs lightweight checks without a browser or GPU process.
+The obsolete custom-shader browser test is removed.
 
 ## Sound
 

@@ -46,8 +46,8 @@ No joystick dependency is installed yet.
 3. **Camera and fishing.** Add head-height and chase views around the same player.
    Hide the local body in first person and attach a rod to the third-person avatar.
    Adapt casting and water hit positions to the moving camera.
-4. **Shared sky and water.** Preserve the weather shaders, but adapt their fixed projection to the world camera.
-   The current fishing backdrop and SVG rod cannot become a movable scene through a visibility toggle.
+4. **Shared sky and water.** Reuse the official Three.js Water and Sky objects now used by fishing.
+   Connect them to the ocean world camera. The SVG rod still needs a world-space replacement.
 5. **Mobile input and transitions.** Add the thumbstick and action buttons.
    Clear movement on cancelled gestures, lost focus, and open panels.
    Pause movement during catches, dialogue, and Dex browsing. Never discard a pending catch when diving.
@@ -56,8 +56,8 @@ The Fish button can initially reuse the existing catch presentation underwater.
 It must not silently become the filesystem viewer's net or delete control.
 Keep folder navigation controls separate when that viewer is active.
 
-Later, weather can drive gradual wave-intensity changes.
-The current `/render-world/` slider previews surface-wave intensity only; it does not add breaking-wave geometry or change gameplay.
+Later, weather can drive the library's water settings.
+The current `/render-world/` slider controls reflection distortion, not physical wave height or breaking waves.
 
 ## Important boundary
 

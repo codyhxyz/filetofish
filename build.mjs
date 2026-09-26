@@ -5,6 +5,7 @@ import { execFileSync } from "node:child_process";
 const ENT = {"·":"&#183;","—":"&#8212;","→":"&#8594;","×":"&#215;",
              "…":"&#8230;","–":"&#8211;","✓":"&#10003;","✗":"&#10007;",
              "▋":"&#9611;","▌":"&#9612;","°":"&#176;"," ":"&#160;"};
+const ASSET_NOTICE = fs.readFileSync("src/assets/NOTICE.txt", "utf8");
 
 const asciiHtml = t => {
   for (const [k, v] of Object.entries(ENT)) t = t.split(k).join(v);
@@ -40,10 +41,11 @@ async function page(entry, shell, injections = {}) {
   const out = await esbuild.build({
     entryPoints: [entry],
     bundle: true, minify: true, format: "iife", target: "es2020",
+    loader: { ".jpg": "dataurl" },
     write: false, legalComments: "none",
   });
   const js = asciiJs(out.outputFiles[0].text.replace(/<\/script/gi, "<\\/script"));
-  let html = fs.readFileSync(shell, "utf8");
+  let html = `<!--\n${ASSET_NOTICE}\n-->\n` + fs.readFileSync(shell, "utf8");
   for (const [marker, value] of Object.entries(injections)) {
     const token = `<!--${marker}-->`;
     if (!html.includes(token)) throw new Error("missing marker in " + shell + ": " + token);
@@ -147,7 +149,7 @@ ${score.doc.replace(/<title>[\s\S]*?<\/title>\s*/i, "")}
 </body>
 </html>`);
 
-// 5) RenderWorld -- the above-water shader comparison and tuning bench
+// 5) RenderWorld -- the native Water/Sky inspection page
 const rw = await page("src/render-world.js", "src/render-world.html");
 const rwTitle = (rw.doc.match(/<title>([\s\S]*?)<\/title>/i) || [, "RenderWorld"])[1];
 fs.mkdirSync("dist/render-world", {recursive: true});
