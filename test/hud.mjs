@@ -7,6 +7,9 @@ const html = fs.readFileSync(new URL("../src/page.html", import.meta.url), "utf8
 assert(!/drop a file|one swipe = one day|cast a sample/i.test(html));
 assert.match(html, /id="foot" role="status"><b id="status"><\/b>/);
 assert.match(html, /id="cast" aria-label="Fish">\s*<span class="lb">Fish<\/span>/);
+const depthRules = [...html.matchAll(/#explore-status\s*\{([^}]+)\}/g)];
+assert.equal(depthRules.length, 1, "mobile must not override depth placement");
+assert.match(depthRules[0][1], /left:clamp\(1rem,3vw,2rem\);top:50%;transform:translateY\(-50%\)/);
 const music = html.slice(html.indexOf('<div class="music-control"'), html.indexOf('<button class="tool primary"'));
 for (const id of ["radio", "snd", "musicvol", "musicvolout"]) assert(music.includes(`id="${id}"`));
 

@@ -71,7 +71,10 @@ body.has-catch #rig{opacity:.22;}
   font-family:var(--f-mono);text-align:center;pointer-events:none;
   color:#F2FAFB;background:rgba(5,29,39,.8);border-radius:.35rem;padding:.3rem .5rem;
 }
-#explore-status{top:7rem;font-size:.75rem;}
+#explore-status{
+  left:clamp(1rem,3vw,2rem);top:50%;transform:translateY(-50%);
+  font-size:.75rem;text-align:left;
+}
 #move-help{bottom:5.3rem;font-size:.7rem;white-space:nowrap;}
 #move-stick{
   display:none;position:fixed;z-index:6;left:1.1rem;bottom:6rem;
@@ -99,7 +102,6 @@ body.diving #travel{visibility:visible;}
 @media(max-width:600px){
   #travel{font-size:.7rem;}
   #travel button{padding:.55rem .7rem;}
-  #explore-status{top:7rem;}
 }
 @media(max-height:500px){
   #swim-depth{bottom:6rem;right:5rem;flex-direction:row;}
