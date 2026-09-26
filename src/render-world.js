@@ -1,55 +1,90 @@
 import { Sea } from "./sea.js";
 
 const $ = s => document.querySelector(s);
-const sea = Sea($("#preview"));
-const time = $("#time"), weather = $("#weather");
-const waves = $("#waves"), zoom = $("#zoom");
-let paused = false;
+const before = Sea($("#before"));
+const after = Sea($("#after"));
+const keys = ["crisp", "detail", "foam", "shine"];
+const inputs = keys.map(k => $("#" + k));
+const values = keys.map(k => $("#" + k + "-v"));
+const zoomInput = $("#zoom"), zoomValue = $("#zoom-v");
+const waveInput = $("#waves"), waveValue = $("#waves-v");
+const target = inputs.map(input => Number(input.value) / 100);
+let animation = 0;
 
-function updateTime() {
-  const minutes = Number(time.value);
-  const date = new Date();
-  date.setHours(Math.floor(minutes / 60), minutes % 60, 0, 0);
-  sea.setTime(date);
-  weather.value = "auto";
-  $("#time-v").textContent = `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
-}
-function updateWaves() {
-  sea.setWaveIntensity(Number(waves.value) / 100);
-  $("#waves-v").textContent = `${waves.value}%`;
-}
-function updateZoom() {
-  sea.setZoom(Number(zoom.value) / 100);
-  $("#zoom-v").textContent = `${zoom.value}%`;
+function paint(next, announce = true) {
+  after.setTuning(next);
+  next.forEach((n, i) => {
+    inputs[i].value = Math.round(n * 100);
+    values[i].textContent = `${Math.round(n * 100)}%`;
+  });
+  if (announce) $("#status").innerHTML = `candidate: <strong>${next.map(n => Math.round(n * 100)).join(" / ")}</strong> · zoom <strong>${zoomInput.value}%</strong>`;
 }
 
-time.addEventListener("input", updateTime);
-waves.addEventListener("input", updateWaves);
-zoom.addEventListener("input", updateZoom);
-weather.addEventListener("change", () => {
-  if (weather.value === "auto") updateTime();
-  else sea.setWeather(weather.value);
+inputs.forEach((input, i) => input.addEventListener("input", () => {
+  if (animation) cancelAnimationFrame(animation), animation = 0;
+  const next = inputs.map(item => Number(item.value) / 100);
+  paint(next);
+}));
+
+waveInput.addEventListener("input", () => {
+  after.setWaveIntensity(Number(waveInput.value) / 100);
+  waveValue.textContent = `${waveInput.value}%`;
 });
+
+zoomInput.addEventListener("input", () => {
+  if (animation) cancelAnimationFrame(animation), animation = 0;
+  const value = Number(zoomInput.value);
+  before.setZoom(value / 100);
+  after.setZoom(value / 100);
+  zoomValue.textContent = `${value}%`;
+  $("#status").innerHTML = `candidate: <strong>${inputs.map(input => input.value).join(" / ")}</strong> · zoom <strong>${value}%</strong>`;
+});
+
 $("#reset").addEventListener("click", () => {
-  time.value = 450;
-  waves.value = zoom.value = 100;
-  updateTime(); updateWaves(); updateZoom();
-});
-$("#pause").addEventListener("click", e => {
-  paused = !paused;
-  e.currentTarget.textContent = paused ? "Resume" : "Pause";
-  e.currentTarget.setAttribute("aria-pressed", String(paused));
+  if (animation) cancelAnimationFrame(animation), animation = 0;
+  paint([0, 0, 0, 0]);
+  zoomInput.value = 100;
+  zoomValue.textContent = "100%";
+  before.setZoom(1); after.setZoom(1);
+  waveInput.value = 100;
+  waveValue.textContent = "100%";
+  after.setWaveIntensity(1);
+  $("#status").innerHTML = `candidate: <strong>0 / 0 / 0 / 0</strong> · zoom <strong>100%</strong>`;
+  $("#animate").textContent = "animate test";
 });
 
-// One scene, no comparison renderer or background animation while hidden.
-let sceneTime = 0, last = null;
+$("#weather").addEventListener("change", e => {
+  before.setWeather(e.target.value);
+  after.setWeather(e.target.value);
+});
+
+$("#animate").addEventListener("click", () => {
+  if (animation) {
+    cancelAnimationFrame(animation); animation = 0;
+    $("#animate").textContent = "animate test";
+    return;
+  }
+  const start = performance.now();
+  const run = now => {
+    const loop = ((now - start) % 4200) / 4200;
+    const amount = loop < 0.5 ? loop * 2 : 2 - loop * 2;
+    const eased = amount * amount * (3 - 2 * amount);
+    paint(target.map(n => n * eased), false);
+    $("#status").innerHTML = `auto test: <strong>${Math.round(eased * 100)}% crispness</strong>`;
+    animation = requestAnimationFrame(run);
+  };
+  $("#animate").textContent = "stop animation";
+  animation = requestAnimationFrame(run);
+});
+
 function frame(now) {
-  if (last !== null && !paused && !document.hidden) sceneTime += Math.min((now - last) / 1000, 0.1);
-  last = now;
-  if (!document.hidden) sea.render(sceneTime);
+  const t = now / 1000;
+  before.render(t);
+  after.render(t);
   requestAnimationFrame(frame);
 }
-updateTime();
-updateWaves();
-updateZoom();
+
+before.setZoom(1);
+after.setZoom(1);
+paint(target);
 requestAnimationFrame(frame);
