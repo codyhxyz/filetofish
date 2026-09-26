@@ -2,9 +2,9 @@
    what the light looks like so the fish can be graded to match. */
 
 import {
-  WebGLRenderer, ShaderMaterial, WebGLRenderTarget, PMREMGenerator,
+  WebGLRenderer, ShaderMaterial, WebGLRenderTarget, WebGLCubeRenderTarget, CubeCamera, PMREMGenerator,
   BufferGeometry, Float32BufferAttribute, Mesh, Scene, Camera, BoxGeometry,
-  BackSide, NoBlending, NoToneMapping, LinearSRGBColorSpace, HalfFloatType, UnsignedByteType,
+  BackSide, NoBlending, NoToneMapping, LinearSRGBColorSpace, HalfFloatType, UnsignedByteType, LinearMipmapLinearFilter,
 } from "three";
 
 /* ---------------------------------------------------------------- weather */
@@ -216,6 +216,7 @@ varying vec3 vSkyDirection;
 #include <lights_physical_pars_fragment>
 #include <cube_uv_reflection_fragment>
 uniform sampler2D uEnvironment;
+uniform samplerCube uFallbackEnvironment;
 uniform bool uHasEnvironment;
 #endif
 uniform vec2 uRes; uniform float uTime; uniform float uPx; uniform float uZoom; uniform vec4 uRip[6]; uniform vec4 uTune;
@@ -320,39 +321,7 @@ vec2 drops(vec2 p, float t, float sc, float sk, float rate){
    pixel of antialiasing survives the capped DPR.
    Twinkle never extinguishes a star; brightness is independent of occupancy. */
 float skyPixel(){ return 1.0/(uRes.y*max(uZoom, 0.5)); }
-/* Capture integrates point-star energy over the capture pixel's footprint,
-   including neighbouring cells. Screen-sized cores otherwise fall between the
-   128px cube samples. A normalized tent is a reconstruction filter, not a
-   larger star; its area preserves flux before Three's GGX filtering. The
-   800px reference fixes angular energy independently of canvas size/DPR. */
-#ifdef SEA_CAPTURE
-float captureStars(vec2 sp, float t){
-  vec2 gp = sp*34.0;
-  vec2 footprint = max(fwidth(gp), vec2(0.5));
-  ivec2 lo = ivec2(floor(gp - footprint));
-  ivec2 hi = ivec2(ceil(gp + footprint));
-  float sum = 0.0;
-  for (int y = lo.y; y <= hi.y; y++) {
-    for (int x = lo.x; x <= hi.x; x++) {
-      vec2 ip = vec2(x, y);
-      float h = hash21(ip + 0.5);
-      if (h < 0.86) continue;
-      float bright = hash21(ip + 17.13);
-      vec2 c = 0.20 + 0.60*vec2(hash21(ip + 2.31), hash21(ip + 9.17));
-      vec2 weight = max(1.0 - abs(ip + c - gp)/footprint, 0.0)/footprint;
-      float radius = mix(0.55, 0.85, bright)*34.0/800.0;
-      float twinkle = 0.94 + 0.06*sin(t*(0.55 + bright*0.35) + h*47.0);
-      sum += weight.x*weight.y*3.14159265*radius*radius
-           *mix(1.25, 2.30, bright*bright)*twinkle;
-    }
-  }
-  return sum;
-}
-#endif
 float starfield(vec2 sp, float t){
-#ifdef SEA_CAPTURE
-  return captureStars(sp, t);
-#else
   vec2 gp = sp*34.0;
   vec2 ip = floor(gp), f = fract(gp);
   float h = hash21(ip + 0.5);
@@ -364,7 +333,6 @@ float starfield(vec2 sp, float t){
   float core = 1.0 - smoothstep(radius - px*0.5, radius + px*0.5, d);
   float twinkle = 0.94 + 0.06*sin(t*(0.55 + bright*0.35) + h*47.0);
   return core*step(0.86, h)*mix(1.25, 2.30, bright*bright)*twinkle;
-#endif
 }
 /* screen space rain: slanted columns of falling dashes. cw/ch are the cell
    size in CSS pixels, not in fractions of the frame -- so streak width, dash
@@ -689,7 +657,8 @@ void main(){
          slope: that is the join that makes sea and sky one surface. */
       vec3 reflectionDir = normalize(vec3(rr.x, max(ry, 0.11), rr.z));
       vec3 skyRefl = uHasEnvironment ? textureCubeUV(uEnvironment, reflectionDir, rough).rgb
-                                   : skyBase(reflectionDir, t, false);
+        : textureLod(uFallbackEnvironment, reflectionDir,
+                     clamp(CUBEUV_MAX_MIP - roughnessToMip(rough), 0.0, CUBEUV_MAX_MIP)).rgb;
       skyRefl = mix(skyRefl, uHazeR, 1.0 - smoothstep(0.0, mix(0.105, 0.40, FOG), ry));
       col = mix(col, skyRefl, fq);
       /* The capture excludes the solar disc: direct GGX counts it once. */
@@ -850,7 +819,7 @@ export function waterIntersection(cx, cy, width, height, eye, view, lens, zoom =
 /* Fixed world-space capture: never tied to the view, zoom, DPR or canvas size.
    Natural motion is 2Hz; scrubs/explicit edits are coalesced at at most 10Hz.
    A pending edit survives until captured, including the final drag position. */
-const ENV_SIZE = 128;
+const ENV_SIZE = 256;
 export function reflectionCache() {
   let capturedAt = -Infinity, clockOffset = null, urgent = true, captures = 0;
   return {
@@ -879,9 +848,14 @@ export function Sea(canvas) {
   renderer.toneMapping = NoToneMapping;
   renderer.outputColorSpace = LinearSRGBColorSpace;
   const hdr = !!(gl.getExtension("EXT_color_buffer_float") || gl.getExtension("EXT_color_buffer_half_float"));
-  /* Three PMREM requires renderable half floats. Keep the authored scene on
-     rare WebGL2 implementations without them, rather than a broken target. */
+  /* Without HDR attachments, native cubemap mipmaps still filter reflections.
+     Never fall back to evaluating sharp stars directly on moving water. */
   const pmrem = hdr ? new PMREMGenerator(renderer) : null;
+  const fallbackEnvironment = hdr ? null : new WebGLCubeRenderTarget(ENV_SIZE, {
+    type: UnsignedByteType, depthBuffer: false, stencilBuffer: false,
+    generateMipmaps: true, minFilter: LinearMipmapLinearFilter,
+  });
+  const fallbackCamera = hdr ? null : new CubeCamera(0.1, 10, fallbackEnvironment);
   const cache = reflectionCache();
   let environment = null, captureMs = 0, disposed = false; // CPU submission time, not a GPU timer
   const uniform = value => ({ value });
@@ -892,7 +866,7 @@ export function Sea(canvas) {
   });
   const seaMaterial = material(SEA_VS, SEA_FS, uniforms, {
     FW: "fwidth", ENVMAP_TYPE_CUBE_UV: 1,
-    CUBEUV_MAX_MIP: "7.0", CUBEUV_TEXEL_WIDTH: 1 / (3 * ENV_SIZE), CUBEUV_TEXEL_HEIGHT: 1 / (4 * ENV_SIZE),
+    CUBEUV_MAX_MIP: Math.log2(ENV_SIZE).toFixed(1), CUBEUV_TEXEL_WIDTH: 1 / (3 * ENV_SIZE), CUBEUV_TEXEL_HEIGHT: 1 / (4 * ENV_SIZE),
   });
   const geometry = new BufferGeometry();
   geometry.setAttribute("a", new Float32BufferAttribute([-1, -1, 3, -1, -1, 3], 2));
@@ -1012,9 +986,10 @@ export function Sea(canvas) {
     uMoonDir: cur.subarray(46, 49), uMoon: cur[49], uFx: fxv,
     uZoom: zoom, uWaveIntensity: waveIntensity, uEye: eye, uView: view, uLens: lens,
     uTune: tune, uRip: rip, uTime: 0, uRes: [2, 2], uPx: 1, uRaw: 0,
-    uEnvironment: null, uHasEnvironment: false,
+    uEnvironment: null, uHasEnvironment: false, uFallbackEnvironment: fallbackEnvironment?.texture || null,
   })) uniforms[name] = uniform(value);
   Object.assign(captureUniforms, uniforms, {
+    // Fixed angular sizing for the authored sky, independent of display/DPR.
     uRes: uniform([800, 800]), uPx: uniform(1), uZoom: uniform(1),
   });
 
@@ -1022,12 +997,12 @@ export function Sea(canvas) {
     dispose() {
       if (disposed) return;
       disposed = true;
-      dropTargets(); environment?.dispose(); pmrem?.dispose();
+      dropTargets(); environment?.dispose(); pmrem?.dispose(); fallbackEnvironment?.dispose();
       geometry.dispose(); skyBox.geometry.dispose();
       for (const mat of [seaMaterial, captureMaterial, pBright, pDown, pBlur, pComp]) mat.dispose();
       renderer.dispose();
     },
-    reflectionStats() { return { ...cache.stats(), captureMs, filtered: !!pmrem }; },
+    reflectionStats() { return { ...cache.stats(), captureMs, filtered: true, mode: hdr ? "pmrem" : "mipmaps" }; },
     ripple(x, z, s, now) { rip.set([x, z, now, s], slot * 4); slot = (slot + 1) % 6; },
     screenToWorld(cx, cy) {
       return waterIntersection(cx, cy, canvas.clientWidth, canvas.clientHeight, eye, view, lens, zoom);
@@ -1105,13 +1080,17 @@ export function Sea(canvas) {
       if (dirty) { upload(); dirty = false; }
       live = true;
       uniforms.uTime.value = now;
-      if (pmrem && fxv[2] > 0.5 && cache.due(now, celestialMs)) {
+      if (fxv[2] > 0.5 && cache.due(now, celestialMs)) {
         const start = performance.now();
-        const next = pmrem.fromScene(captureScene, 0, 0.1, 10, { size: ENV_SIZE });
-        environment?.dispose();
-        environment = next;
-        uniforms.uEnvironment.value = environment.texture;
-        uniforms.uHasEnvironment.value = true;
+        if (pmrem) {
+          const next = pmrem.fromScene(captureScene, 0, 0.1, 10, { size: ENV_SIZE });
+          environment?.dispose();
+          environment = next;
+          uniforms.uEnvironment.value = environment.texture;
+          uniforms.uHasEnvironment.value = true;
+        } else {
+          fallbackCamera.update(renderer, captureScene);
+        }
         cache.captured(now);
         captureMs = performance.now() - start;
       }

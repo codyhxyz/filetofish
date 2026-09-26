@@ -186,6 +186,10 @@ ${oc.doc.replace(/<title>[\s\S]*?<\/title>\s*/i, "")}
 </body>
 </html>`);
 
+// Paused, matched before/after captures: no extra WebGL contexts in the gallery.
+fs.cpSync("assets/reflections", "dist/render-world/reflections", { recursive: true });
+fs.copyFileSync("src/reflections.html", "dist/render-world/reflections/index.html");
+
 console.log(`site ${(doc.length/1024).toFixed(0)} KB | audition ${(aud.doc.length/1024).toFixed(0)} KB`
           + ` | score ${(score.doc.length/1024).toFixed(0)} KB | render-world ${(rw.doc.length/1024).toFixed(0)} KB`
           + ` | ocean ${(oc.doc.length/1024).toFixed(0)} KB`);

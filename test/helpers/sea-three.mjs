@@ -1,12 +1,22 @@
 /* Real Three scene/material/geometry classes; only GPU entry points are faked. */
 export * from "three";
-import { WebGLRenderTarget as Target } from "three";
+import { WebGLRenderTarget as Target, WebGLCubeRenderTarget as CubeTarget } from "three";
 export const renders = [], captures = [], resources = [];
 const snapshot = uniforms => Object.fromEntries(Object.entries(uniforms).map(([key, { value }]) =>
   [key, Array.isArray(value) || ArrayBuffer.isView(value) ? Array.from(value) : value]));
 export class WebGLRenderTarget extends Target {
   constructor(...args) { super(...args); resources.push(this); }
   dispose() { this.disposed = true; super.dispose(); }
+}
+export class WebGLCubeRenderTarget extends CubeTarget {
+  constructor(...args) { super(...args); resources.push(this); }
+  dispose() { this.disposed = true; super.dispose(); }
+}
+export class CubeCamera {
+  constructor(near, far, target) { Object.assign(this, { near, far, target }); }
+  update(renderer, scene) {
+    captures.push({ size: this.target.width, mode: "mipmaps", uniforms: snapshot(scene.children[0].material.uniforms) });
+  }
 }
 export class WebGLRenderer {
   constructor({ canvas }) { this.canvas = canvas; resources.push(this); }

@@ -52,7 +52,7 @@ equalVec(frame().uSun, celestialForDate(new Date(epoch)).sun);
 equalVec(frame().uMoonDir, captures[0].uniforms.uMoonDir);
 assert.deepEqual(frame().uRip.slice(0, 4), [2, -8, -.5, 1]);
 assert.equal(captures.length, 1);
-assert.equal(captures[0].size, 128);
+assert.equal(captures[0].size, 256);
 assert.deepEqual(captures[0].uniforms.uRes, [800, 800]);
 assert.equal(captures[0].uniforms.uZoom, 1);
 assert.equal(frame().uHasEnvironment, true);
@@ -104,21 +104,29 @@ assert(resources.every(r => r.disposed), "all renderer, PMREM and target resourc
 const count = renders.length; sea.render(4); assert.equal(renders.length, count);
 delete globalThis.devicePixelRatio;
 
-// Devices without half-float attachments retain the scene and original LDR
-// bloom, with disc-free analytic reflections rather than invalid PMREM targets.
+// Devices without half-float attachments use native RGBA8 cubemap mipmaps.
+// They must not restore sharp, unfiltered procedural star reflections.
 const fallback = Sea({ clientWidth: 400, clientHeight: 300, getContext: () => ({ getExtension: () => null }) });
 fallback.render(0);
-assert.equal(fallback.reflectionStats().filtered, false);
+assert.equal(fallback.reflectionStats().filtered, true);
+assert.equal(fallback.reflectionStats().mode, "mipmaps");
+assert.equal(captures.at(-1).mode, "mipmaps");
+assert.equal(fallback.reflectionStats().captures, 1);
+fallback.render(.05);
+assert.equal(fallback.reflectionStats().captures, 1);
 assert.equal(frame().uFinish, 0);
+const cubeTarget = resources.find(r => r.isWebGLCubeRenderTarget && !r.disposed);
+assert.equal(cubeTarget.texture.generateMipmaps, true);
 fallback.dispose();
+assert.equal(cubeTarget.disposed, true);
 
 assert.match(SEA_FS, /#include <common>/);
 assert.match(SEA_FS, /#include <lights_physical_pars_fragment>/);
 assert.match(ShaderChunk.lights_physical_pars_fragment, /vec3 BRDF_GGX\([^]*PhysicalMaterial material/);
 assert.match(SEA_FS, /#include <cube_uv_reflection_fragment>/);
-assert.match(SEA_FS, /max\(fwidth\(gp\), vec2\(0\.5\)\)/, "capture integrates tiny stars over pixel footprints");
-assert.match(SEA_FS, /floor\(gp - footprint\)/, "include neighbouring stars crossing capture texels");
-assert.match(SEA_FS, /weight\.x\*weight\.y\*3\.14159265\*radius\*radius/, "AA conserves star flux");
+assert.doesNotMatch(SEA_FS, /captureStars|footprint/, "use Three filtering, not a custom reconstruction kernel");
+assert.match(SEA_FS, /textureLod\(uFallbackEnvironment/, "fallback uses native filtered mipmaps");
+assert.doesNotMatch(SEA_FS, /skyBase\(reflectionDir/, "no unfiltered sky-reflection fallback");
 assert.doesNotMatch(seaSource, /(?:from|import) [^\n]*(?:Water\.js|Sky\.js)/);
 assert.doesNotMatch(seaSource, /gl\.(?:createShader|drawArrays|bindFramebuffer|uniform)/, "Three owns rendering plumbing");
 console.log("sea reflections: bounded cache, immediate direct sun, latest moon flush, API, bloom and resource lifetime (CPU only)");

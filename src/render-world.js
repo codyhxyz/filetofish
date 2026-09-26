@@ -3,6 +3,12 @@ import { Sea } from "./sea.js";
 const $ = s => document.querySelector(s);
 const before = Sea($("#before"));
 const after = Sea($("#after"));
+if (!before || !after) {
+  before?.dispose();
+  after?.dispose();
+  document.querySelectorAll("button,select,input").forEach(control => { control.disabled = true; });
+  $("#status").innerHTML = 'Live water needs WebGL2. <a href="/render-world/reflections/">View the still comparison</a>.';
+}
 const keys = ["crisp", "detail", "foam", "shine"];
 const inputs = keys.map(k => $("#" + k));
 const values = keys.map(k => $("#" + k + "-v"));
@@ -78,13 +84,16 @@ $("#animate").addEventListener("click", () => {
 });
 
 function frame(now) {
+  if (!before || !after) return;
   const t = now / 1000;
   before.render(t);
   after.render(t);
   requestAnimationFrame(frame);
 }
 
-before.setZoom(1);
-after.setZoom(1);
-paint(target);
-requestAnimationFrame(frame);
+if (before && after) {
+  before.setZoom(1);
+  after.setZoom(1);
+  paint(target);
+  requestAnimationFrame(frame);
+}

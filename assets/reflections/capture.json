@@ -1,0 +1,78 @@
+{
+  "before": {
+    "ref": "2d06a9c",
+    "width": 640,
+    "height": 400,
+    "dpr": 1,
+    "weatherTime": 12.5,
+    "classicTime": 17.5,
+    "errors": []
+  },
+  "after": {
+    "ref": "working",
+    "sourceSha256": "7196693ef905987139e74323f1055fcdd34c789bf79a242c2e2dddced654e1d8",
+    "width": 640,
+    "height": 400,
+    "dpr": 1,
+    "weatherTime": 12.5,
+    "classicTime": 17.5,
+    "errors": [],
+    "checks": {
+      "starEnergy": {
+        "256": {
+          "lit": 0.23140086939868829,
+          "dark": 0.230835564667359,
+          "stars": 0.0005653047313292914,
+          "stats": {
+            "captures": 2,
+            "capturedAt": 12.6,
+            "pending": false,
+            "size": 256,
+            "captureMs": 0.7999999523162842,
+            "filtered": true,
+            "mode": "pmrem"
+          }
+        },
+        "512": {
+          "lit": 0.22861450191703625,
+          "dark": 0.22801553592823134,
+          "stars": 0.0005989659888049059,
+          "stats": {
+            "captures": 2,
+            "capturedAt": 12.6,
+            "pending": false,
+            "size": 512,
+            "captureMs": 0.7000000476837158,
+            "filtered": true,
+            "mode": "pmrem"
+          }
+        }
+      },
+      "fallback": {
+        "stats": {
+          "captures": 1,
+          "capturedAt": 12.5,
+          "pending": false,
+          "size": 256,
+          "captureMs": 4.699999928474426,
+          "filtered": true,
+          "mode": "mipmaps"
+        }
+      },
+      "mobile": {
+        "captures": 1,
+        "capturedAt": 12.5,
+        "pending": false,
+        "size": 256,
+        "captureMs": 7.799999952316284,
+        "filtered": true,
+        "mode": "pmrem"
+      },
+      "app": {
+        "framesLeft": -2,
+        "sea": true
+      }
+    }
+  },
+  "processing": "Lossless PNG-to-WebP conversion only; no visual adjustments."
+}
