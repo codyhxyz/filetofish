@@ -16,6 +16,12 @@ import {
 } from "three";
 import { P as SND, speak, beats, isOn, setOn, audio, sfx } from "./sfx.js";
 
+export function initOcean(root, options = {}) {
+const embedded = options.embedded === true;
+const reducedMotion = !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+const body = root.host || document.body;
+const $ = s => root.querySelector(s);
+
 const TUNE = {
   /* --- the two axes that carry meaning --------------------------------- */
   depth: 900,             // world units from surface to abyss
@@ -68,7 +74,6 @@ const TUNE = {
 
 const MAX_FILES = 250000;      // past this the layout stops being comprehensible
 const TAU = Math.PI * 2;
-const $ = s => document.querySelector(s);
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const lerp = (a, b, t) => a + (b - a) * t;
 const DAY = 86400000;
@@ -1159,7 +1164,7 @@ void main(){
 
 /* ============================================================ scene */
 const canvas = $("#gl");
-const renderer = new WebGLRenderer({ canvas, antialias: true });
+const renderer = new WebGLRenderer({ canvas, antialias: true, alpha: embedded });
 renderer.setClearColor(0x04121a, 1);
 renderer.autoClear = false;                  // the composite must not wipe the water
 const scene = new Scene();                   // the water: surface, rays, haze, points, snow
@@ -1521,18 +1526,21 @@ function buildPlayer() {
   legR.add(M(legGeo)); legL.add(M(legGeo));
   root.add(legR, legL);
 
+  const rod = M(kit().tube([0.40, 0.18, -0.12], [0.40, 1.75, -1.65], 0.035, 0.012, PLANK, 5).geo());
+  root.add(rod);
   root.visible = false;
   guideScene.add(root);
-  return { root, armR, armL, legR, legL, vel: new Vector3() };
+  return { root, armR, armL, legR, legL, rod, vel: new Vector3() };
 }
 const player = buildPlayer();
 
 /* Three phases are enough: walk and talk on the dock, one deterministic water
    crossing, then the existing ocean controller. ?demo keeps its direct-ocean
    shortcut for tuning and screenshots. */
-const AUTO_DEMO = /[?&]demo\b/.test(location.search);
+const AUTO_DEMO = !embedded && /[?&]demo\b/.test(location.search);
 const DOCK_Y = 1.0, GUIDE_Y = -13;
 let phase = AUTO_DEMO ? "ocean" : "dock";
+let perspective = embedded ? "first" : "third";
 let jump = null;
 guide.root.position.set(0, phase === "dock" ? DOCK_Y : GUIDE_Y, 0);
 
@@ -1611,6 +1619,10 @@ function buildWorld(files, label) {
   const k = radius / Math.max(1, root.r);
   for (const p of places) { p.cx *= k; p.cz *= k; p.r *= k; }
   layout(places);
+  if (embedded) {
+    // Ambient demo only: keep the existing animals within a short swim of the pier.
+    for (const f of files) { f.x *= 0.18; f.z = f.z * 0.18 - 45; f.y *= 0.25; }
+  }
 
   /* --- points: every file, always --------------------------------------- */
   const n = files.length;
@@ -1745,7 +1757,9 @@ function buildWorld(files, label) {
   /* A scan may finish while the player is still standing on the dock. Move
      the entire dock/camera tableau together to its berth so nothing appears
      to snap, and keep the generated ocean hidden until the jump crosses it. */
-  if (phase === "dock") {
+  if (embedded) {
+    setWorldVisible(phase === "ocean");
+  } else if (phase === "dock") {
     moorDock(back - 34);
     setWorldVisible(false);
     beginJump();
@@ -1794,6 +1808,37 @@ const cam = {
   yaw: 0, pitch: -0.06, yawT: 0, pitchT: -0.06, depthT: -190,
 };
 const keys = new Set();
+const down = new Set(); // physical key edges survive clearInput until keyup
+let moveX = 0, moveZ = 0, vertical = 0;
+function isBlocked() {
+  return !!talkMode || !!options.isBlocked?.() || !$("#haul").hidden ||
+    !$("#confirm").hidden || !$("#scan").hidden;
+}
+function clearInput() {
+  keys.clear(); moveX = moveZ = vertical = 0;
+  cam.vel.set(0, 0, 0); cam.depthT = cam.pos.y;
+  cam.yawT = cam.yaw; cam.pitchT = cam.pitch;
+  glide = null; wheelAt = 0;
+  if (dragPointer !== null) {
+    try { canvas.releasePointerCapture(dragPointer); } catch (err) { }
+    dragPointer = null;
+  }
+}
+function setMove(x, z) {
+  if (isBlocked()) { clearInput(); return; }
+  moveX = Number.isFinite(x) ? clamp(x, -1, 1) : 0;
+  moveZ = Number.isFinite(z) ? clamp(z, -1, 1) : 0;
+  letGo();
+}
+function setVertical(y) {
+  if (isBlocked()) { clearInput(); return; }
+  vertical = Number.isFinite(y) ? clamp(y, -1, 1) : 0;
+  letGo();
+}
+function ownsKeys(e) {
+  return (e.composedPath?.() || [e.target]).some(el => el &&
+    (/^(INPUT|TEXTAREA|SELECT|BUTTON|A)$/.test(el.tagName) || el.isContentEditable));
+}
 let dragPointer = null, lastX = 0, lastY = 0, moved = 0;
 /* where the wheel last moved, so the dial can find its notch once you let go */
 let wheelAt = 0;
@@ -1813,13 +1858,18 @@ const forwardOf = (yaw, pitch) => {
 };
 const chaseWant = new Vector3(), chaseForward = new Vector3(), chaseRight = new Vector3();
 function updateChaseCamera(dt, snap) {
+  if (perspective === "first") {
+    cam.eye.copy(cam.pos); cam.eye.y += 1.1;
+    return;
+  }
   const cp = Math.cos(cam.pitch);
   chaseForward.set(-Math.sin(cam.yaw) * cp, Math.sin(cam.pitch), -Math.cos(cam.yaw) * cp);
   chaseRight.set(Math.cos(cam.yaw), 0, -Math.sin(cam.yaw));
   chaseWant.copy(cam.pos)
-    .addScaledVector(chaseForward, -TUNE.chaseBack)
-    .addScaledVector(chaseRight, TUNE.chaseSide);
-  chaseWant.y += TUNE.chaseRise;
+    .addScaledVector(chaseForward, phase === "dock" ? -3.6 : -TUNE.chaseBack)
+    .addScaledVector(chaseRight, phase === "dock" ? 0.45 : TUNE.chaseSide);
+  chaseWant.y += phase === "dock" ? 1.7 : TUNE.chaseRise;
+  if (embedded && phase === "ocean") chaseWant.y = Math.min(chaseWant.y, -0.6);
   if (snap) cam.eye.copy(chaseWant);
   else cam.eye.lerp(chaseWant, 1 - Math.exp(-dt * TUNE.chaseDamp));
 }
@@ -1841,7 +1891,7 @@ function moorDock(z) {
 }
 function enterOceanAt(back, eye) {
   phase = "ocean";
-  document.body.classList.remove("dock", "jumping", "splash");
+  body.classList.remove("dock", "jumping", "splash");
   setWorldVisible(true);
   cam.pos.set(0, eye, back);
   cam.depthT = eye; cam.yaw = cam.yawT = 0; cam.pitch = cam.pitchT = -0.03;
@@ -1849,17 +1899,30 @@ function enterOceanAt(back, eye) {
   guide.root.position.set(0, GUIDE_Y, back - 34);
   updateChaseCamera(0, true);
 }
+function toggleView() {
+  if (isBlocked()) { clearInput(); return false; }
+  perspective = perspective === "first" ? "third" : "first";
+  player.root.visible = perspective === "third";
+  updateChaseCamera(0, true);
+  return true;
+}
+function returnToDock() {
+  if (isBlocked()) { clearInput(); return false; }
+  clearInput(); jump = null;
+  stageDock();
+  return true;
+}
 function stageDock() {
   phase = "dock";
-  document.body.classList.add("dock");
-  document.body.classList.remove("jumping");
+  body.classList.add("dock");
+  body.classList.remove("jumping", "splash");
   guide.root.position.set(0, DOCK_Y, 0);
   guide.root.rotation.set(0, 0, 0);
   guide.root.visible = true;
   cam.pos.set(-0.45, DOCK_Y, 2.45);
   cam.depthT = DOCK_Y; cam.yaw = cam.yawT = 0; cam.pitch = cam.pitchT = -0.10;
   cam.vel.set(0, 0, 0);
-  player.root.visible = true;
+  player.root.visible = perspective === "third";
   setWorldVisible(false);
   updateChaseCamera(0, true);
   elPlaceN.textContent = "the dock";
@@ -1873,7 +1936,7 @@ const atDockEdge = () => phase === "dock" && world &&
 function syncAction() {
   let label = "";
   if (phase === "dock" && !talkMode) {
-    if (atDockEdge()) label = "jump in";
+    if (!embedded && atDockEdge()) label = "jump in";
     else if (nearKelp()) label = introSeen ? "talk to kelp" : "say hello to kelp";
   }
   if (label === actionLabel) return;
@@ -1883,13 +1946,16 @@ function syncAction() {
   elAction.querySelector("span").textContent = label;
 }
 function greetKelp() {
-  if (!nearKelp() || talkMode || !$("#haul").hidden || !$("#confirm").hidden) return;
+  if (!nearKelp() || isBlocked()) return;
   introSeen = true;
-  openIntro(true);
+  if (embedded) {
+    clearInput();
+    chat("oh! hello. lovely day for a swim. i'll keep an eye on the dock.");
+  } else openIntro(true);
 }
 function dockAction() {
-  if (talkMode || !$("#haul").hidden || !$("#confirm").hidden) return;
-  if (atDockEdge()) { beginJump(); return; }
+  if (isBlocked()) return;
+  if (!embedded && atDockEdge()) { beginJump(); return; }
   greetKelp();
 }
 const kelpRay = new Raycaster(), kelpPointer = new Vector2();
@@ -1904,46 +1970,56 @@ function hitKelp(e) {
   return kelpRay.intersectObject(guide.kelp, true).length > 0;
 }
 function beginJump() {
-  if (phase !== "dock" || !world) return;
+  if (phase !== "dock" || !world || isBlocked()) return false;
   audio();
   closeTalk();
-  keys.clear(); cam.vel.set(0, 0, 0); glide = null;
+  clearInput();
+  perspective = "third";
   phase = "jump";
-  document.body.classList.remove("dock");
-  document.body.classList.add("jumping");
+  body.classList.remove("dock");
+  body.classList.add("jumping");
   jump = {
     at: performance.now(), from: cam.pos.clone(),
     to: new Vector3(guide.root.position.x, -6.5, guide.root.position.z - 4.2),
     splashed: false,
+    edge: new Vector3(cam.pos.x, DOCK_Y, guide.root.position.z + DOCK_NEAR),
   };
+  if (reducedMotion) jump.at -= embedded ? 1700 : 1250;
   actionLabel = ""; elAction.hidden = true;
+  return true;
 }
 function stepJump(nowMs) {
   if (!jump) return;
-  const u = clamp((nowMs - jump.at) / 1250, 0, 1);
+  const elapsed = nowMs - jump.at;
+  if (embedded && elapsed < 450) {
+    cam.pos.lerpVectors(jump.from, jump.edge, clamp(elapsed / 450, 0, 1));
+    cam.depthT = cam.pos.y;
+    return;
+  }
+  const u = clamp((elapsed - (embedded ? 450 : 0)) / 1250, 0, 1);
   const e = u * u * (3 - 2 * u);
-  cam.pos.lerpVectors(jump.from, jump.to, e);
+  cam.pos.lerpVectors(embedded ? jump.edge : jump.from, jump.to, e);
   cam.pos.y += Math.sin(u * Math.PI) * 2.8;
   cam.depthT = cam.pos.y;
   cam.yawT = nearestYaw(0, cam.yaw);
   cam.pitchT = lerp(-0.10, -0.42, e);
   if (!jump.splashed && cam.pos.y < 0.5) {
     jump.splashed = true;
-    guide.root.position.y = GUIDE_Y;
-    document.body.classList.add("splash");
+    if (!embedded) guide.root.position.y = GUIDE_Y;
+    body.classList.add("splash");
     sfx("splash");
-    setTimeout(() => document.body.classList.remove("splash"), 520);
+    setTimeout(() => body.classList.remove("splash"), 520);
   }
   if (u < 1) return;
   phase = "ocean";
   jump = null;
-  document.body.classList.remove("jumping", "dock");
+  body.classList.remove("jumping", "dock");
   setWorldVisible(true);
-  guide.root.position.y = GUIDE_Y;
+  if (!embedded) guide.root.position.y = GUIDE_Y;
   cam.depthT = cam.pos.y;
   cam.pitch = cam.pitchT = -0.18;
   cam.vel.set(0, 0, 0);
-  updateChaseCamera(0, false);
+  updateChaseCamera(0, reducedMotion);
   lastChat = performance.now() + 4000;
   elPlaceN.textContent = "the ocean";
   say("swim where you look");
@@ -1972,31 +2048,56 @@ function kick() {
 }
 
 addEventListener("keydown", e => {
-  if (e.target && /INPUT|TEXTAREA/.test(e.target.tagName)) return;
+  const k = e.key.toLowerCase();
+  const repeated = e.repeat || down.has(k);
+  down.add(k);
+  if (ownsKeys(e)) return;
+  if (embedded) {
+    if (options.isBlocked?.()) { clearInput(); return; }
+    if (talkMode) {
+      if (!repeated && (e.code === "Space" || k === "enter" || k === "e")) {
+        e.preventDefault(); advance();
+      }
+      clearInput(); return;
+    }
+    if (isBlocked()) { clearInput(); return; }
+    if (e.code === "Space" || /^Arrow/.test(e.code)) e.preventDefault();
+    if (!repeated) {
+      if (e.code === "Space") beginJump();
+      if (k === "q") returnToDock();
+      if (k === "v") toggleView();
+      if (k === "e") greetKelp();
+    }
+    if (!repeated && !isBlocked()) keys.add(k);
+    if (SWIM_KEYS.includes(k)) letGo();
+    return;
+  }
   if (e.key === "Escape") { closeHaul(); return; }
-  /* a sheet is open: it owns the keyboard, and swimming behind it is nonsense */
   if (!$("#haul").hidden || !$("#confirm").hidden) return;
   if (e.code === "Space" || /^Arrow/.test(e.code)) e.preventDefault();
-  const k = e.key.toLowerCase();
   if (talkMode && (e.code === "Space" || e.key === "Enter" || (phase === "dock" && k === "e"))) {
-    advance(); return;
+    if (!repeated) advance(); return;
   }
-  keys.add(k);
-  if (held()) return;                         // he is talking; stay put and listen
-  if (phase === "dock") { if (k === "e") dockAction(); return; }
+  if (isBlocked()) { clearInput(); return; }
+  if (!repeated) keys.add(k);
+  if (!repeated && k === "v") toggleView();
+  if (!repeated && k === "q") { returnToDock(); return; }
+  if (phase === "dock") { if (!repeated && k === "e") dockAction(); return; }
   if (phase === "jump") return;
-  if (SWIM_KEYS.includes(k)) letGo();         // your hands are on it again
-  /* look at something and be taken to it; look at nothing and push off */
-  if (e.code === "Space") {
+  if (SWIM_KEYS.includes(k)) letGo();
+  if (!repeated && e.code === "Space") {
     if (aimed && !aimed.dead) glideTo(aimed); else kick();
   }
-  if (k === "f") toKelp();
-  if (k === "e") toggleNet();
+  if (!repeated && k === "f") toKelp();
+  if (!repeated && k === "e") toggleNet();
 });
-addEventListener("keyup", e => keys.delete(e.key.toLowerCase()));
+addEventListener("keyup", e => { const k = e.key.toLowerCase(); keys.delete(k); down.delete(k); });
+addEventListener("blur", () => { clearInput(); down.clear(); });
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) { clearInput(); down.clear(); }
+});
 canvas.addEventListener("pointerdown", e => {
-  if (!e.isPrimary || e.button !== 0 || dragPointer !== null || talkMode ||
-      !$("#haul").hidden || !$("#confirm").hidden) return;
+  if ((!e.isPrimary && !(embedded && e.pointerType === "touch")) || e.button !== 0 || dragPointer !== null || isBlocked()) return;
   dragPointer = e.pointerId; moved = 0; lastX = e.clientX; lastY = e.clientY;
   canvas.setPointerCapture(e.pointerId);
 });
@@ -2005,10 +2106,9 @@ canvas.addEventListener("pointerup", e => {
   dragPointer = null;
   try { canvas.releasePointerCapture(e.pointerId); } catch (err) { }
   moved += Math.abs(e.clientX - lastX) + Math.abs(e.clientY - lastY);
-  if (!e.isPrimary || e.button !== 0 || moved >= 5 || talkMode ||
-      !$("#haul").hidden || !$("#confirm").hidden) return;
+  if ((!e.isPrimary && !(embedded && e.pointerType === "touch")) || e.button !== 0 || moved >= 5 || isBlocked()) return;
   if (nearKelp() && hitKelp(e)) greetKelp(); // character clicks never jump
-  else if (phase === "ocean") toggleNet();
+  else if (!embedded && phase === "ocean") toggleNet();
 });
 canvas.addEventListener("pointercancel", e => {
   if (e.pointerId !== dragPointer) return;
@@ -2020,6 +2120,7 @@ canvas.addEventListener("lostpointercapture", e => {
 });
 canvas.addEventListener("pointermove", e => {
   if (e.pointerId !== dragPointer) return;
+  if (isBlocked()) { clearInput(); return; }
   const dx = e.clientX - lastX, dy = e.clientY - lastY;
   moved += Math.abs(dx) + Math.abs(dy);
   if (moved > 5) glide = null;              // turning your head is taking over
@@ -2028,8 +2129,8 @@ canvas.addEventListener("pointermove", e => {
   lastX = e.clientX; lastY = e.clientY;
 });
 addEventListener("wheel", e => {
+  if (embedded || ownsKeys(e) || isBlocked() || phase !== "ocean") return;
   e.preventDefault();
-  if (held() || phase !== "ocean") return;
   letGo();
   cam.depthT = clamp(cam.depthT - e.deltaY * TUNE.wheelSpeed, -DEPTH - 60, -2);
   wheelAt = performance.now();
@@ -2079,7 +2180,7 @@ function syncNet() {
   for (const f of net) bytes += f.size;
   $("#net-n").textContent = String(net.size);
   $("#net-b").textContent = net.size ? fmtBytes(bytes) : "";
-  document.body.classList.toggle("hasnet", net.size > 0);
+  body.classList.toggle("hasnet", net.size > 0);
   $("#net-del").hidden = !canDelete;
   if (!net.size) closeHaul();          // an empty net has nothing to show you
 }
@@ -2090,13 +2191,14 @@ function setState(f, v) {
   a.needsUpdate = true;
 }
 function toggleNet() {
+  if (embedded) return;
   if (talkMode || !aimed || aimed.dead) return;
   if (net.has(aimed)) { net.delete(aimed); aimed.netted = false; setState(aimed, 1); }
   else { net.add(aimed); aimed.netted = true; setState(aimed, 2); }
   syncNet();
   updateCard();
 }
-$("#net-clear").addEventListener("click", () => {
+if (!embedded) $("#net-clear").addEventListener("click", () => {
   for (const f of net) { f.netted = false; setState(f, 1); }
   net.clear(); syncNet(); updateCard();
 });
@@ -2110,6 +2212,7 @@ const esc = s => s.replace(/[<&]/g, c => (c === "<" ? "&lt;" : "&amp;"));
 const fullPath = f => (f.path ? f.path + "/" : "") + f.name;
 
 function openHaul() {
+  if (embedded) return;
   if (!net.size) return;
   const list = [...net];
   let bytes = 0;
@@ -2149,14 +2252,14 @@ function openHaul() {
 }
 const closeHaul = () => { $("#haul").hidden = true; };
 
-$("#net-haul").addEventListener("click", openHaul);
-$("#haul-close").addEventListener("click", closeHaul);
-$("#haul-copy").addEventListener("click", e => {
+if (!embedded) $("#net-haul").addEventListener("click", openHaul);
+if (!embedded) $("#haul-close").addEventListener("click", closeHaul);
+if (!embedded) $("#haul-copy").addEventListener("click", e => {
   const txt = [...net].map(fullPath).join("\n");
   const t = document.createElement("textarea");
   t.value = txt;
   t.style.cssText = "position:fixed;top:0;left:0;opacity:0";
-  document.body.appendChild(t); t.focus(); t.select();
+  body.appendChild(t); t.focus(); t.select();
   let ok = false;
   try { ok = document.execCommand("copy"); } catch (err) { }
   t.remove();
@@ -2166,7 +2269,7 @@ $("#haul-copy").addEventListener("click", e => {
   setTimeout(() => { b.textContent = "copy paths"; }, 1400);
 });
 
-$("#net-del").addEventListener("click", () => {
+if (!embedded) $("#net-del").addEventListener("click", () => {
   if (!net.size || !canDelete) return;
   const list = [...net];
   let bytes = 0;
@@ -2177,8 +2280,8 @@ $("#net-del").addEventListener("click", () => {
   $("#conf-err").textContent = "";
   $("#confirm").hidden = false;
 });
-$("#conf-no").addEventListener("click", () => { $("#confirm").hidden = true; });
-$("#conf-yes").addEventListener("click", async e => {
+if (!embedded) $("#conf-no").addEventListener("click", () => { $("#confirm").hidden = true; });
+if (!embedded) $("#conf-yes").addEventListener("click", async e => {
   const btn = e.currentTarget;
   btn.disabled = true; btn.textContent = "deleting";
   const list = [...net];
@@ -2302,7 +2405,7 @@ let lineIdx = 0, closeAt = 0, waveUntil = 0, lastChat = 0;
 
 /* the intro holds the camera still: drifting away from someone mid-sentence
    is the one thing a conversation cannot survive */
-function held() { return talkMode === "intro"; }
+function held() { return embedded ? isBlocked() : talkMode === "intro"; }
 
 function renderLine() {
   const n = Math.min(line.length, Math.max(0, Math.floor(cursor)));
@@ -2347,7 +2450,7 @@ function advance() {
 function closeTalk() {
   talkMode = null;
   elIntro.hidden = true;
-  document.body.classList.remove("talking", "chatting");
+  body.classList.remove("talking", "chatting");
   if (voice) { voice.stop(); voice = null; }
   lineDone = true; closeAt = 0;
   lastChat = performance.now();
@@ -2360,7 +2463,7 @@ function frameGuide() {
   cam.vel.set(0, 0, 0); glide = null;
   if (phase === "dock") {
     cam.depthT = cam.pos.y = DOCK_Y;
-    player.root.visible = true;
+    player.root.visible = perspective === "third";
     updateChaseCamera(0, true);
     return;
   }
@@ -2382,9 +2485,10 @@ function toKelp() {
              guide.root.position.z + 3.2, 0, 0.11);
 }
 function openIntro(first) {
+  if (embedded) return;
   talkMode = "intro";
   lineIdx = first ? 0 : LINES.length - 1;
-  document.body.classList.add("talking");
+  body.classList.add("talking");
   elIntro.hidden = false;
   guide.root.visible = true;
   guideMat.uniforms.uFade.value = 1;
@@ -2405,7 +2509,7 @@ function leaveIntro() {
 function chat(txt) {
   if (talkMode) return;
   talkMode = "chat";
-  document.body.classList.add("chatting");
+  body.classList.add("chatting");
   elIntro.hidden = false;
   waveUntil = performance.now() + 1300;
   startLine(txt);
@@ -2423,8 +2527,8 @@ elMute.addEventListener("click", e => {
 syncMute();
 
 addEventListener("pointerdown", e => {
-  if (!talkMode) return;
-  if (e.target && e.target.closest && e.target.closest("#talk-choice, #talk-mute")) return;
+  if (!talkMode || options.isBlocked?.() || ownsKeys(e)) return;
+  if (embedded && !e.composedPath().includes(root)) return;
   advance();
 });
 
@@ -2473,7 +2577,7 @@ function pick() {
   return best;
 }
 function updateCard() {
-  document.body.classList.toggle("aimed", !!aimed);
+  body.classList.toggle("aimed", !!aimed);
   if (!aimed) return;
   elCardN.textContent = fishName(aimed);
   elCardF.textContent = aimed.name + "  ·  " + fmtBytes(aimed.size);
@@ -2495,7 +2599,13 @@ const ink = new Color();
 
 function frame(nowMs) {
   requestAnimationFrame(frame);
-  const dt = Math.min(0.05, (nowMs - last) / 1000); last = nowMs; t += dt;
+  const elapsed = nowMs - last;
+  const dt = Math.min(0.05, elapsed / 1000); last = nowMs; t += dt;
+  const blocked = isBlocked();
+  if (blocked) {
+    clearInput();
+    if (jump) jump.at += elapsed;
+  }
 
   const w = innerWidth, h = innerHeight;
   if (w !== W || h !== H) {
@@ -2519,7 +2629,7 @@ function frame(nowMs) {
     const GH = Math.max(2, Math.round(H * dpr / GPX));
     guideRT.setSize(GW, GH);
     guidePostMat.uniforms.uRT.value.set(GW, GH);
-    if (held()) frameGuide();                  // keep him framed as the window turns
+    if (!embedded && held()) frameGuide();    // standalone intro framing only
   }
 
   const k = 1 - Math.exp(-dt * TUNE.damp);
@@ -2531,7 +2641,8 @@ function frame(nowMs) {
 
   const boost = keys.has("shift") ? TUNE.boost : 1;
   let fx = 0, fz = 0, fy = 0;
-  if (!held() && phase !== "jump") {
+  if (!blocked && phase !== "jump") {
+    fx = moveX; fz = moveZ; fy = phase === "ocean" ? vertical : 0;
     if (keys.has("w")) fz += 1;
     if (keys.has("s")) fz -= 1;
     if (keys.has("a") || keys.has("arrowleft")) fx -= 1;
@@ -2553,7 +2664,7 @@ function frame(nowMs) {
 
   if (phase === "jump") {
     cam.vel.set(0, 0, 0);
-    stepJump(nowMs);
+    if (!blocked) stepJump(nowMs);
   } else {
     cam.vel.lerp(want, k);
     if (phase === "dock") {
@@ -2612,7 +2723,8 @@ function frame(nowMs) {
   /* The same body walks upright, commits to the jump, then becomes the
      swimmer. Keeping one transform through all three phases is what prevents
      the transition from reading as a camera cut. */
-  player.root.visible = phase !== "ocean" || (!!world && !held());
+  player.root.visible = perspective === "third" && (phase !== "ocean" || (!!world && (embedded || !held())));
+  player.rod.visible = embedded && phase === "dock";
   if (player.root.visible) {
     if (phase === "dock") {
       const moving = clamp(cam.vel.length() / 2.8, 0, 1);
@@ -2630,7 +2742,7 @@ function frame(nowMs) {
     } else {
       const moving = Math.max(clamp(cam.vel.length() / TUNE.swimSpeed, 0, 1), glide ? 0.55 : 0.08);
       const stroke = Math.sin(t * (2.2 + moving * 4.8));
-      player.root.rotation.set(-Math.PI / 2 + cam.pitch * 0.88, cam.yaw, stroke * 0.025 * moving);
+      player.root.rotation.set(-Math.PI / 2 + cam.pitch * 0.88, cam.yaw, 0);
       player.armR.rotation.x = 0.18 + stroke * 0.72 * moving;
       player.armL.rotation.x = 0.18 - stroke * 0.72 * moving;
       player.legR.rotation.x = stroke * 0.26 * moving;
@@ -2639,12 +2751,14 @@ function frame(nowMs) {
   }
 
   syncAction();
-  if (!held()) updateChaseCamera(dt, false);
+  if (embedded || !held()) updateChaseCamera(dt, false);
   camera.position.copy(cam.eye);
   camera.rotation.set(0, 0, 0);
   camera.rotateY(cam.yaw);
   camera.rotateX(cam.pitch);
+  camera.updateMatrixWorld();
 
+  const underwater = camera.position.y < 0.5;
   water.copy(waterAt(cam.pos.y));
   const fog = lerp(TUNE.fogNear, TUNE.fogDeep, clamp(-cam.pos.y / DEPTH, 0, 1));
   fishMat.uniforms.uFog.value = fog;
@@ -2682,7 +2796,7 @@ function frame(nowMs) {
   }
   if (guide.root.visible) {
     const underwater = phase === "ocean" || (phase === "jump" && jump && jump.splashed);
-    if (underwater) {
+    if (underwater && !embedded) {
       /* two swells at unrelated periods, so the underwater berth never
          obviously loops; above water it is a fixed dock, not a raft. */
       guide.root.position.y = GUIDE_Y + Math.sin(t * 0.8) * 0.055 + Math.sin(t * 1.37) * 0.025;
@@ -2727,7 +2841,7 @@ function frame(nowMs) {
   if (talkMode === "chat" && lineDone && closeAt && nowMs > closeAt) closeTalk();
   /* come back up to the raft and he has something to say, the way a villager
      does when you stand next to one */
-  if (phase === "ocean" && world && !talkMode && guide.root.visible && nowMs - lastChat > 20000 &&
+  if (!embedded && phase === "ocean" && world && !talkMode && guide.root.visible && nowMs - lastChat > 20000 &&
       cam.pos.distanceTo(guide.root.position) < 15) {
     chat(TIPS[(Math.random() * TIPS.length) | 0]);
   }
@@ -2807,7 +2921,7 @@ function frame(nowMs) {
     }
   }
 
-  if (phase === "ocean" && nowMs - aimAt > 45) {
+  if (!embedded && phase === "ocean" && nowMs - aimAt > 45) {
     aimAt = nowMs; aimed = pick(); updateCard();
   } else if (phase !== "ocean" && aimed) {
     aimed = null; updateCard();
@@ -2831,12 +2945,13 @@ function frame(nowMs) {
   }
   /* 2. the water, full res, untouched */
   renderer.setRenderTarget(null);
-  renderer.setClearColor((phase === "dock" || (phase === "jump" && cam.pos.y > 0.5)) ? 0x72aebb : water, 1);
+  renderer.setClearColor(underwater ? water : 0x72aebb, embedded && !underwater ? 0 : 1);
   renderer.clear();
-  renderer.render(scene, camera);
+  if (!embedded || underwater) renderer.render(scene, camera);
   /* 3. dither + ink, upscaled nearest, over the top */
   if (anyFish) renderer.render(postScene, postCam);
   if (showGuide) renderer.render(guidePostScene, postCam);
+  options.onFrame?.({ camera, phase, depth: Math.max(0, -cam.pos.y), underwater, perspective });
 }
 
 /* ============================================================ entry */
@@ -2848,6 +2963,7 @@ function progress(n, path) {
 }
 
 async function openReal() {
+  if (embedded) return;
   if (canPick) {
     let root;
     try {
@@ -2873,8 +2989,8 @@ async function openReal() {
   }
 }
 
-$("#open-real").addEventListener("click", openReal);
-$("#open-demo").addEventListener("click", () => {
+if (!embedded) $("#open-real").addEventListener("click", openReal);
+if (!embedded) $("#open-demo").addEventListener("click", () => {
   leaveIntro();
   canDelete = false;
   buildWorld(buildDemo(), "demo drive");
@@ -2882,11 +2998,11 @@ $("#open-demo").addEventListener("click", () => {
 });
 
 /* the everywhere-else path: no handles, so no deleting, but it is fast */
-{
+if (!embedded) {
   const inp = document.createElement("input");
   inp.type = "file"; inp.id = "dirinput"; inp.hidden = true;
   inp.webkitdirectory = true; inp.multiple = true;
-  document.body.appendChild(inp);
+  (root.host ? root : body).appendChild(inp);
   inp.addEventListener("change", async () => {
     if (!inp.files || !inp.files.length) return;
     leaveIntro(); elScan.hidden = false;
@@ -2909,7 +3025,7 @@ $("#open-demo").addEventListener("click", () => {
 /* pick and camera are exposed so aiming can be tested without depending on the
    rAF cadence -- headless browsers run a handful of frames, which is not
    enough for the picker's own timer to ever fire */
-window.ocean = {
+if (!embedded) window.ocean = {
   TUNE, cam, camera, player, updateChaseCamera, get world() { return world; },
   get phase() { return phase; }, buildWorld, buildDemo, beginJump,
   ARCH, net, syncNet, pick, guide, openIntro, advance, get line() { return line; },
@@ -2917,4 +3033,11 @@ window.ocean = {
 
 if (AUTO_DEMO) buildWorld(buildDemo(), "demo drive");
 else stageDock();
+if (embedded) buildWorld(buildDemo(), "ambient demo");
 requestAnimationFrame(frame);
+return {
+  cam, camera, player, guide,
+  get phase() { return phase; }, get perspective() { return perspective; },
+  beginJump, returnToDock, toggleView, clearInput, setMove, setVertical, greetKelp,
+};
+}

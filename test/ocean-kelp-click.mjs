@@ -12,7 +12,7 @@ const slice = (from, to) => {
   return source.slice(start, end);
 };
 const handlers = {}, windowHandlers = {}, actionHandlers = {};
-const sheets = { "#haul": { hidden: true }, "#confirm": { hidden: true } };
+const sheets = { "#haul": { hidden: true }, "#confirm": { hidden: true }, "#scan": { hidden: true } };
 const rect = { left: 80, top: 40, width: 800, height: 500 };
 const captured = new Set();
 const canvas = {
@@ -35,7 +35,8 @@ camera.updateMatrixWorld();
 const calls = { hello: 0, jump: 0, net: 0, advance: 0 };
 const ctx = vm.createContext({
   Raycaster, Vector2, camera, canvas, guide: { root, kelp },
-  phase: "dock", world: {}, talkMode: null, introSeen: false,
+  phase: "dock", world: {}, talkMode: null, introSeen: false, embedded: false, options: {},
+  document: { addEventListener() {} },
   cam: { pos: new Vector3(2, 1, -2), yawT: 0, pitchT: 0 },
   keys: new Set(), glide: {}, SWIM_KEYS: [],
   $: selector => sheets[selector],
@@ -47,6 +48,7 @@ const ctx = vm.createContext({
   addEventListener: (type, fn) => { windowHandlers[type] = fn; },
 });
 vm.runInContext(
+  slice("const down =", "let dragPointer =") +
   slice("let dragPointer =", "/* where the wheel") +
   slice("const nearKelp =", "function beginJump()") +
   slice('elAction.addEventListener("click", dockAction);', "/* yaw accumulates") +
