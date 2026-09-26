@@ -75,12 +75,12 @@ body.has-catch #rig{opacity:.22;}
 }
 #explore-status:empty{display:none;}
 #move-help{bottom:5.3rem;font-size:.7rem;white-space:nowrap;}
-#move-stick,#look-stick{
+#move-stick{
   display:none;position:fixed;z-index:6;left:1.1rem;bottom:6rem;
   width:100px;height:100px;border-radius:50%;border:1px solid rgba(232,247,249,.65);
   background:rgba(5,29,39,.65);touch-action:none;
 }
-#move-knob,#look-knob{
+#move-knob{
   display:block;margin:auto;width:36px;height:36px;border-radius:50%;
   background:#E1EEF0;pointer-events:none;
 }
@@ -90,7 +90,7 @@ body.has-catch #rig{opacity:.22;}
 #swim-depth{position:fixed;z-index:6;right:1.1rem;bottom:18rem;display:flex;flex-direction:column;gap:.5rem;}
 #swim-depth button{touch-action:none;}
 #swim-depth button[hidden]{display:none;}
-body.exploration-blocked #move-stick,body.exploration-blocked #look-stick,body.exploration-blocked #swim-depth,
+body.exploration-blocked #move-stick,body.exploration-blocked #swim-depth,
 body.exploration-blocked #move-help{visibility:hidden;}
 body.exploration-blocked #travel{visibility:hidden;}
 body.diving #travel{visibility:visible;}
@@ -602,9 +602,7 @@ body.hint-send #fish{opacity:.62; transform:translateX(14px);}
     --stick:min(104px,26vw);
     --rod:4.75rem;
   }
-  #move-stick,#look-stick{display:block; width:var(--stick); height:var(--stick); bottom:var(--floor);}
-  #move-stick{left:max(1rem,env(safe-area-inset-left));}
-  #look-stick{left:auto; right:calc(var(--edge) + var(--rod) + .9rem);}
+  #move-stick{display:block; width:var(--stick); height:var(--stick); bottom:var(--floor); left:max(1rem,env(safe-area-inset-left));}
 
   /* the keyboard chips come apart: V has no business on a phone, Dive and
      File join the rod's column */
@@ -616,10 +614,7 @@ body.hint-send #fish{opacity:.62; transform:translateX(14px);}
   }
   #dive{bottom:calc(var(--floor) + var(--rod) + .7rem);}
   #import-file{bottom:calc(var(--floor) + var(--rod) + 4.1rem);}
-  #swim-depth{
-    right:calc(var(--edge) + var(--rod) + .9rem); bottom:calc(var(--floor) + var(--stick) + .8rem);
-    flex-direction:row;
-  }
+  #swim-depth{right:calc(var(--edge) + var(--rod) + .9rem); bottom:var(--floor); flex-direction:column;}
   #swim-depth button{font-family:var(--f-mono); font-size:.68rem; letter-spacing:.06em; min-width:3.6rem;}
 
   #tools{display:contents;}
@@ -660,8 +655,47 @@ body.hint-send #fish{opacity:.62; transform:translateX(14px);}
   #time-reel{width:min(18rem,calc(100vw - 2 * (var(--edge) + 3.25rem)));}
 }
 @media (pointer:coarse) and (max-height:500px){
-  #import-file{bottom:var(--floor); right:calc(var(--edge) + var(--rod) + var(--stick) + 1.8rem);}
-  #swim-depth{bottom:calc(var(--floor) + var(--stick) + .8rem);}
+  #import-file{bottom:var(--floor); right:calc(var(--edge) + var(--rod) + 5.9rem);}
+}
+
+/* the one-time lesson: a ghost fingertip sweeps the sea, trailing a comet */
+#look-hint{
+  position:fixed; z-index:5; left:50%; top:46%; transform:translate(-50%,-50%);
+  display:none; flex-direction:column; align-items:center; gap:1.1rem;
+  pointer-events:none; opacity:0; transition:opacity .6s ease;
+}
+@media (pointer:coarse){#look-hint{display:flex;}}
+#look-hint.on{opacity:1;}
+#look-hint.done{transition-duration:.25s;}
+#look-hint i{
+  position:relative; width:2.9rem; height:2.9rem; border-radius:50%;
+  background:radial-gradient(circle,rgba(255,244,230,.95) 0 38%,rgba(255,217,168,.5) 40% 60%,transparent 62%);
+  box-shadow:0 0 26px rgba(255,217,168,.55);
+  animation:look-sweep 2.6s cubic-bezier(.45,0,.2,1) infinite;
+}
+#look-hint i::after{
+  content:""; position:absolute; top:50%; right:50%; width:6rem; height:.5rem; transform:translateY(-50%);
+  border-radius:.5rem; background:linear-gradient(to left,rgba(255,217,168,.55),transparent);
+  animation:look-trail 2.6s cubic-bezier(.45,0,.2,1) infinite; transform-origin:right center;
+}
+#look-hint span{
+  font-family:var(--f-mono); font-size:.72rem; letter-spacing:.14em; text-transform:uppercase;
+  color:#FFF4E6; text-shadow:0 1px 12px rgba(4,30,40,.95);
+  padding:.45rem .8rem; border-radius:2rem; background:rgba(5,29,39,.55); white-space:nowrap;
+}
+@keyframes look-sweep{
+  0%{transform:translateX(-5.5rem) scale(.7); opacity:0}
+  12%{transform:translateX(-5.5rem) scale(1); opacity:1}
+  62%{transform:translateX(5.5rem) scale(1); opacity:1}
+  80%,100%{transform:translateX(5.5rem) scale(.7); opacity:0}
+}
+@keyframes look-trail{
+  0%,12%{transform:translateY(-50%) scaleX(0)}
+  45%{transform:translateY(-50%) scaleX(1)}
+  62%,100%{transform:translateY(-50%) scaleX(.15)}
+}
+@media (prefers-reduced-motion:reduce){
+  #look-hint i,#look-hint i::after{animation:none !important;}
 }
 </style>
 
@@ -682,7 +716,7 @@ body.hint-send #fish{opacity:.62; transform:translateX(14px);}
   <button id="import-file" type="button" aria-label="Turn a file into a fish">File</button>
 </div>
 <button id="move-stick" type="button" aria-label="Movement joystick. Drag to walk or swim. Keyboard: W A S D."><span id="move-knob"></span></button>
-<button id="look-stick" type="button" aria-label="Look joystick. Drag to look around."><span id="look-knob"></span></button>
+<div id="look-hint" aria-hidden="true"><i></i><span>drag to look around</span></div>
 <div id="swim-depth" role="group" aria-label="Swimming depth">
   <button id="swim-up" type="button" hidden aria-label="Swim up">Up</button>
   <button id="swim-down" type="button" hidden aria-label="Swim down">Down</button>

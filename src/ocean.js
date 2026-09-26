@@ -69,7 +69,7 @@ const TUNE = {
   settle: 0.14,           // seconds of stillness after which the dial detents
   damp: 5.0,              // how fast the body catches up to the intent
   lookDamp: 26,           // ...and how fast the head does. Nearly instant.
-  stickLook: 2.2,         // look stick at full tilt, radians per second
+  flingDecay: 3.2,        // how fast a flicked view coasts to a stop, per second
   glideTime: 0.85,        // seconds to be carried to what you are looking at
   standoff: 3.4,          // ...and where it puts you down, in body lengths
   chaseBack: 8.0,         // third-person camera: distance behind the diver
@@ -1908,13 +1908,13 @@ const cam = {
 };
 const keys = new Set();
 const down = new Set(); // physical key edges survive clearInput until keyup
-let moveX = 0, moveZ = 0, vertical = 0, lookX = 0, lookUp = 0, sprint = false;
+let moveX = 0, moveZ = 0, vertical = 0, sprint = false, fling = 0;
 function isBlocked() {
   return !!talkMode || !!options.isBlocked?.() || !$("#haul").hidden ||
     !$("#confirm").hidden || !$("#scan").hidden;
 }
 function clearInput() {
-  keys.clear(); moveX = moveZ = vertical = lookX = lookUp = 0; sprint = false;
+  keys.clear(); moveX = moveZ = vertical = fling = 0; sprint = false;
   cam.vel.set(0, 0, 0); cam.depthT = cam.pos.y;
   cam.yawT = cam.yaw; cam.pitchT = cam.pitch;
   glide = null; wheelAt = 0;
@@ -1930,13 +1930,6 @@ function setMove(x, z, fast = false) {
   sprint = !!fast && (moveX !== 0 || moveZ !== 0);
   letGo();
 }
-/* a held look stick turns the head at a rate, not by a distance like a drag */
-function setLook(x, up) {
-  if (isBlocked()) { clearInput(); return; }
-  lookX = Number.isFinite(x) ? clamp(x, -1, 1) : 0;
-  lookUp = Number.isFinite(up) ? clamp(up, -1, 1) : 0;
-  if (lookX || lookUp) letGo();
-}
 function setVertical(y) {
   if (isBlocked()) { clearInput(); return; }
   vertical = Number.isFinite(y) ? clamp(y, -1, 1) : 0;
@@ -1946,7 +1939,7 @@ function ownsKeys(e) {
   return (e.composedPath?.() || [e.target]).some(el => el &&
     (/^(INPUT|TEXTAREA|SELECT|BUTTON|A|SUMMARY)$/.test(el.tagName) || el.isContentEditable));
 }
-let dragPointer = null, lastX = 0, lastY = 0, moved = 0;
+let dragPointer = null, lastX = 0, lastY = 0, moved = 0, dragVX = 0, lastMoveAt = 0;
 /* where the wheel last moved, so the dial can find its notch once you let go */
 let wheelAt = 0;
 
@@ -2215,6 +2208,7 @@ document.addEventListener("visibilitychange", () => {
 canvas.addEventListener("pointerdown", e => {
   if ((!e.isPrimary && !(embedded && e.pointerType === "touch")) || e.button !== 0 || dragPointer !== null || isBlocked()) return;
   dragPointer = e.pointerId; moved = 0; lastX = e.clientX; lastY = e.clientY;
+  fling = dragVX = 0; lastMoveAt = e.timeStamp || 0;
   canvas.setPointerCapture(e.pointerId);
 });
 canvas.addEventListener("pointerup", e => {
@@ -2222,6 +2216,9 @@ canvas.addEventListener("pointerup", e => {
   dragPointer = null;
   try { canvas.releasePointerCapture(e.pointerId); } catch (err) { }
   moved += Math.abs(e.clientX - lastX) + Math.abs(e.clientY - lastY);
+  /* only a finger still moving when it lifts throws the view */
+  if (moved > 24 && (e.timeStamp || 0) - lastMoveAt < 90 && !isBlocked())
+    fling = clamp(dragVX * 0.0042 * 1000, -7, 7);
   if ((!e.isPrimary && !(embedded && e.pointerType === "touch")) || e.button !== 0 || moved >= 5 || isBlocked()) return;
   if (nearKelp() && hitKelp(e)) greetKelp(); // character clicks never jump
   else if (!embedded && phase === "ocean") toggleNet();
@@ -2240,6 +2237,9 @@ canvas.addEventListener("pointermove", e => {
   const dx = e.clientX - lastX, dy = e.clientY - lastY;
   moved += Math.abs(dx) + Math.abs(dy);
   if (moved > 5) glide = null;              // turning your head is taking over
+  const now = e.timeStamp || 0;
+  dragVX = (dragVX + dx / Math.max(8, now - lastMoveAt)) / 2;       // px per ms, smoothed
+  lastMoveAt = now;
   cam.yawT -= dx * 0.0042;
   cam.pitchT = clamp(cam.pitchT - dy * 0.0035, -1.22, 1.22);
   lastX = e.clientX; lastY = e.clientY;
@@ -2753,9 +2753,12 @@ function frame(nowMs) {
   /* the head is quick and the body is heavy. Damping them together is what
      made aiming feel like steering something with a rudder. */
   const kl = 1 - Math.exp(-dt * TUNE.lookDamp);
-  if (!blocked && phase !== "jump" && (lookX || lookUp)) {
-    cam.yawT -= lookX * TUNE.stickLook * dt;
-    cam.pitchT = clamp(cam.pitchT + lookUp * TUNE.stickLook * 0.7 * dt, -1.22, 1.22);
+  /* a flicked drag keeps turning the head and eases out, like a globe you
+     spun with a finger */
+  if (fling && !blocked && phase !== "jump" && dragPointer === null) {
+    cam.yawT -= fling * dt;
+    fling *= Math.exp(-dt * TUNE.flingDecay);
+    if (Math.abs(fling) < 0.03) fling = 0;
   }
   cam.yaw += (cam.yawT - cam.yaw) * kl;
   cam.pitch += (cam.pitchT - cam.pitch) * kl;
@@ -3177,7 +3180,7 @@ requestAnimationFrame(frame);
 return {
   cam, camera, player, guide,
   get phase() { return phase; }, get perspective() { return perspective; },
-  beginJump, returnToDock, toggleView, clearInput, setMove, setLook, setVertical, greetKelp,
+  beginJump, returnToDock, toggleView, clearInput, setMove, setVertical, greetKelp,
   get sprinting() { return sprint || keys.has("shift"); },
 };
 }

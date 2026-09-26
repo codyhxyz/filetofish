@@ -24,7 +24,6 @@ export function mountExploration(host, { sea, isBlocked, onDepth }) {
   const $ = selector => document.querySelector(selector);
   const dive = $("#dive"), view = $("#view"), up = $("#swim-up"), down = $("#swim-down");
   const stick = $("#move-stick"), knob = $("#move-knob"), status = $("#explore-status");
-  const lookStick = $("#look-stick"), lookKnob = $("#look-knob");
   /* On a touch screen the keyboard hints are noise and the view follows the
      water: first person on the dock, third person once you are in. */
   const touch = !!globalThis.matchMedia?.("(pointer:coarse)").matches;
@@ -50,7 +49,7 @@ export function mountExploration(host, { sea, isBlocked, onDepth }) {
       document.body.classList.toggle("diving", phase === "jump");
       const blocked = isBlocked() || talking() || phase === "jump";
       document.body.classList.toggle("exploration-blocked", blocked);
-      for (const control of [dive, view, stick, lookStick, up, down]) control.disabled = blocked;
+      for (const control of [dive, view, stick, up, down]) control.disabled = blocked;
       up.hidden = down.hidden = phase !== "ocean";
       const label = `${phase}/${frame.perspective}`;
       if (label !== lastLabel) {
@@ -65,7 +64,8 @@ export function mountExploration(host, { sea, isBlocked, onDepth }) {
           : "WASD walk · Shift sprint · drag to look";
       }
       status.textContent = underwater ? `${Math.round(frame.depth)} m deep` : "";
-      if (blocked) { movePad.reset(); lookPad.reset(); }
+      if (blocked) { movePad.reset(); hint.hide(); }
+      else hint.maybeShow(phase);
     },
   });
   const act = fn => () => { if (!isBlocked() && !talking()) fn(); };
@@ -112,7 +112,35 @@ export function mountExploration(host, { sea, isBlocked, onDepth }) {
   }
   const SPRINT_REACH = 1.45;
   const movePad = thumbStick(stick, knob, (x, z, fast) => api.setMove(x, z, fast));
-  const lookPad = thumbStick(lookStick, lookKnob, (x, up) => api.setLook(x, up));
+
+  /* Looking around is the whole screen: drag anywhere, flick to spin. Nothing
+     on screen says so, so a phone gets shown once -- a ghost finger sweeping
+     the sea -- and never again after the first real drag. */
+  const hint = (() => {
+    const el = $("#look-hint"), KEY = "filetofish.lookTaught";
+    let taught = !touch, shownAt = 0, dragFrom = null;
+    try { taught ||= localStorage.getItem(KEY) === "1"; } catch (e) { }
+    const learn = () => {
+      if (taught) return;
+      taught = true;
+      try { localStorage.setItem(KEY, "1"); } catch (e) { }
+      el.classList.toggle("done", true);
+      el.classList.toggle("on", false);
+    };
+    canvas.addEventListener("pointerdown", e => { dragFrom = [e.clientX, e.clientY]; });
+    canvas.addEventListener("pointermove", e => {
+      if (dragFrom && Math.hypot(e.clientX - dragFrom[0], e.clientY - dragFrom[1]) > 40) learn();
+    });
+    for (const type of ["pointerup", "pointercancel"]) canvas.addEventListener(type, () => { dragFrom = null; });
+    return {
+      maybeShow(where) {
+        if (taught || where === "jump") return;
+        if (!shownAt) shownAt = performance.now() + 1800;       // let the scene land first
+        if (performance.now() > shownAt) el.classList.toggle("on", true);
+      },
+      hide: () => el.classList.toggle("on", false),
+    };
+  })();
   for (const [button, direction] of [[up, 1], [down, -1]]) {
     let pointer = null;
     const release = () => { pointer = null; api.setVertical(0); };
@@ -128,7 +156,7 @@ export function mountExploration(host, { sea, isBlocked, onDepth }) {
     button.addEventListener("keyup", release);
     button.addEventListener("blur", release);
   }
-  const clear = () => { movePad.reset(); lookPad.reset(); api.clearInput(); };
+  const clear = () => { movePad.reset(); api.clearInput(); };
   addEventListener("blur", clear);
   document.addEventListener("visibilitychange", () => { if (document.hidden) clear(); });
   return Object.assign(api, {
