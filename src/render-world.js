@@ -3,10 +3,17 @@ import { Sea } from "./sea.js";
 const $ = s => document.querySelector(s);
 const before = Sea($("#before"));
 const after = Sea($("#after"));
+if (!before || !after) {
+  before?.dispose();
+  after?.dispose();
+  document.querySelectorAll("button,select,input").forEach(control => { control.disabled = true; });
+  $("#status").innerHTML = 'Live water needs WebGL2. <a href="/render-world/reflections/">View the still comparison</a>.';
+}
 const keys = ["crisp", "detail", "foam", "shine"];
 const inputs = keys.map(k => $("#" + k));
 const values = keys.map(k => $("#" + k + "-v"));
 const zoomInput = $("#zoom"), zoomValue = $("#zoom-v");
+const waveInput = $("#waves"), waveValue = $("#waves-v");
 const target = inputs.map(input => Number(input.value) / 100);
 let animation = 0;
 
@@ -25,6 +32,11 @@ inputs.forEach((input, i) => input.addEventListener("input", () => {
   paint(next);
 }));
 
+waveInput.addEventListener("input", () => {
+  after.setWaveIntensity(Number(waveInput.value) / 100);
+  waveValue.textContent = `${waveInput.value}%`;
+});
+
 zoomInput.addEventListener("input", () => {
   if (animation) cancelAnimationFrame(animation), animation = 0;
   const value = Number(zoomInput.value);
@@ -40,6 +52,9 @@ $("#reset").addEventListener("click", () => {
   zoomInput.value = 100;
   zoomValue.textContent = "100%";
   before.setZoom(1); after.setZoom(1);
+  waveInput.value = 100;
+  waveValue.textContent = "100%";
+  after.setWaveIntensity(1);
   $("#status").innerHTML = `candidate: <strong>0 / 0 / 0 / 0</strong> · zoom <strong>100%</strong>`;
   $("#animate").textContent = "animate test";
 });
@@ -69,13 +84,16 @@ $("#animate").addEventListener("click", () => {
 });
 
 function frame(now) {
+  if (!before || !after) return;
   const t = now / 1000;
   before.render(t);
   after.render(t);
   requestAnimationFrame(frame);
 }
 
-before.setZoom(1);
-after.setZoom(1);
-paint(target);
-requestAnimationFrame(frame);
+if (before && after) {
+  before.setZoom(1);
+  after.setZoom(1);
+  paint(target);
+  requestAnimationFrame(frame);
+}

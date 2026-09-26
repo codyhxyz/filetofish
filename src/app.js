@@ -4,6 +4,8 @@ import {
   syncMusicToTime, setMusicSoundOn, getMusicVolume, setMusicVolume, duckMusic
 } from "./music.js";
 import { Sea, WEATHERS, fxFromSearch } from "./sea.js";
+import { mountExploration } from "./explore.js";
+import { setUnderwaterDepth } from "./underwater-audio.mjs";
 import {
   Scene, PerspectiveCamera, OrthographicCamera, WebGLRenderer, Mesh, Group,
   BufferGeometry, BufferAttribute, ShaderMaterial, SphereGeometry, ConeGeometry, PlaneGeometry,
@@ -520,12 +522,16 @@ function FishStage(canvas) {
   }
   const DROP = [0.88, 0.96, 1.0];
 
-  addEventListener("pointerdown", e => { if (fish) drag = e.clientX; });
+  addEventListener("pointerdown", e => {
+    if (fish && e.target === document.querySelector("#hit") && document.body.classList.contains("has-catch")) drag = e.clientX;
+  });
   addEventListener("pointermove", e => {
     if (drag === null) return;
     dragV += (e.clientX - drag) * 0.010; drag = e.clientX;
   });
   addEventListener("pointerup", () => { drag = null; });
+  addEventListener("pointercancel", () => { drag = null; });
+  addEventListener("blur", () => { drag = null; });
 
   return {
     /* the sea tells us what the light is doing; the catch is graded to match */
@@ -674,7 +680,7 @@ function syncSound() {
   const soundButton = $("#snd");
   soundButton.setAttribute("aria-pressed", String(enabled));
   soundButton.setAttribute("aria-label", enabled ? "Mute sound" : "Unmute sound");
-  $("#sndlb").textContent = enabled ? "sound" : "muted";
+  soundButton.title = enabled ? "Mute sound" : "Unmute sound";
   setMusicSoundOn(enabled);
 }
 $("#snd").addEventListener("click", e => {
@@ -732,7 +738,7 @@ let sampleIdx = (Math.random() * SAMPLES.length) | 0;
 /* ============================================================ app */
 const seaCv = $("#sea"), fishCv = $("#fish"), rig = $("#rig");
 const sea = Sea(seaCv);
-sea.setFx(fxFromSearch(location.search));   /* ?fx= picks the lighting techniques; see sea.js */
+sea?.setFx(fxFromSearch(location.search));   /* ?fx= picks the lighting techniques; see sea.js */
 const stage = FishStage(fishCv);
 /* the rod is drawn the way the fish is rendered: flat facets, a hard ink
    silhouette and three shading steps -- never a smooth vector taper. */
@@ -800,6 +806,10 @@ const nInk = $("#rodInk"), nDark = $("#rodDark"), nMid = $("#rodMid"), nLit = $(
 const elStatus = $("#status");
 
 let W = 0, H = 0, state = "idle", t0 = 0, fish = null;
+let exploration = null, readingFiles = false, pickingFile = false;
+const catchPending = () => state !== "idle" && state !== "gone";
+const movementBlocked = () => catchPending() || readingFiles || pickingFile ||
+  !$("#dex").hidden || versionBox.open || !$("#time-reel").hidden;
 let bob = { x: 0, y: 0 }, target = { x: 0, y: 0 }, from = { x: 0, y: 0 };
 /* where a fish leaving re-enters the water, and the trail it leaves heading out */
 let sendTo = { x: 0, y: 0 }, goneNote = "sent", goneWake = false, sentSplash = false, wake = null;
@@ -982,6 +992,7 @@ function enter(s, now) {
     /* a whole folder is already logged by the time it lands, so there is
        nothing left to decide about it except who else gets to see it */
     $("#release").hidden = $("#keep").hidden = !!fish.bulk;
+    $("#bulk-done").hidden = !fish.bulk;
     history.replaceState(null, "", "#f=" + packFish(fish));
     const look = RARE_LOOK[fish.rarity] || RARE_LOOK.Common;
     if (RANK[fish.rarity] >= 3) {                 // rarity should be a moment, not just a colour
@@ -1015,6 +1026,13 @@ function enter(s, now) {
     say(goneNote);
   }
 }
+
+$("#bulk-done").addEventListener("click", () => {
+  if (state !== "caught" || !fish?.bulk) return;
+  document.body.classList.remove("has-catch", "rar-flash");
+  goneWake = false; goneNote = "in your dex";
+  enter("gone", performance.now() / 1000);
+});
 
 /* ============================================================ dex */
 const DEX_KEY = "ftf.dex.v1";
@@ -1163,6 +1181,9 @@ function frame(nowMs) {
   const dt = Math.min(0.05, (nowMs - last) / 1000); last = nowMs;
   const now = nowMs / 1000;
   layout();
+  const busy = catchPending() || readingFiles || pickingFile || exploration?.busy();
+  $("#cast").disabled = !!busy;
+  $("#import-file").disabled = !!busy;
   const age = now - t0;
   let vis = false, sc = 0.5, tilt = 0, bt = 0;
 
@@ -1187,7 +1208,7 @@ function frame(nowMs) {
   }
   /* a fish out of water sheets off fast and then just beads: the gap between
      drops grows as sqrt(time), and it is dry inside half a minute */
-  if (state === "caught" && !REDUCED && now > nextDrip && age < DRY_AT) {
+  if (state === "caught" && !exploration?.getUnderwater() && !REDUCED && now > nextDrip && age < DRY_AT) {
     const wet = Math.sqrt(1 + age * 5);
     stage.drip(0.5 + (Math.random() - 0.5) * 0.14, 0.44, age < 0.5 ? 3 : age < 1.6 ? 2 : 1);
     nextDrip = now + (0.055 + Math.random() * 0.045) * wet;
@@ -1255,7 +1276,7 @@ function frame(nowMs) {
   else if (state === "gone") {
     vis = false;
     bob.x = T.x - 22; bob.y = T.y + 44 + Math.sin(now * 1.6) * 3;
-    if (age > 3.2) { state = "idle"; t0 = now; say("drop a file"); }
+    if (age > 3.2) { state = "idle"; t0 = now; say(""); }
   }
 
   const holding = state === "caught" || state === "send" || state === "release" || state === "stow";
@@ -1293,7 +1314,7 @@ function frame(nowMs) {
       : `brightness(${lum.toFixed(2)}) saturate(${clamp(1 + warm * 0.9, 0.5, 1.35).toFixed(2)})` +
         ` hue-rotate(${clamp(-warm * 26, -14, 24).toFixed(0)}deg)`;
     if (fx !== lastFx) { lastFx = fx; rig.style.filter = fx; }
-    sea.render(now);
+    if (!exploration) sea.render(now); // exploration draws the sea with its current camera
   }
   stage.render(dt);
 }
@@ -1308,33 +1329,45 @@ function accept(meta) {
   stage.set(fish);
   target = { x: W * (0.26 + fish.wobble * 0.26), y: H * (0.62 + fish.wobble * 0.13) };
   say("reading 64 KB");
-  if (REDUCED) { enter("caught", now); return; }
+  // Underwater has a specimen reveal, not an above-water casting pantomime.
+  if (REDUCED || exploration?.getUnderwater() || document.body.classList.contains("third-person") ||
+      (sea && !sea.screenToWorld(target.x, target.y))) { enter("caught", now); return; }
   enter("load", now);
 }
 
 /* a folder-sized drop should fill the dex, not queue forty cast animations */
 const HAUL_CAP = 400;
 async function haul(files) {
-  const list = [...files].slice(0, HAUL_CAP);
-  if (list.length === 1) { accept(await readMeta(list[0])); return; }
-  say(`reading ${list.length} files`);
-  freshKeys.clear();
-  let added = 0, best = null;
-  for (const file of list) {
-    const f = makeFish(await readMeta(file));
-    if (!DEX[f.speciesKey]) freshKeys.add(f.speciesKey);
-    if (record(f)) added++;
-    if (!best || (RANK[f.rarity] || 0) > (RANK[best.rarity] || 0)) best = f;
+  if (catchPending() || readingFiles || exploration?.phase === "jump") {
+    say("finish this catch before opening another file"); return;
   }
-  fish = best;
-  fish.bulk = true;
-  document.body.classList.remove("has-catch");
-  layout();
-  stage.set(fish);
-  enter("caught", performance.now() / 1000);
-  if (added) setTimeout(() => sfx("sparkle"), 420);
-  say(`${list.length} files · ${added} new`);
-  openDex();
+  readingFiles = true;
+  exploration?.clearInput();
+  try {
+    const list = [...files].slice(0, HAUL_CAP);
+    if (!list.length) return;
+    if (list.length === 1) { accept(await readMeta(list[0])); return; }
+    say(`reading ${list.length} files`);
+    freshKeys.clear();
+    let added = 0, best = null;
+    for (const file of list) {
+      const f = makeFish(await readMeta(file));
+      if (!DEX[f.speciesKey]) freshKeys.add(f.speciesKey);
+      if (record(f)) added++;
+      if (!best || (RANK[f.rarity] || 0) > (RANK[best.rarity] || 0)) best = f;
+    }
+    fish = best;
+    fish.bulk = true;
+    document.body.classList.remove("has-catch");
+    layout();
+    stage.set(fish);
+    enter("caught", performance.now() / 1000);
+    if (added) setTimeout(() => sfx("sparkle"), 420);
+    say(`${list.length} files · ${added} new`);
+    openDex();
+  } finally {
+    readingFiles = false;
+  }
 }
 
 const unlock = () => { if (isOn()) startMusic(); };
@@ -1342,6 +1375,7 @@ const unlock = () => { if (isOn()) startMusic(); };
 addEventListener("pointerdown", unlock, { capture: true });
 addEventListener("keydown", unlock, { capture: true });
 $("#cast").addEventListener("click", e => {
+  if (catchPending() || readingFiles || exploration?.busy()) return;
   e.stopPropagation(); unlock();
   const btn = e.currentTarget;
   btn.classList.remove("casting"); void btn.offsetWidth; btn.classList.add("casting");
@@ -1374,9 +1408,17 @@ hit.addEventListener("click", e => {
   const onFish = pickOnFish || setHitCursor(e);
   pickAt = null; pickOnFish = false;
   hit.classList.remove("fish-drag");
-  if (!moved && !onFish) { unlock(); $("#file").click(); }
+  if (!exploration && !moved && !onFish) { unlock(); $("#file").click(); }
 });
+$("#import-file").addEventListener("click", () => {
+  if (catchPending() || readingFiles || exploration?.busy()) return;
+  unlock(); exploration?.clearInput();
+  pickingFile = true;
+  $("#file").click();
+});
+$("#file").addEventListener("cancel", () => { pickingFile = false; });
 $("#file").addEventListener("change", async e => {
+  pickingFile = false;
   unlock();
   if (e.target.files.length) await haul(e.target.files);
   e.target.value = "";
@@ -1651,3 +1693,12 @@ addEventListener("drop", async e => {
   const files = e.dataTransfer && e.dataTransfer.files;
   if (files && files.length) await haul(files);
 });
+
+exploration = mountExploration($("#exploration"), {
+  sea,
+  isBlocked: movementBlocked,
+  onDepth: setUnderwaterDepth,
+});
+document.body.classList.add("exploring");
+$("#hit").removeAttribute("title");
+window.exploration = exploration;

@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Water reflections · filetofish</title>
+  <style>
+    :root{color-scheme:dark;background:#07181d;color:#eaf7f7;font-family:"Avenir Next",Avenir,system-ui,sans-serif}
+    *{box-sizing:border-box}
+    body{max-width:86rem;margin:auto;padding:clamp(1rem,3vw,2.5rem)}
+    h1{font-size:clamp(1.7rem,4vw,2.6rem);font-weight:500;letter-spacing:-.025em;margin:1.5rem 0 .5rem}
+    h2{font-size:1.1rem;font-weight:500;margin:2rem 0 .8rem}
+    p{max-width:65ch;color:#bbd3d7;line-height:1.65}
+    a{color:#ffc49a;text-underline-offset:.25em}
+    a:focus-visible{outline:2px solid #ffc49a;outline-offset:5px}
+    ::selection{background:#ffc49a;color:#07181d}
+    .pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem}
+    figure{margin:0;min-width:0}
+    img{display:block;width:100%;height:auto;background:#0b242a}
+    figcaption{padding:.6rem 0;color:#bbd3d7;font-size:.85rem}
+    figcaption strong{color:#eaf7f7;font-weight:500}
+    footer{margin-top:2rem;border-top:1px solid #29474e;padding-top:1rem}
+    @media(max-width:650px){.pair{grid-template-columns:1fr;gap:.6rem}}
+  </style>
+</head>
+<body>
+  <a href="/">Back to the water</a>
+  <h1>Same water. New reflections.</h1>
+  <p>Actual rendered frames, with the same camera, weather, wave time, and resolution.
+    The waves, foam, and cartoon shading are unchanged.</p>
+  <section aria-labelledby="sunrise">
+    <h2 id="sunrise">Sunrise</h2>
+    <div class="pair">
+      <figure><img src="before-sunrise.webp" width="640" height="400" alt="Sunrise over the original cartoon water, before the reflection change"><figcaption><strong>Before</strong> · custom reflection calculations</figcaption></figure>
+      <figure><img src="after-sunrise.webp" width="640" height="400" alt="The same sunrise and cartoon waves with Three.js sunlight and filtered sky reflections"><figcaption><strong>After</strong> · Three.js lighting and reflection filtering</figcaption></figure>
+    </div>
+  </section>
+  <section aria-labelledby="night">
+    <h2 id="night">Night</h2>
+    <div class="pair">
+      <figure><img src="before-night.webp" width="640" height="400" loading="lazy" alt="Original night scene with sharp star dots reflected across the water"><figcaption><strong>Before</strong> · sharp stars sampled directly</figcaption></figure>
+      <figure><img src="after-night.webp" width="640" height="400" loading="lazy" alt="The same night scene with filtered star and moon reflections"><figcaption><strong>After</strong> · filtered reflections, stars retained overhead</figcaption></figure>
+    </div>
+  </section>
+  <footer>
+    <p>These are still images, not running game scenes.
+      Capture: 640 × 400 pixels, DPR 1, wave time 12.5 seconds.
+      Baseline: <a href="https://github.com/codyhxyz/filetofish/commit/2d06a9c875537dcf14ca7defaf6eab367d45dd12">2d06a9c</a>.
+      <a href="capture.json">Capture details</a> · <a href="/render-world/">Live water lab</a></p>
+  </footer>
+</body>
+</html>

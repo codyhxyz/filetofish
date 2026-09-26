@@ -29,7 +29,7 @@ function versionUI() {
   const commits = rows.map(c => `<li><a href="https://github.com/codyhxyz/filetofish/commit/${esc(c.full)}" target="_blank" rel="noopener">
     <time datetime="${esc(c.date)}">${esc(c.date)}</time><code>${esc(c.short)}</code><span>${esc(c.subject)}</span>
   </a></li>`).join("");
-  return `<details id="versionbox"><summary id="version"><span>version <b>${esc(head.short)}</b></span><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg></summary>
+  return `<details id="versionbox"><summary id="version" aria-label="Version ${esc(head.short)}: commit history"><b>${esc(head.short)}</b><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg></summary>
   <section id="history" aria-label="Commit history"><header><b>commit history</b><span>${rows.length} revisions</span></header>
     <ol>${commits}</ol>
   </section></details>`;
@@ -40,6 +40,7 @@ async function page(entry, shell, injections = {}) {
   const out = await esbuild.build({
     entryPoints: [entry],
     bundle: true, minify: true, format: "iife", target: "es2020",
+    loader: { ".html": "text" },
     write: false, legalComments: "none",
   });
   const js = asciiJs(out.outputFiles[0].text.replace(/<\/script/gi, "<\\/script"));
@@ -167,7 +168,7 @@ ${rw.doc.replace(/<title>[\s\S]*?<\/title>\s*/i, "")}
 </html>`);
 
 // 6) the ocean mockup -- the file-viewer prototype, deployed at /ocean
-const oc = await page("src/ocean.js", "src/ocean.html");
+const oc = await page("src/ocean-entry.js", "src/ocean.html");
 const ocTitle = (oc.doc.match(/<title>([\s\S]*?)<\/title>/i) || [, "ocean"])[1];
 fs.mkdirSync("dist/ocean", {recursive: true});
 fs.writeFileSync("dist/ocean/index.html", `<!doctype html>
@@ -184,6 +185,10 @@ fs.writeFileSync("dist/ocean/index.html", `<!doctype html>
 ${oc.doc.replace(/<title>[\s\S]*?<\/title>\s*/i, "")}
 </body>
 </html>`);
+
+// Paused, matched before/after captures: no extra WebGL contexts in the gallery.
+fs.cpSync("assets/reflections", "dist/render-world/reflections", { recursive: true });
+fs.copyFileSync("src/reflections.html", "dist/render-world/reflections/index.html");
 
 console.log(`site ${(doc.length/1024).toFixed(0)} KB | audition ${(aud.doc.length/1024).toFixed(0)} KB`
           + ` | score ${(score.doc.length/1024).toFixed(0)} KB | render-world ${(rw.doc.length/1024).toFixed(0)} KB`

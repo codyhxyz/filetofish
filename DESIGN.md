@@ -27,7 +27,9 @@ every non-ASCII character becomes an entity or a `\u` escape or it mojibakes.
 
 Two renderers, deliberately different:
 
-- **The sea** is hand-written GLSL, no library, in seven weathers (see below).
+- **The sea** keeps its authored GLSL artwork in seven weathers (see below).
+  Three.js hosts that shader, filters sky reflections with `PMREMGenerator`,
+  and supplies the `BRDF_GGX` sunlight calculation. It does not use the stock Water material.
   Cel-banded with foam from
   `abs(fract(fbm) - 0.5)` anti-aliased against `fwidth`, biased toward wave crests
   so it reads as water rather than a contour map. Ripples are pushed in as uniforms
@@ -45,17 +47,16 @@ head-on.
 ## Weather
 
 Seven skies — `dawn`, `sunrise`, `day`, `dusk`, `night`, `fog`, `rain` — live in
-`src/sea.js`. Each is a flat 46-float scene (water, sky, haze, cloud, sun) and
+`src/sea.js`. Each is a flat 50-float scene (water, sky, haze, cloud, sun, moon) and
 `setWeather()` lerps the whole array over 2 s, so nothing ever snaps.
 
 The load-bearing trick is that the **visible sun and the key light are separate
 vectors**. The sun can sit on the horizon for the glitter path while the swell
 still gets a high key, so the cel bands never flatten out at sunrise or dusk. The
-moon also has its own direction and visibility: the radiant twelve-ray sun sets
-while a larger cratered crescent rises on a separate path, and the water reflection
-hands over between them. The glitter path itself comes off the half-vector slope
-rather than a `pow(dot)` hack, which is why it narrows at the horizon and spreads
-toward the camera.
+moon also has its own direction and visibility. The sun is a small disc.
+The moon has a shaded, textured surface and appears in the filtered sky reflection.
+The sun highlight uses the visible sun's direction and the existing wave surface.
+It never interpolates between the sun and moon positions.
 
 Which sky you get is your actual local time (`weatherForDate`), with a small chance
 of fog or rain rolling in instead. A monochrome icon beside the clock shows the
@@ -97,16 +98,19 @@ What the light is made of, each behind a switch (`?fx=`, see below):
   scatter. The sun is a soft-limbed disc at radiance ~27 inside a Mie glare;
   the twelve-spoke starburst is gone. Clouds are two-tone with a sun-facing
   silver lining. The moon runs the same scattering, cooler and dimmer.
-- **Rays** (`rays`): crepuscular shafts, an 18-sample hashed march from each
-  sky pixel toward the sun through the procedural cloud field, so light breaks
-  where the clouds do. Skipped below the horizon and far from the sun. They
-  need their own cloud projection: the ordinary one divides by `rd.y` and
-  turns to noise at the horizon, where the shafts live.
-- **Water** (`water`): Schlick Fresnel reflection of `skyBase()` (the sky
-  without the march), quantised to three cel bands, so far water mirrors the
-  sky and the hard horizon band is gone. A normalised GGX lobe replaces the
-  stepped specular: roughness grows with distance as the normal flattens, so
-  sub-pixel chop becomes lobe width instead of crawl. Backlit crests glow a
+  Stars have small pixel-sized cores and slow brightness variation that never extinguishes them.
+- **Rays** (`rays`): soft atmospheric light around the sun, reduced by fog and rain.
+  This continuous glow replaces the noisy 18-sample shafts and their radial lines.
+- **Water** (`water`): Three.js filters a sky capture with `PMREMGenerator`.
+  Its `textureCubeUV` shader function selects the reflection blur from surface roughness.
+  The existing three-band Fresnel blend preserves the cartoon water's body color.
+  Three's `BRDF_GGX` supplies one sun highlight. The reflection capture excludes
+  the sun disc, so it does not add a second sun highlight.
+  Captures use 256-pixel cube faces and refresh at most twice per second during normal motion.
+  Time scrubs can refresh up to ten times per second; direct sunlight updates every frame.
+  Devices without float color targets use Three's RGBA8 cubemap and native mipmap filtering.
+  Neither path evaluates sharp stars directly on the water.
+  Roughness increases with distance as the normal flattens. Backlit crests glow a
   turquoise pulled from the shallow colour when the sun is low and behind the
   wave. Foam takes the sun as a unit-peak tint, not as radiance -- as radiance
   it turned to lava.
@@ -115,18 +119,34 @@ What the light is made of, each behind a switch (`?fx=`, see below):
   one composite applies `finish(hdr + bloom)`. The threshold sits above the
   sky (~1..2.5) and lit foam, so only the disc, the moon, the sun path and the
   sparkle glow; at 1.15 the day washed out and night foam went electric blue.
-  WebGL1 with half-float is preferred over WebGL2 because SwiftShader refuses
-  `fwidth` in a GLSL ES 1.00 shader under a WebGL2 context, and losing that
-  loses the foam; RGBA8 is the last resort and the classic single pass the one
-  after that.
+  Three.js compiles the authored shaders for WebGL2, including `fwidth` for foam.
+  Half-float targets preserve bright light; RGBA8 remains the fallback for bloom.
+  The authored final color conversion still runs once. Three adds no second color conversion.
 
-`?fx=none` is the classic frame, byte for byte: every new term is multiplied
-by its switch. `?fx=sky,water` turns on only those; `?fx=-bloom` everything but.
+`?fx=none` uses the classic palette and water path, with the refined stars, sun, and moon.
+`?fx=sky,water` turns on only those; `?fx=-bloom` everything but.
 The shader carries a region contract in a comment above it (sky, water, post)
 because these three were built in parallel against it.
 
 The fish is untouched: it still takes `paletteNow()` and its four-step lamp.
 The blocks stay blocks; only the light changed.
+
+`/render-world/` includes all seven weather choices and a candidate-only wave slider.
+`Sea.setWaveIntensity()` accepts finite numbers from 0 to 2, with a default of 1.
+It scales ambient surface height, not cast ripples or rain impacts.
+This remains a surface-shading preview, not displaced or breaking-wave geometry.
+`/render-world/reflections/` shows matched before/after captures without running extra renderers.
+
+The fishing HUD groups track selection, mute, and volume together.
+Source and version share a compact strip below the title. Movement controls show short keyboard hints; catch status remains.
+Kelp accepts direct character clicks and taps on the dock, alongside the existing E/button greeting.
+The fishing page embeds the ocean runtime for dock movement and diving.
+Space dives, V changes perspective, and Q returns to the dock.
+The same camera drives the sea projection and cast ripples above water.
+Depth controls low-pass filtering and reverb without restarting the soundtrack.
+Controls, input ownership, and remaining limits are in `INTEGRATION.md`.
+
+`npm test` runs lightweight checks. `npm run test:sky` explicitly starts browser/GPU checks and can consume substantial CPU.
 
 ## Sound
 

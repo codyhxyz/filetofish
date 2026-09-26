@@ -1,6 +1,8 @@
 /* Synthesised sound. Shared by the site and the /sfx audition page, so what you
    hear while tuning is exactly what ships. Every magic number lives in P. */
 
+import { getUnderwaterInput, setUnderwaterSoundOn } from "./underwater-audio.mjs";
+
 export const P = {
   master: 0.95,
   cast: { lo: 380, hi: 2400, dur: 0.42, gain: 0.75, tailGain: 0.38, tailDur: 0.26 },
@@ -33,12 +35,13 @@ export function loadOverrides() {
 export const resetParams = () => { for (const k in BASE) P[k] = JSON.parse(JSON.stringify(BASE[k])); };
 export const exportParams = () => JSON.stringify(P, null, 2);
 
-let AC = null, BUS = null, NOISE = null, OUT = null, METER = null;
+let AC = null, BUS = null, MASTER = null, NOISE = null, OUT = null, METER = null;
 let ON = true;
 try { ON = localStorage.getItem("ftf.sound") !== "0"; } catch (e) { }
 export const isOn = () => ON;
 export function setOn(v) {
   ON = !!v;
+  if (AC) setUnderwaterSoundOn(AC, ON);
   try { localStorage.setItem("ftf.sound", ON ? "1" : "0"); } catch (e) { }
 }
 
@@ -47,15 +50,17 @@ export function audio() {
   if (!Ctx) return null;
   if (!AC) {
     AC = new Ctx();
-    BUS = AC.createGain();
+    MASTER = AC.createGain();
+    BUS = getUnderwaterInput(AC, MASTER);
+    setUnderwaterSoundOn(AC, ON);
     const comp = AC.createDynamicsCompressor();
     comp.threshold.value = -10; comp.knee.value = 14; comp.ratio.value = 6;
     comp.attack.value = 0.003; comp.release.value = 0.12;
     OUT = AC.createBiquadFilter();
     OUT.type = "lowpass"; OUT.frequency.value = 9500; OUT.Q.value = 0.4;
-    BUS.connect(comp); comp.connect(OUT); OUT.connect(AC.destination);
+    MASTER.connect(comp); comp.connect(OUT); OUT.connect(AC.destination);
   }
-  BUS.gain.value = P.master;
+  MASTER.gain.value = P.master;
   if (AC.state === "suspended") AC.resume();
   return AC;
 }
