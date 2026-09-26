@@ -674,7 +674,7 @@ function syncSound() {
   const soundButton = $("#snd");
   soundButton.setAttribute("aria-pressed", String(enabled));
   soundButton.setAttribute("aria-label", enabled ? "Mute sound" : "Unmute sound");
-  $("#sndlb").textContent = enabled ? "sound" : "muted";
+  soundButton.title = enabled ? "Mute sound" : "Unmute sound";
   setMusicSoundOn(enabled);
 }
 $("#snd").addEventListener("click", e => {
@@ -1255,7 +1255,7 @@ function frame(nowMs) {
   else if (state === "gone") {
     vis = false;
     bob.x = T.x - 22; bob.y = T.y + 44 + Math.sin(now * 1.6) * 3;
-    if (age > 3.2) { state = "idle"; t0 = now; say("drop a file"); }
+    if (age > 3.2) { state = "idle"; t0 = now; say(""); }
   }
 
   const holding = state === "caught" || state === "send" || state === "release" || state === "stow";

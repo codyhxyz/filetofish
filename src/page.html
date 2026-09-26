@@ -230,7 +230,7 @@ body.hint-send #fish{opacity:.62; transform:translateX(14px);}
 .time-reel-head{
   margin-bottom:.55rem; font-family:var(--f-mono); font-size:.5rem; letter-spacing:.15em; text-transform:uppercase;
 }
-#time-choice{color:#fff; font-variant-numeric:tabular-nums;}
+#time-choice{margin-left:auto; color:#fff; font-variant-numeric:tabular-nums;}
 #time-range{
   width:100%; height:24px; margin:0 0 .2rem; appearance:none; -webkit-appearance:none; border:0;
   background:linear-gradient(90deg,#101a3d 0%,#775f87 20%,#a9d8e2 35%,#7ec8e3 62%,#cb6c70 80%,#101a3d 100%) center/100% 6px no-repeat; cursor:ew-resize;
@@ -262,52 +262,38 @@ body.hint-send #fish{opacity:.62; transform:translateX(14px);}
   display:flex; flex-direction:column; align-items:flex-end; gap:.5rem;
 }
 .tool{display:flex; align-items:center; gap:.65rem; color:rgba(238,250,252,.66);}
-.tool .lb,.music-volume .lb{
+.tool .lb{
   font-family:var(--f-mono); font-size:.56rem; letter-spacing:.17em; text-transform:uppercase;
   text-shadow:0 1px 10px rgba(4,30,40,.92); opacity:.6; transition:opacity .18s, color .18s;
   white-space:nowrap;
 }
 .tool .ic{
-  width:2.7rem; height:2.7rem; border-radius:50%; display:grid; place-items:center; flex:0 0 auto;
+  width:2.75rem; height:2.75rem; border-radius:50%; display:grid; place-items:center; flex:0 0 auto;
   background:rgba(6,26,33,.42); border:1px solid rgba(226,242,244,.26);
   backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
   transition:transform .16s cubic-bezier(.2,.9,.3,1.4), background .16s, border-color .16s, color .16s;
 }
 .tool svg{width:1.2rem; height:1.2rem; display:block;}
 .tool:hover{color:#fff;}
-.tool:hover .lb,.music-volume:hover .lb{opacity:1; color:#fff;}
+.tool:hover .lb{opacity:1; color:#fff;}
 .tool:hover .ic{background:rgba(10,42,52,.8); border-color:rgba(255,255,255,.9); transform:translateY(-2px);}
 .tool:active .ic{transform:translateY(1px) scale(.94);}
-.sound-control{position:relative; display:flex; align-items:center; justify-content:flex-end;}
-.sound-control .music-volume{
-  position:absolute; right:calc(100% + .65rem); z-index:2; display:flex; align-items:center; gap:.65rem;
-  color:rgba(238,250,252,.66); opacity:0; pointer-events:none;
-  transform:translateX(.65rem); transform-origin:right center;
-  transition:opacity .18s ease, transform .24s cubic-bezier(.16,1,.3,1);
+/* One quiet radio: track above, sound and music level below. */
+.music-control{
+  width:13rem; padding:0 .35rem; border:1px solid rgba(226,242,244,.26); border-radius:.8rem;
+  background:rgba(6,26,33,.62); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
 }
-.sound-control:hover .music-volume,
-.sound-control:focus-within .music-volume{
-  opacity:1; pointer-events:auto; transform:translateX(0);
-  transition-delay:0s;
-}
-.sound-control:hover .music-volume .lb,
-.sound-control:focus-within .music-volume .lb{opacity:1; color:#fff;}
-.sound-control:hover .tool .ic,
-.sound-control:focus-within .tool .ic{background:rgba(10,42,52,.8); border-color:rgba(255,255,255,.9); transform:translateY(-2px);}
-.sound-control .music-volume output{color:#FFD9A8; font-variant-numeric:tabular-nums;}
-.sound-control .music-volume:hover .volume-shell,
-.sound-control .music-volume:focus-within .volume-shell{background:rgba(10,42,52,.8); border-color:rgba(255,255,255,.72);}
-.sound-control .tool{position:relative; z-index:1;}
-.volume-shell{
-  width:6.8rem; height:2.7rem; padding:0 .75rem; display:grid; place-items:center;
-  background:rgba(6,26,33,.42); border:1px solid rgba(226,242,244,.26); border-radius:1.35rem;
-  backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
-  transition:background .16s, border-color .16s, box-shadow .16s;
-}
+#radio{width:100%; min-height:2.75rem; gap:.45rem; text-align:left;}
+#radio .ic,#snd .ic{width:2.75rem; height:2.75rem; border:0; background:none; backdrop-filter:none; -webkit-backdrop-filter:none;}
+#radio .lb{flex:1; min-width:0; opacity:1; font-size:.52rem; letter-spacing:.1em;}
+#radionm{display:block; margin-top:.2rem; overflow:hidden; text-overflow:ellipsis; font-size:.65rem; letter-spacing:0; text-transform:none;}
+.music-level{display:flex; align-items:center; border-top:1px solid rgba(226,242,244,.12);}
+.music-volume{display:flex; flex:1; min-width:0; align-items:center; gap:.55rem; padding-right:.45rem;}
+.music-volume output{min-width:2.3rem; color:#FFD9A8; font:.6rem var(--f-mono); font-variant-numeric:tabular-nums; text-align:right;}
 #musicvol{
-  --volume:70%; width:100%; height:2px; margin:0; appearance:none; -webkit-appearance:none;
-  border:0; border-radius:1px; cursor:pointer;
-  background:linear-gradient(to right,#FFD9A8 var(--volume),rgba(226,242,244,.24) var(--volume));
+  --volume:70%; width:100%; min-width:0; height:2.75rem; margin:0; appearance:none; -webkit-appearance:none;
+  border:0; cursor:pointer;
+  background:linear-gradient(to right,#FFD9A8 var(--volume),rgba(226,242,244,.24) var(--volume)) center/100% 2px no-repeat;
 }
 #musicvol:focus-visible{outline:2px solid #FFD9A8; outline-offset:7px;}
 #musicvol::-webkit-slider-thumb{
@@ -333,7 +319,6 @@ body.hint-send #fish{opacity:.62; transform:translateX(14px);}
 .tool.pop{color:#FFC49A;}
 @keyframes dexpop{0%{transform:scale(1)}34%{transform:scale(1.3)}100%{transform:scale(1)}}
 #snd[aria-pressed="false"]{color:rgba(238,250,252,.34);}
-#snd[aria-pressed="false"] .ic{border-color:rgba(226,242,244,.14); border-style:dashed;}
 #snd:focus-visible .ic{outline:2px solid #FFD9A8; outline-offset:4px;}
 #snd .on,#snd .off{display:none;}
 #snd[aria-pressed="true"] .on{display:block;}
@@ -347,15 +332,20 @@ body.hint-send #fish{opacity:.62; transform:translateX(14px);}
   max-width:min(64vw,30rem); overflow:hidden; text-overflow:ellipsis;
 }
 #foot b{font-weight:400; color:rgba(238,250,252,.95);}
+#site-meta{
+  position:fixed; left:clamp(1.1rem,3vw,2.2rem); bottom:clamp(1rem,3vh,2rem); z-index:9;
+  display:flex; align-items:center; gap:.15rem; border-radius:.35rem;
+  background:rgba(6,26,33,.62); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+}
 #versionbox{
-  position:fixed; left:clamp(1.1rem,3vw,2.2rem); bottom:clamp(4.3rem,8vh,5.15rem); z-index:9;
+  position:relative;
   font-family:var(--f-mono); font-size:.56rem; letter-spacing:.15em; text-transform:uppercase;
   text-shadow:0 1px 10px rgba(4,30,40,.9);
 }
 #version,#src{
-  box-sizing:border-box; min-height:2.75rem; display:flex; align-items:center; gap:.45rem; padding:.65rem .8rem;
-  color:rgba(238,250,252,.88); background:rgba(6,26,33,.62); border:1px solid rgba(226,242,244,.34);
-  border-radius:1.4rem; cursor:pointer; text-decoration:none; backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+  box-sizing:border-box; min-height:2.75rem; display:flex; align-items:center; gap:.35rem; padding:.4rem .45rem;
+  color:rgba(238,250,252,.78); border:1px solid transparent;
+  border-radius:.3rem; cursor:pointer; text-decoration:none;
   transition:color .18s,background .18s,border-color .18s,transform .12s;
 }
 #version{list-style:none;}
@@ -367,7 +357,7 @@ body.hint-send #fish{opacity:.62; transform:translateX(14px);}
 #versionbox[open] #version svg{transform:rotate(180deg);}
 #version:active,#src:active{transform:translateY(1px);}
 #history{
-  position:absolute; left:0; bottom:3.35rem; width:min(32rem,calc(100vw - 2.2rem)); max-height:min(70vh,32rem);
+  position:absolute; left:0; bottom:3rem; width:min(32rem,calc(100vw - 2.2rem)); max-height:min(70vh,32rem);
   display:flex; flex-direction:column; background:rgba(6,26,33,.96); border:1px solid rgba(226,242,244,.28);
   box-shadow:0 24px 60px -24px rgba(1,12,16,.96); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
   text-transform:none; letter-spacing:normal;
@@ -387,7 +377,6 @@ body.hint-send #fish{opacity:.62; transform:translateX(14px);}
 #history li span{overflow-wrap:anywhere;}
 #history li a:hover,#history li a:focus-visible{color:#fff; background:rgba(255,217,168,.1);}
 #src{
-  position:fixed; left:clamp(1.1rem,3vw,2.2rem); bottom:clamp(1.15rem,3vh,2.05rem); z-index:9;
   width:max-content; font-family:var(--f-mono); font-size:.56rem; letter-spacing:.18em; text-transform:uppercase;
   text-shadow:0 1px 10px rgba(4,30,40,.9);
 }
@@ -401,16 +390,16 @@ body.hint-send #fish{opacity:.62; transform:translateX(14px);}
    everything else moves up out of its way */
 @media (max-width:560px){
   #tools{flex-direction:row; align-items:center; gap:.45rem; bottom:1rem; right:1rem;}
-  .tool .lb,.music-volume .lb{display:none;}
-  .tool .ic{width:2.5rem; height:2.5rem;}
-  .sound-control .music-volume{
-    right:0; bottom:calc(100% + .45rem); transform:translateY(.65rem); transform-origin:center bottom;
-  }
-  .sound-control:hover .music-volume,
-  .sound-control:focus-within .music-volume{transform:translateY(0);}
-  .volume-shell{width:3.75rem; height:2.5rem; padding:0 .55rem;}
+  #dexbtn .lb{display:none;}
+  .tool .ic{width:2.75rem; height:2.75rem;}
+  .music-control{position:absolute; right:0; bottom:calc(100% + .65rem); width:min(22rem,calc(100vw - 2rem)); display:flex; align-items:center;}
+  #radio{flex:1; min-width:0; width:auto; padding-left:.4rem;}
+  #radio .ic,.music-volume output{display:none;}
+  .music-level{width:8rem; border-top:0; border-left:1px solid rgba(226,242,244,.12);}
+  .tool.primary{gap:.35rem;}
   .tool.primary .ic{width:3rem; height:3rem;}
-  #src{bottom:1.5rem; left:1rem;}
+  #site-meta{bottom:1.1rem; left:.55rem; gap:0;}
+  #version,#src{padding-inline:.35rem; letter-spacing:.08em;}
   #foot{font-size:.6rem; bottom:8rem; max-width:88vw;}
   #plate{bottom:9.8rem; width:min(96vw,34rem);}
   #plate .acts{margin-top:.85rem;}
@@ -543,7 +532,7 @@ body.hint-send #fish{opacity:.62; transform:translateX(14px);}
     </button>
   </div>
   <div id="time-reel" hidden>
-    <div class="time-reel-head"><span>one swipe = one day</span><output id="time-choice">--:--</output></div>
+    <div class="time-reel-head"><output id="time-choice">--:--</output></div>
     <input id="time-range" type="range" min="0" max="1439" step="1" aria-label="Time of day">
     <div class="time-marks" aria-hidden="true"><span>midnight</span><span>dawn</span><span>noon</span><span>dusk</span><span>midnight</span></div>
   </div>
@@ -588,7 +577,7 @@ body.hint-send #fish{opacity:.62; transform:translateX(14px);}
   </div>
 </div>
 
-<div id="foot"><b id="status">drop a file</b></div>
+<div id="foot" role="status"><b id="status"></b></div>
 
 <div id="tools">
   <button class="tool" id="dexbtn" aria-label="Open the fish dex">
@@ -600,6 +589,7 @@ body.hint-send #fish{opacity:.62; transform:translateX(14px);}
       <path d="M6.3 8.6h2.9M6.3 11.6h2.9M14.8 8.6h2.9M14.8 11.6h2.9"/>
     </svg></span>
   </button>
+  <div class="music-control" role="group" aria-label="Music and sound">
   <button class="tool" id="radio" aria-label="Music radio: click to change track" title="click: change the song">
     <span class="lb" id="radiolb">now playing <i id="radionm">Sunlit Bobber</i></span>
     <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
@@ -610,13 +600,8 @@ body.hint-send #fish{opacity:.62; transform:translateX(14px);}
       <path d="M15 11.5h3.5M15 15.5h3.5"/>
     </svg></span>
   </button>
-  <div class="sound-control">
-    <label class="music-volume" for="musicvol" title="music volume">
-      <span class="lb">music <output id="musicvolout" for="musicvol">70%</output></span>
-      <span class="volume-shell"><input id="musicvol" type="range" min="0" max="100" value="70" aria-label="Music volume"></span>
-    </label>
-    <button class="tool" id="snd" aria-pressed="true" aria-label="Sound">
-    <span class="lb" id="sndlb">sound</span>
+  <div class="music-level">
+    <button class="tool" id="snd" aria-pressed="true" aria-label="Mute sound">
     <span class="ic">
       <svg class="on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
         stroke-linejoin="round" stroke-linecap="round" aria-hidden="true">
@@ -630,9 +615,14 @@ body.hint-send #fish{opacity:.62; transform:translateX(14px);}
       </svg>
     </span>
     </button>
+    <label class="music-volume" for="musicvol">
+      <input id="musicvol" type="range" min="0" max="100" value="70" aria-label="Music volume">
+      <output id="musicvolout" for="musicvol">70%</output>
+    </label>
   </div>
-  <button class="tool primary" id="cast" aria-label="Cast for a sample file">
-    <span class="lb">cast a sample</span>
+  </div>
+  <button class="tool primary" id="cast" aria-label="Fish">
+    <span class="lb">Fish</span>
     <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
       stroke-linejoin="round" stroke-linecap="round" aria-hidden="true">
       <path d="M2.8 21.2 16.8 3.4"/>
@@ -643,8 +633,10 @@ body.hint-send #fish{opacity:.62; transform:translateX(14px);}
   </button>
 </div>
 
+<div id="site-meta" role="group" aria-label="About filetofish">
 <!--VERSION_UI-->
 <a id="src" href="https://github.com/codyhxyz/filetofish" target="_blank" rel="noopener"><span>source</span><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3h7v7M13 3 5 11"/><path d="M11 9v4H3V5h4"/></svg></a>
+</div>
 
 <div id="drop"><span>let go</span></div>
 <input type="file" id="file" multiple hidden>
