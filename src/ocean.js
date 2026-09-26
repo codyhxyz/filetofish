@@ -12,7 +12,7 @@ import {
   Scene, PerspectiveCamera, OrthographicCamera, WebGLRenderer, WebGLRenderTarget,
   BufferGeometry, BufferAttribute, InstancedMesh, InstancedBufferAttribute,
   Mesh, Points, ShaderMaterial, Color, NearestFilter,
-  Vector3, Object3D, PlaneGeometry, DoubleSide, AdditiveBlending, Vector2,
+  Vector3, Object3D, PlaneGeometry, DoubleSide, AdditiveBlending, Vector2, Raycaster,
 } from "three";
 import { P as SND, speak, beats, isOn, setOn, audio, sfx } from "./sfx.js";
 
@@ -1794,7 +1794,7 @@ const cam = {
   yaw: 0, pitch: -0.06, yawT: 0, pitchT: -0.06, depthT: -190,
 };
 const keys = new Set();
-let dragging = false, lastX = 0, lastY = 0, moved = 0;
+let dragPointer = null, lastX = 0, lastY = 0, moved = 0;
 /* where the wheel last moved, so the dial can find its notch once you let go */
 let wheelAt = 0;
 
@@ -1882,9 +1882,26 @@ function syncAction() {
   elAction.setAttribute("aria-label", label ? "Press E to " + label : "");
   elAction.querySelector("span").textContent = label;
 }
+function greetKelp() {
+  if (!nearKelp() || talkMode || !$("#haul").hidden || !$("#confirm").hidden) return;
+  introSeen = true;
+  openIntro(true);
+}
 function dockAction() {
+  if (talkMode || !$("#haul").hidden || !$("#confirm").hidden) return;
   if (atDockEdge()) { beginJump(); return; }
-  if (nearKelp()) { introSeen = true; openIntro(true); }
+  greetKelp();
+}
+const kelpRay = new Raycaster(), kelpPointer = new Vector2();
+function hitKelp(e) {
+  if (!guide.root.visible) return false;
+  const rect = canvas.getBoundingClientRect();
+  kelpPointer.set((e.clientX - rect.left) / rect.width * 2 - 1,
+                  1 - (e.clientY - rect.top) / rect.height * 2);
+  camera.updateWorldMatrix(true, false);
+  guide.kelp.updateWorldMatrix(true, true);
+  kelpRay.setFromCamera(kelpPointer, camera);
+  return kelpRay.intersectObject(guide.kelp, true).length > 0;
 }
 function beginJump() {
   if (phase !== "dock" || !world) return;
@@ -1978,16 +1995,31 @@ addEventListener("keydown", e => {
 });
 addEventListener("keyup", e => keys.delete(e.key.toLowerCase()));
 canvas.addEventListener("pointerdown", e => {
-  dragging = true; moved = 0; lastX = e.clientX; lastY = e.clientY;
+  if (!e.isPrimary || e.button !== 0 || dragPointer !== null || talkMode ||
+      !$("#haul").hidden || !$("#confirm").hidden) return;
+  dragPointer = e.pointerId; moved = 0; lastX = e.clientX; lastY = e.clientY;
   canvas.setPointerCapture(e.pointerId);
 });
 canvas.addEventListener("pointerup", e => {
-  dragging = false;
+  if (e.pointerId !== dragPointer) return;
+  dragPointer = null;
   try { canvas.releasePointerCapture(e.pointerId); } catch (err) { }
-  if (phase === "ocean" && moved < 5) toggleNet(); // a click, not a drag
+  moved += Math.abs(e.clientX - lastX) + Math.abs(e.clientY - lastY);
+  if (!e.isPrimary || e.button !== 0 || moved >= 5 || talkMode ||
+      !$("#haul").hidden || !$("#confirm").hidden) return;
+  if (nearKelp() && hitKelp(e)) greetKelp(); // character clicks never jump
+  else if (phase === "ocean") toggleNet();
+});
+canvas.addEventListener("pointercancel", e => {
+  if (e.pointerId !== dragPointer) return;
+  dragPointer = null;
+  try { canvas.releasePointerCapture(e.pointerId); } catch (err) { }
+});
+canvas.addEventListener("lostpointercapture", e => {
+  if (e.pointerId === dragPointer) dragPointer = null;
 });
 canvas.addEventListener("pointermove", e => {
-  if (!dragging) return;
+  if (e.pointerId !== dragPointer) return;
   const dx = e.clientX - lastX, dy = e.clientY - lastY;
   moved += Math.abs(dx) + Math.abs(dy);
   if (moved > 5) glide = null;              // turning your head is taking over
