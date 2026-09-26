@@ -1,6 +1,12 @@
 /* The sky and the water. Owns time of day and weather; app.js only asks it
    what the light looks like so the fish can be graded to match. */
 
+import {
+  WebGLRenderer, ShaderMaterial, WebGLRenderTarget, PMREMGenerator,
+  BufferGeometry, Float32BufferAttribute, Mesh, Scene, Camera, BoxGeometry,
+  BackSide, NoBlending, NoToneMapping, LinearSRGBColorSpace, HalfFloatType, UnsignedByteType,
+} from "three";
+
 /* ---------------------------------------------------------------- weather */
 /* label is what the clock strip prints; light/ambient grade the fish stage,
    css is an accent for UI text. Everything below `haze` is shader state and
@@ -203,6 +209,15 @@ vec3 finish(vec3 c){
 const SEA_VS = "attribute vec2 a;void main(){gl_Position=vec4(a,0.,1.);}";
 const SEA_FS = `
 precision highp float;
+#ifdef SEA_CAPTURE
+varying vec3 vSkyDirection;
+#else
+#include <common>
+#include <lights_physical_pars_fragment>
+#include <cube_uv_reflection_fragment>
+uniform sampler2D uEnvironment;
+uniform bool uHasEnvironment;
+#endif
 uniform vec2 uRes; uniform float uTime; uniform float uPx; uniform float uZoom; uniform vec4 uRip[6]; uniform vec4 uTune;
 uniform float uWaveIntensity;
 uniform vec3 uEye;
@@ -302,10 +317,42 @@ vec2 drops(vec2 p, float t, float sc, float sk, float rate){
   return vec2(sin((r - d)*30.0)*env, env);
 }
 /* Fixed directions, not screen noise. A tiny CSS-pixel core with one render
-   pixel of antialiasing survives the capped DPR and derivative-free fallback.
+   pixel of antialiasing survives the capped DPR.
    Twinkle never extinguishes a star; brightness is independent of occupancy. */
 float skyPixel(){ return 1.0/(uRes.y*max(uZoom, 0.5)); }
+/* Capture integrates point-star energy over the capture pixel's footprint,
+   including neighbouring cells. Screen-sized cores otherwise fall between the
+   128px cube samples. A normalized tent is a reconstruction filter, not a
+   larger star; its area preserves flux before Three's GGX filtering. The
+   800px reference fixes angular energy independently of canvas size/DPR. */
+#ifdef SEA_CAPTURE
+float captureStars(vec2 sp, float t){
+  vec2 gp = sp*34.0;
+  vec2 footprint = max(fwidth(gp), vec2(0.5));
+  ivec2 lo = ivec2(floor(gp - footprint));
+  ivec2 hi = ivec2(ceil(gp + footprint));
+  float sum = 0.0;
+  for (int y = lo.y; y <= hi.y; y++) {
+    for (int x = lo.x; x <= hi.x; x++) {
+      vec2 ip = vec2(x, y);
+      float h = hash21(ip + 0.5);
+      if (h < 0.86) continue;
+      float bright = hash21(ip + 17.13);
+      vec2 c = 0.20 + 0.60*vec2(hash21(ip + 2.31), hash21(ip + 9.17));
+      vec2 weight = max(1.0 - abs(ip + c - gp)/footprint, 0.0)/footprint;
+      float radius = mix(0.55, 0.85, bright)*34.0/800.0;
+      float twinkle = 0.94 + 0.06*sin(t*(0.55 + bright*0.35) + h*47.0);
+      sum += weight.x*weight.y*3.14159265*radius*radius
+           *mix(1.25, 2.30, bright*bright)*twinkle;
+    }
+  }
+  return sum;
+}
+#endif
 float starfield(vec2 sp, float t){
+#ifdef SEA_CAPTURE
+  return captureStars(sp, t);
+#else
   vec2 gp = sp*34.0;
   vec2 ip = floor(gp), f = fract(gp);
   float h = hash21(ip + 0.5);
@@ -317,6 +364,7 @@ float starfield(vec2 sp, float t){
   float core = 1.0 - smoothstep(radius - px*0.5, radius + px*0.5, d);
   float twinkle = 0.94 + 0.06*sin(t*(0.55 + bright*0.35) + h*47.0);
   return core*step(0.86, h)*mix(1.25, 2.30, bright*bright)*twinkle;
+#endif
 }
 /* screen space rain: slanted columns of falling dashes. cw/ch are the cell
    size in CSS pixels, not in fractions of the frame -- so streak width, dash
@@ -399,6 +447,9 @@ float sunBody(vec3 dv){
 }
 float moonBody(vec3 dv){
   float aa = skyPixel()*0.7;
+#ifdef SEA_CAPTURE
+  aa = max(aa, fwidth(length(dv))*0.5);
+#endif
   return 1.0 - smoothstep(0.0105 - aa, 0.0105 + aa, length(dv));
 }
 /* A small gibbous sphere, not two overlapping circles. Surface markings stay
@@ -413,7 +464,7 @@ vec3 moonSurface(vec3 dv){
   return vec3(0.92, 0.94, 0.90)*(0.09 + 1.45*light)*(0.78 + 0.22*maria);
 }
 /* the frame as it shipped: a two-colour ramp, thresholded clouds, a pow() glow */
-vec3 skyClassic(vec3 rd, float t){
+vec3 skyClassic(vec3 rd, float t, bool solarDisc){
   vec3 s = mix(cSky, cSky2, pow(clamp(rd.y*3.0,0.0,1.0), 0.72));
   float c = fbm(rd.xz/max(rd.y,0.030)*0.15 + vec2(t*0.010, 0.0));
   float cv = uCloudA.w;
@@ -429,7 +480,9 @@ vec3 skyClassic(vec3 rd, float t){
   float sn = max(dot(rd, uSun), 0.0), mn = max(dot(rd, uMoonDir), 0.0);
   s += uSunCol*(pow(sn,4.0)*0.28 + pow(sn,26.0)*0.55)*GLOW*smoothstep(0.0,0.1,DISC);
   s += vec3(0.42,0.52,0.82)*pow(mn,34.0)*GLOW*uMoon*0.18;
-  if (DISC > 0.001) s = mix(s, min(uSunCol*1.42, vec3(1.0)), sunBody(rd - uSun)*DISC);
+#ifndef SEA_CAPTURE
+  if (solarDisc && DISC > 0.001) s = mix(s, min(uSunCol*1.42, vec3(1.0)), sunBody(rd - uSun)*DISC);
+#endif
   if (uMoon > 0.001) {
     vec3 dv = rd - uMoonDir;
     float disc = moonBody(dv);
@@ -437,7 +490,7 @@ vec3 skyClassic(vec3 rd, float t){
   }
   return mix(s, uHaze, 1.0 - smoothstep(0.0, mix(0.085, 0.50, FOG), rd.y));
 }
-vec3 skyScatter(vec3 rd, float t){
+vec3 skyScatter(vec3 rd, float t, bool solarDisc){
   vec3 sh = sunHue();
   float lit = sunLit();
   float lowSun = 1.0 - smoothstep(0.03, 0.42, uSun.y);
@@ -494,7 +547,9 @@ vec3 skyScatter(vec3 rd, float t){
      angular modulation, radial samples or moving spokes. */
   float th = length(rd - uSun);
   vec3 glare = sh*(SUN_I*lit*GLOW)*(0.035*exp(-th*th*90.0) + 0.012*exp(-th*th*9.0));
-  if (DISC > 0.001) glare += sh*(DISC_I*DISC*lit)*sunBody(rd - uSun);
+#ifndef SEA_CAPTURE
+  if (solarDisc && DISC > 0.001) glare += sh*(DISC_I*DISC*lit)*sunBody(rd - uSun);
+#endif
   s += glare*(1.0 - m1*0.80)*(1.0 - FOG*0.55);
 
   if (uMoon > 0.001) {
@@ -509,9 +564,9 @@ vec3 skyScatter(vec3 rd, float t){
   return s;
 }
 /* The water shares the sky lighting without the extra aerial glow. */
-vec3 skyBase(vec3 rd, float t){
-  if (FX_SKY < 0.5) return skyClassic(rd, t);
-  return skyScatter(rd, t);
+vec3 skyBase(vec3 rd, float t, bool solarDisc){
+  if (FX_SKY < 0.5) return skyClassic(rd, t, solarDisc);
+  return skyScatter(rd, t, solarDisc);
 }
 /* Keep the existing rays switch as a soft aerial-light control. A continuous
    forward lobe replaces the noisy eighteen-tap shafts, also on mobile. */
@@ -521,12 +576,15 @@ vec3 aerialGlow(vec3 rd){
   return sunHue()*(spread*sunLit()*GLOW*clear*0.12);
 }
 vec3 sky(vec3 rd, float t){
-  vec3 c = skyBase(rd, t);
+  vec3 c = skyBase(rd, t, true);
   if (FX_RAYS > 0.5) c += aerialGlow(rd);
   return c;
 }
 ${SEA_FINISH_GLSL}
 void main(){
+#ifdef SEA_CAPTURE
+  gl_FragColor = vec4(skyBase(normalize(vSkyDirection), uTime, false), 1.0);
+#else
   vec2 uv = (gl_FragCoord.xy - 0.5*uRes)/uRes.y;
   vec2 rayUv = uv / max(uZoom, 0.5);
   vec3 ro = uEye;
@@ -583,29 +641,34 @@ void main(){
        full strength -- there the wash *is* the weather. */
     col = mix(col, far, smoothstep(mix(18.0,5.0,FOG), mix(84.0,26.0,FOG), dist)
                         * mix(1.0, mix(0.40, 1.0, max(FOG, RAIN*0.60)), FX_WATER));
-    float specPow = mix(46.0, 96.0, uTune.w);
     /* The extra highlights belong to the visible sun, never an interpolated
        point between sun and moon. Moonlight remains in skyBase's reflection. */
     vec3 shineDir = uSun;
     /* half-vector slope: the facet tilt this pixel would need to mirror the
        sun. Small near the sun's azimuth, growing sideways -- that is the
        glitter path, narrow at the horizon and spreading toward the camera.
-       Hoisted out of the glitter block so the microfacet lobe, the glitter and
-       the foam tint all agree about where the path is. */
+       Used only for the authored foam tint; direct reflection is Three GGX. */
     vec3 hv = normalize(shineDir - rd);
     float sl = length(hv.xz)/max(hv.y, 0.05);
     float pathW = exp(-sl*sl*2.4);
     vec3 shineCol = uSunColR;
     float shineAmt = DISC*smoothstep(0.0, 0.12, uSun.y);
-    col = mix(col, mix(vec3(1.0), uSunColR, 0.5),
-              step(0.34, pow(max(dot(reflect(rd,n),shineDir),0.0),specPow))
-              *fade*0.85*SPEC*shineAmt*(1.0 - FX_WATER));
+    /* One official GGX sun response in both modes; no second sparkle lobe.
+       The authored normal and shine control still determine the highlights. */
+    float smear = smoothstep(6.0, 70.0, dist);
+    vec3 nr = normalize(mix(n, vec3(0.0,1.0,0.0), smear*0.88*FX_WATER));
+    float rough = mix(mix(0.18, 0.12, uTune.w), 0.30, smear);
+    PhysicalMaterial waterLight;
+    waterLight.specularColorBlended = vec3(0.02);
+    waterLight.specularF90 = 1.0;
+    waterLight.roughness = rough;
+    vec3 sunSpecular = BRDF_GGX(uSun, -rd, nr, waterLight)
+                    *max(dot(nr, uSun), 0.0)*shineCol*SPEC_GAIN*SPEC*shineAmt;
+    col += sunSpecular*fade*(1.0 - FX_WATER);
     if (FX_WATER > 0.5) {
       /* Sub-pixel chop is roughness, not geometry: flatten the normal with
          distance and hand the lost detail to the specular lobe's width. That
          is the whole trick that stops the far water from crawling. */
-      float smear = smoothstep(6.0, 70.0, dist);
-      vec3 nr = normalize(mix(n, vec3(0.0,1.0,0.0), smear*0.88));
       float wfade = 1.0 - smoothstep(mix(90.0,26.0,FOG), mix(380.0,96.0,FOG), dist);
       /* body colour is water you are looking *into*: deepen the troughs so the
          swell keeps its volume once a sky is laid on top of it. */
@@ -624,21 +687,13 @@ void main(){
          hold the lookup at a sane elevation. What the grazing ray should have
          returned down there is the haze anyway, so fade to it by the true
          slope: that is the join that makes sea and sky one surface. */
-      vec3 skyRefl = skyBase(normalize(vec3(rr.x, max(ry, 0.11), rr.z)), t);
+      vec3 reflectionDir = normalize(vec3(rr.x, max(ry, 0.11), rr.z));
+      vec3 skyRefl = uHasEnvironment ? textureCubeUV(uEnvironment, reflectionDir, rough).rgb
+                                   : skyBase(reflectionDir, t, false);
       skyRefl = mix(skyRefl, uHazeR, 1.0 - smoothstep(0.0, mix(0.105, 0.40, FOG), ry));
       col = mix(col, skyRefl, fq);
-      /* --- the sun's own reflection ---------------------------------------
-         a normalised GGX lobe (peak 1 at any roughness) instead of a step:
-         tight and sparkling underfoot, spread into a glare band at distance,
-         which is what makes it read as a path rather than a highlight. The
-         reflected sky already carries the disc, so this is deliberately the
-         broad half of the pair and is added to it rather than layered over. */
-      float rough = mix(mix(0.085, 0.050, uTune.w), 0.30, smear);
-      float a2 = rough*rough; a2 *= a2;
-      float nh = clamp(dot(nr, hv), 0.0, 1.0);
-      float dnm = nh*nh*(a2 - 1.0) + 1.0;
-      float lobe = a2/max(dnm, 1e-6); lobe *= lobe;
-      col += shineCol*(lobe*SPEC_GAIN*SPEC*shineAmt*wfade*mix(0.35, 1.0, fres));
+      /* The capture excludes the solar disc: direct GGX counts it once. */
+      col += sunSpecular*wfade;
       /* --- backlit crests ---------------------------------------------------
          a wave face turned toward us has the sun behind it, so the thin water
          at the crest glows through. Warm turquoise pulled out of cShalR,
@@ -654,16 +709,6 @@ void main(){
          glow stays a rim on the near swell rather than a green cast. */
       col += sssCol*(crest*pow(toward, 1.4)*toSun*lowSun*shineAmt*wfade
                      *(1.0 - fq*0.70)*SSS_GAIN);
-    }
-    if (GLIT > 0.001) {
-      vec3 fn = normalize(n + vec3(sin(p.x*6.3 + t*2.1), 0.0, cos(p.y*5.9 - t*1.7))*0.22);
-      float spark = smoothstep(mix(0.9925,0.9970,uTune.w), mix(0.9948,0.9990,uTune.w),
-                               max(dot(reflect(rd,fn),shineDir),0.0))*fade*shineAmt;
-      /* Sparkles follow wave normals. No broad, quantized fan painted over
-         the water; its authored cel bands and foam remain untouched. */
-      float gm = clamp((spark*mix(0.85, 1.10, FX_WATER))
-                       *(0.5 + 0.5*smoothstep(-0.40,0.50,h))*GLIT, 0.0, 1.0);
-      col = mix(col, mix(min(uSunColR*1.30, vec3(1.0)), shineCol*1.35, FX_WATER), gm);
     }
     /* WATER: foam takes the light instead of being a flat fill -- hot and the
        colour of the sun inside the path, cool in the shadowed troughs. */
@@ -681,6 +726,7 @@ void main(){
     col = mix(col, min(uHazeR*1.45 + 0.10, vec3(mix(1.0, 4.0, FX_SKY))), clamp(r,0.0,1.0)*0.55*RAIN);
   }
   gl_FragColor = vec4(uRaw > 0.5 ? col : finish(col), 1.0);
+#endif
 }`;
 
 /* ?fx= picks which lighting techniques render. Absent: everything on.
@@ -801,199 +847,116 @@ export function waterIntersection(cx, cy, width, height, eye, view, lens, zoom =
   return [eye[0] + dx * t, eye[2] + dz * t];
 }
 
+/* Fixed world-space capture: never tied to the view, zoom, DPR or canvas size.
+   Natural motion is 2Hz; scrubs/explicit edits are coalesced at at most 10Hz.
+   A pending edit survives until captured, including the final drag position. */
+const ENV_SIZE = 128;
+export function reflectionCache() {
+  let capturedAt = -Infinity, clockOffset = null, urgent = true, captures = 0;
+  return {
+    invalidate() { urgent = true; },
+    due(now, dateMs) {
+      if (dateMs !== null) {
+        const offset = dateMs - now*1000;
+        if (clockOffset !== null && Math.abs(offset - clockOffset) > 250) urgent = true;
+        clockOffset = offset;
+      }
+      return now - capturedAt >= (urgent ? 0.1 : 0.5) - 1e-9;
+    },
+    captured(now) { capturedAt = now; urgent = false; captures++; },
+    stats() { return { captures, capturedAt, pending: urgent, size: ENV_SIZE }; },
+  };
+}
+
 export function Sea(canvas) {
   const attrs = { antialias: false, alpha: false, depth: false, stencil: false };
-  /* The context has two jobs: compile fwidth in a GLSL ES 1.00 shader (the foam
-     edge is anti-aliased against it) and give bloom a float colour buffer.
-     webgl2 is the obvious home for the second, but it is not a superset for the
-     first -- Chrome's SwiftShader backend, verified here, refuses fwidth in an
-     ESSL1 shader under webgl2 no matter what #extension line it is handed, and
-     the sea loses its foam. So both families are probed on a throwaway canvas
-     and webgl2 is taken only when it wins outright: webgl1 with
-     OES_texture_half_float already does both on every browser that matters. */
-  const derivOk = g => {
-    g.getExtension("OES_standard_derivatives");
-    const s = g.createShader(g.FRAGMENT_SHADER);
-    g.shaderSource(s, "#extension GL_OES_standard_derivatives : enable\nprecision mediump float;varying vec2 v;void main(){gl_FragColor=vec4(fwidth(v.x));}");
-    g.compileShader(s);
-    const ok = !!g.getShaderParameter(s, g.COMPILE_STATUS);
-    g.deleteShader(s);
-    return ok;
+  let gl, renderer;
+  try {
+    gl = canvas?.getContext("webgl2", attrs);
+    if (!gl) return null;
+    renderer = new WebGLRenderer({ canvas, context: gl, ...attrs });
+  } catch { return null; }
+  renderer.toneMapping = NoToneMapping;
+  renderer.outputColorSpace = LinearSRGBColorSpace;
+  const hdr = !!(gl.getExtension("EXT_color_buffer_float") || gl.getExtension("EXT_color_buffer_half_float"));
+  /* Three PMREM requires renderable half floats. Keep the authored scene on
+     rare WebGL2 implementations without them, rather than a broken target. */
+  const pmrem = hdr ? new PMREMGenerator(renderer) : null;
+  const cache = reflectionCache();
+  let environment = null, captureMs = 0, disposed = false; // CPU submission time, not a GPU timer
+  const uniform = value => ({ value });
+  const uniforms = {};
+  const material = (vertexShader, fragmentShader, values = {}, defines = {}) => new ShaderMaterial({
+    vertexShader, fragmentShader, uniforms: values, defines,
+    depthTest: false, depthWrite: false, blending: NoBlending, toneMapped: false,
+  });
+  const seaMaterial = material(SEA_VS, SEA_FS, uniforms, {
+    FW: "fwidth", ENVMAP_TYPE_CUBE_UV: 1,
+    CUBEUV_MAX_MIP: "7.0", CUBEUV_TEXEL_WIDTH: 1 / (3 * ENV_SIZE), CUBEUV_TEXEL_HEIGHT: 1 / (4 * ENV_SIZE),
+  });
+  const geometry = new BufferGeometry();
+  geometry.setAttribute("a", new Float32BufferAttribute([-1, -1, 3, -1, -1, 3], 2));
+  geometry.setDrawRange(0, 3);
+  const triangle = new Mesh(geometry, seaMaterial);
+  triangle.frustumCulled = false;
+  const camera = new Camera();
+  const pass = (target, mat) => {
+    triangle.material = mat;
+    renderer.setRenderTarget(target);
+    renderer.render(triangle, camera);
   };
-  const probe = type => {
-    let g = null;
-    try { const c = document.createElement("canvas"); c.width = c.height = 2; g = c.getContext(type, attrs); } catch (e) { /* no such context */ }
-    if (!g) return null;
-    const r = {
-      deriv: derivOk(g),
-      float: type === "webgl2"
-        ? !!(g.getExtension("EXT_color_buffer_float") || g.getExtension("EXT_color_buffer_half_float"))
-        : !!(g.getExtension("OES_texture_half_float") && g.getExtension("EXT_color_buffer_half_float")),
-    };
-    const lose = g.getExtension("WEBGL_lose_context");
-    if (lose) lose.loseContext();
-    return r;
-  };
-  const p1 = probe("webgl");
-  const p2 = p1 && p1.deriv && p1.float ? null : probe("webgl2");
-  const gl2 = p2 && p2.deriv && p2.float ? canvas.getContext("webgl2", attrs) : null;
-  const gl = gl2 || canvas.getContext("webgl", attrs);
-  if (!gl) return null;
-  const ext = gl.getExtension("OES_standard_derivatives") || (gl2 && p2.deriv);
-  const src = (ext ? "#extension GL_OES_standard_derivatives : enable\n#define FW(x) fwidth(x)\n"
-    : "#define FW(x) 0.018\n") + SEA_FS;
-  const sh = (ty, s, label) => {
-    const o = gl.createShader(ty); gl.shaderSource(o, s); gl.compileShader(o);
-    if (!gl.getShaderParameter(o, gl.COMPILE_STATUS)) console.error(label + " shader failed to compile:\n" + gl.getShaderInfoLog(o));
-    return o;
-  };
-  let linkFailed = false;
-  const build = (vs, fs, label) => {
-    const p = gl.createProgram();
-    gl.attachShader(p, sh(gl.VERTEX_SHADER, vs, label));
-    gl.attachShader(p, sh(gl.FRAGMENT_SHADER, fs, label));
-    gl.bindAttribLocation(p, 0, "a");
-    gl.linkProgram(p);
-    if (!gl.getProgramParameter(p, gl.LINK_STATUS)) {
-      linkFailed = true;
-      console.error(label + " program failed to link:\n" + gl.getProgramInfoLog(p));
-    }
-    return p;
-  };
-  const prog = build(SEA_VS, src, "sea");
-  gl.useProgram(prog);
-  const buf = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
-  gl.enableVertexAttribArray(0);
-  gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
-  const U = n => gl.getUniformLocation(prog, n);
-  const u = {
-    res: U("uRes"), time: U("uTime"), px: U("uPx"), rip: U("uRip[0]"),
-    deep: U("cDeep"), shal: U("cShal"), foam: U("cFoam"), sky: U("cSky"), sky2: U("cSky2"),
-    sun: U("uSun"), key: U("uKey"), sunCol: U("uSunCol"), haze: U("uHaze"), zoom: U("uZoom"), tune: U("uTune"),
-    cloudB: U("uCloudB"), cloudA: U("uCloudA"), amt: U("uAmt"), amt2: U("uAmt2"),
-    moonDir: U("uMoonDir"), moon: U("uMoon"),
-    fx: U("uFx"), raw: U("uRaw"), waveIntensity: U("uWaveIntensity"),
-    eye: U("uEye"), view: U("uView"), lens: U("uLens"),
-  };
-  gl.uniform1f(u.raw, 0);
+  const captureUniforms = {};
+  const captureMaterial = material(`
+    varying vec3 vSkyDirection;
+    void main(){
+      vSkyDirection = position;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }`, SEA_FS, captureUniforms, { SEA_CAPTURE: 1, FW: "fwidth" });
+  captureMaterial.side = BackSide;
+  const skyBox = new Mesh(new BoxGeometry(2, 2, 2), captureMaterial);
+  const captureScene = new Scene();
+  captureScene.add(skyBox);
 
-  /* ------------------------------------------------------------ post pass */
-  /* Programs first, so a broken composite (most likely: finish() growing a
-     dependency that lives outside SEA_FINISH_GLSL) just turns bloom off and
-     leaves the single-pass frame intact instead of blanking the site. */
-  linkFailed = false;
-  const pBright = build(POST_VS, BRIGHT_FS, "bloom bright");
-  const pDown = build(POST_VS, DOWN_FS, "bloom downsample");
-  const pBlur = build(POST_VS, BLUR_FS, "bloom blur");
-  const pComp = build(POST_VS, COMPOSITE_FS, "bloom composite");
-  let bloomOk = !linkFailed;
-  const pu = p => ({ tex: gl.getUniformLocation(p, "uTex"), step: gl.getUniformLocation(p, "uStep") });
-  const uBright = { ...pu(pBright), thresh: gl.getUniformLocation(pBright, "uThresh") };
-  const uDown = pu(pDown), uBlur = pu(pBlur);
-  const uComp = {
-    scene: gl.getUniformLocation(pComp, "uScene"), b: BLOOM_MIX.map((_, i) => gl.getUniformLocation(pComp, "uB" + i)),
-    strength: gl.getUniformLocation(pComp, "uStrength"), finish: gl.getUniformLocation(pComp, "uFinish"),
-    time: gl.getUniformLocation(pComp, "uTime"), fx: gl.getUniformLocation(pComp, "uFx"),
-  };
-  if (bloomOk) {
-    gl.useProgram(pBright); gl.uniform1i(uBright.tex, 0);
-    gl.useProgram(pDown); gl.uniform1i(uDown.tex, 0);
-    gl.useProgram(pBlur); gl.uniform1i(uBlur.tex, 0);
-    gl.useProgram(pComp);
-    gl.uniform1i(uComp.scene, 0);
-    uComp.b.forEach((loc, i) => gl.uniform1i(loc, i + 1));
-    gl.useProgram(prog);
-  }
-
-  /* float colour buffer if we can get one; RGBA8 is a working fallback where
-     the scene has to tonemap itself first (uRaw = 0) and bloom runs on 0..1. */
-  const pickFormat = () => {
-    if (gl2) {
-      if (gl.getExtension("EXT_color_buffer_float") || gl.getExtension("EXT_color_buffer_half_float"))
-        return { internal: gl.RGBA16F, type: gl.HALF_FLOAT, filter: gl.LINEAR, hdr: true, name: "webgl2 RGBA16F" };
-    } else {
-      const hf = gl.getExtension("OES_texture_half_float");
-      if (hf && gl.getExtension("EXT_color_buffer_half_float"))
-        return {
-          internal: gl.RGBA, type: hf.HALF_FLOAT_OES, hdr: true, name: "webgl1 half float",
-          filter: gl.getExtension("OES_texture_half_float_linear") ? gl.LINEAR : gl.NEAREST,
-        };
-    }
-    return { internal: gl.RGBA, type: gl.UNSIGNED_BYTE, filter: gl.LINEAR, hdr: false, name: "RGBA8" };
-  };
-  let fmt = bloomOk ? pickFormat() : null;
-  const targets = [];               /* [scene, l0a, l0b, l1a, l1b, ...] */
-  const makeTarget = (w, h) => {
-    const tex = gl.createTexture();
-    gl.bindTexture(gl.TEXTURE_2D, tex);
-    gl.texImage2D(gl.TEXTURE_2D, 0, fmt.internal, w, h, 0, gl.RGBA, fmt.type, null);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, fmt.filter);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, fmt.filter);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    const fbo = gl.createFramebuffer();
-    gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
-    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
-    const ok = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-    return { tex, fbo, w, h, ok };
-  };
-  const dropTargets = () => {
-    for (const t of targets) { gl.deleteTexture(t.tex); gl.deleteFramebuffer(t.fbo); }
-    targets.length = 0;
-  };
+  /* Same authored bloom passes and weights; Three owns target/program state. */
+  const postUniforms = () => ({ uTex: uniform(null), uStep: uniform([0, 0]) });
+  const pBright = material(POST_VS, BRIGHT_FS, { ...postUniforms(), uThresh: uniform([0, 0, 0]) });
+  const pDown = material(POST_VS, DOWN_FS, postUniforms());
+  const pBlur = material(POST_VS, BLUR_FS, postUniforms());
+  const pComp = material(POST_VS, COMPOSITE_FS, {
+    uScene: uniform(null), uStrength: uniform(0), uFinish: uniform(0), uTime: uniform(0), uFx: uniform(null),
+    ...Object.fromEntries(BLOOM_MIX.map((_, i) => ["uB" + i, uniform(null)])),
+  });
+  const targets = [];
+  const dropTargets = () => { for (const t of targets) t.dispose(); targets.length = 0; };
   const allocTargets = () => {
     dropTargets();
-    if (!bloomOk) return;
+    const makeTarget = (w, h) => new WebGLRenderTarget(w, h, {
+      type: hdr ? HalfFloatType : UnsignedByteType, depthBuffer: false, stencilBuffer: false,
+    });
     targets.push(makeTarget(W, H));
     for (let i = 0; i < BLOOM_LEVELS; i++) {
       const w = Math.max(1, W >> (i + 1)), h = Math.max(1, H >> (i + 1));
       targets.push(makeTarget(w, h), makeTarget(w, h));
     }
-    if (targets.every(t => t.ok)) return;
-    /* a float attachment the driver would not render to: retry once at RGBA8 */
-    if (fmt.hdr) {
-      console.error("sea bloom: " + fmt.name + " target incomplete, falling back to RGBA8");
-      fmt = { internal: gl.RGBA, type: gl.UNSIGNED_BYTE, filter: gl.LINEAR, hdr: false, name: "RGBA8" };
-      allocTargets();
-      return;
-    }
-    console.error("sea bloom: no renderable colour buffer, bloom disabled");
-    dropTargets();
-    bloomOk = false;
   };
   const level = i => targets[1 + i * 2];
   const scratch = i => targets[2 + i * 2];
-  const pass = (target, program) => {
-    gl.bindFramebuffer(gl.FRAMEBUFFER, target ? target.fbo : null);
-    gl.viewport(0, 0, target ? target.w : W, target ? target.h : H);
-    gl.useProgram(program);
-    gl.drawArrays(gl.TRIANGLES, 0, 3);
+  const filterPass = (mat, source, target, step) => {
+    mat.uniforms.uTex.value = source.texture;
+    mat.uniforms.uStep.value = step;
+    pass(target, mat);
   };
-  const bindTex = (unit, t) => { gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, t ? t.tex : null); };
-  /* bright + downsample + separable blur, all at reduced resolution */
-  const bloomChain = (threshold) => {
-    gl.useProgram(pBright);
-    gl.uniform3f(uBright.thresh, threshold, threshold * BLOOM_KNEE, BLOOM_SAT);
-    gl.uniform2f(uBright.step, 1 / targets[0].w, 1 / targets[0].h);
-    bindTex(0, targets[0]);
-    pass(level(0), pBright);
+  const bloomChain = threshold => {
+    pBright.uniforms.uThresh.value = [threshold, threshold * BLOOM_KNEE, BLOOM_SAT];
+    filterPass(pBright, targets[0], level(0), [1 / W, 1 / H]);
     for (let i = 0; i < BLOOM_LEVELS; i++) {
       if (i > 0) {
-        const s = level(i - 1), d = level(i);
-        gl.useProgram(pDown);
-        gl.uniform2f(uDown.step, 1 / s.w, 1 / s.h);
-        bindTex(0, s);
-        pass(d, pDown);
+        const s = level(i - 1);
+        filterPass(pDown, s, level(i), [1 / s.width, 1 / s.height]);
       }
       const a = level(i), b = scratch(i);
-      gl.useProgram(pBlur);
-      gl.uniform2f(uBlur.step, 1 / a.w, 0);
-      bindTex(0, a); pass(b, pBlur);
-      gl.uniform2f(uBlur.step, 0, 1 / a.h);
-      bindTex(0, b); pass(a, pBlur);
+      filterPass(pBlur, a, b, [1 / a.width, 0]);
+      filterPass(pBlur, b, a, [0, 1 / a.height]);
     }
   };
 
@@ -1007,9 +970,10 @@ export function Sea(canvas) {
     amt: cur.subarray(34, 38), amt2: cur.subarray(38, 42),
   };
   const celestial = new Float32Array(7);
-  let hasCelestial = false;
+  let hasCelestial = false, celestialMs = null;
   const updateCelestial = d => {
     const c = celestialForDate(d);
+    celestialMs = d.getTime();
     celestial.set(c.sun, 0); celestial.set(c.moon, 3); celestial[6] = c.moonVisibility;
     hasCelestial = true; dirty = true;
   };
@@ -1026,20 +990,9 @@ export function Sea(canvas) {
   const upload = () => {
     applyCelestial();
     renorm(15); renorm(18); renorm(46);
-    gl.uniform3fv(u.deep, V.deep); gl.uniform3fv(u.shal, V.shal); gl.uniform3fv(u.foam, V.foam);
-    gl.uniform3fv(u.sky, V.sky); gl.uniform3fv(u.sky2, V.sky2);
-    gl.uniform3fv(u.sun, V.sun); gl.uniform3fv(u.key, V.key);
-    gl.uniform3fv(u.sunCol, V.sunCol); gl.uniform3fv(u.haze, V.haze);
-    gl.uniform1f(u.zoom, zoom);
-    gl.uniform1f(u.waveIntensity, waveIntensity);
-    gl.uniform3fv(u.eye, eye);
-    gl.uniformMatrix3fv(u.view, false, view);
-    gl.uniform2fv(u.lens, lens);
-    gl.uniform4fv(u.tune, tune);
-    gl.uniform3fv(u.cloudB, V.cloudB);
-    gl.uniform4fv(u.cloudA, V.cloudA); gl.uniform4fv(u.amt, V.amt); gl.uniform4fv(u.amt2, V.amt2);
-    gl.uniform3fv(u.moonDir, cur.subarray(46, 49)); gl.uniform1f(u.moon, cur[49]);
-    gl.uniform4fv(u.fx, fxv);
+    uniforms.uZoom.value = zoom;
+    uniforms.uWaveIntensity.value = waveIntensity;
+    uniforms.uMoon.value = cur[49];
   };
 
   const DUR = 2.0;                 /* seconds for a full weather change */
@@ -1052,8 +1005,29 @@ export function Sea(canvas) {
   const eye = new Float32Array([0, 2.5, 0]);
   const view = new Float32Array([1, 0, 0, 0, 1, 0, 0, 0, 1]);
   const lens = new Float32Array([1, -0.115]);
+  for (const [name, value] of Object.entries({
+    cDeep: V.deep, cShal: V.shal, cFoam: V.foam, cSky: V.sky, cSky2: V.sky2,
+    uSun: V.sun, uKey: V.key, uSunCol: V.sunCol, uHaze: V.haze,
+    uCloudB: V.cloudB, uCloudA: V.cloudA, uAmt: V.amt, uAmt2: V.amt2,
+    uMoonDir: cur.subarray(46, 49), uMoon: cur[49], uFx: fxv,
+    uZoom: zoom, uWaveIntensity: waveIntensity, uEye: eye, uView: view, uLens: lens,
+    uTune: tune, uRip: rip, uTime: 0, uRes: [2, 2], uPx: 1, uRaw: 0,
+    uEnvironment: null, uHasEnvironment: false,
+  })) uniforms[name] = uniform(value);
+  Object.assign(captureUniforms, uniforms, {
+    uRes: uniform([800, 800]), uPx: uniform(1), uZoom: uniform(1),
+  });
 
   return {
+    dispose() {
+      if (disposed) return;
+      disposed = true;
+      dropTargets(); environment?.dispose(); pmrem?.dispose();
+      geometry.dispose(); skyBox.geometry.dispose();
+      for (const mat of [seaMaterial, captureMaterial, pBright, pDown, pBlur, pComp]) mat.dispose();
+      renderer.dispose();
+    },
+    reflectionStats() { return { ...cache.stats(), captureMs, filtered: !!pmrem }; },
     ripple(x, z, s, now) { rip.set([x, z, now, s], slot * 4); slot = (slot + 1) % 6; },
     screenToWorld(cx, cy) {
       return waterIntersection(cx, cy, canvas.clientWidth, canvas.clientHeight, eye, view, lens, zoom);
@@ -1069,7 +1043,7 @@ export function Sea(canvas) {
     },
     setWeather(name) {
       if (!PACK[name] || name === cw) return;
-      cw = name; to.set(PACK[name]);
+      cw = name; to.set(PACK[name]); cache.invalidate();
       if (live) { from.set(cur); mixT = 0; } else { cur.set(to); mixT = 1; }
       dirty = true;
     },
@@ -1095,7 +1069,12 @@ export function Sea(canvas) {
       dirty = true;
     },
     tuning() { return [...tune]; },
-    setFx(values) { fxv.set(Array.from(values).slice(0, 4).map(v => (v ? 1 : 0))); dirty = true; },
+    setFx(values) {
+      const sky = fxv[0];
+      fxv.set(Array.from(values).slice(0, 4).map(v => (v ? 1 : 0)));
+      if (sky !== fxv[0]) cache.invalidate();
+      dirty = true;
+    },
     fx() { return [...fxv]; },
     palette() { return paletteOf(cw); },
     /* same shape as palette(), but light/ambient follow the cross-fade so a
@@ -1106,19 +1085,15 @@ export function Sea(canvas) {
       return { label: p.label, css: p.css, light: [cur[42], cur[43], cur[44]], ambient: cur[45] };
     },
     render(now) {
-      const dpr = Math.min(devicePixelRatio || 1, 1.5);
+      if (disposed) return;
+      const dpr = Math.min(globalThis.devicePixelRatio || 1, 1.5);
       const w = Math.max(2, Math.round(canvas.clientWidth * dpr)), h = Math.max(2, Math.round(canvas.clientHeight * dpr));
-      gl.useProgram(prog);
-      gl.bindBuffer(gl.ARRAY_BUFFER, buf);
-      gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
       if (w !== W || h !== H) {
-        W = w; H = h; canvas.width = w; canvas.height = h; gl.viewport(0, 0, w, h);
-        gl.uniform2f(u.res, w, h);
-        gl.uniform1f(u.px, dpr);     /* lets the rain size itself in CSS px */
+        W = w; H = h; renderer.setSize(w, h, false);
+        uniforms.uRes.value = [w, h];
       }
-      /* the offscreen chain follows the canvas, and costs nothing until the
-         first frame that actually asks for bloom */
-      if (bloomOk && fxv[3] > 0.5 && (!targets.length || targets[0].w !== W || targets[0].h !== H)) allocTargets();
+      uniforms.uPx.value = dpr;
+      if (fxv[3] > 0.5 && (!targets.length || targets[0].width !== W || targets[0].height !== H)) allocTargets();
       const dt = last < 0 ? 0 : Math.min(0.25, Math.max(0, now - last));
       last = now;
       if (mixT < 1) {
@@ -1129,35 +1104,31 @@ export function Sea(canvas) {
       }
       if (dirty) { upload(); dirty = false; }
       live = true;
-      gl.uniform1f(u.time, now);
-      gl.uniform4fv(u.rip, rip);
-      const bloom = bloomOk && fxv[3] > 0.5 && targets.length > 0;
-      /* raw HDR only makes it out of the scene pass if there is somewhere with
-         the range to hold it; an RGBA8 target takes the finished frame instead */
-      const raw = bloom && fmt.hdr;
-      gl.uniform1f(u.raw, raw ? 1 : 0);
-      if (!bloom) {
-        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-        gl.viewport(0, 0, W, H);
-        gl.drawArrays(gl.TRIANGLES, 0, 3);
-        return;
+      uniforms.uTime.value = now;
+      if (pmrem && fxv[2] > 0.5 && cache.due(now, celestialMs)) {
+        const start = performance.now();
+        const next = pmrem.fromScene(captureScene, 0, 0.1, 10, { size: ENV_SIZE });
+        environment?.dispose();
+        environment = next;
+        uniforms.uEnvironment.value = environment.texture;
+        uniforms.uHasEnvironment.value = true;
+        cache.captured(now);
+        captureMs = performance.now() - start;
       }
-      pass(targets[0], prog);
-      /* the HDR numbers only apply when something is actually emitting HDR:
-         a tonemapped RGBA8 target, or the classic sky and water, stay in 0..1 */
+      const bloom = fxv[3] > 0.5 && targets.length > 0;
+      const raw = bloom && hdr;
+      uniforms.uRaw.value = raw ? 1 : 0;
+      pass(bloom ? targets[0] : null, seaMaterial);
+      if (!bloom) return;
       const wide = raw && (fxv[0] > 0.5 || fxv[2] > 0.5);
       bloomChain(wide ? BLOOM_THRESHOLD : BLOOM_THRESHOLD_LDR);
-      gl.useProgram(pComp);
-      gl.uniform1f(uComp.strength, wide ? BLOOM_STRENGTH : BLOOM_STRENGTH_LDR);
-      gl.uniform1f(uComp.finish, raw ? 1 : 0);
-      gl.uniform1f(uComp.time, now);
-      gl.uniform4fv(uComp.fx, fxv);
-      bindTex(0, targets[0]);
-      for (let i = 0; i < BLOOM_LEVELS; i++) bindTex(i + 1, level(i));
+      pComp.uniforms.uStrength.value = wide ? BLOOM_STRENGTH : BLOOM_STRENGTH_LDR;
+      pComp.uniforms.uFinish.value = raw ? 1 : 0;
+      pComp.uniforms.uTime.value = now;
+      pComp.uniforms.uFx.value = fxv;
+      pComp.uniforms.uScene.value = targets[0].texture;
+      for (let i = 0; i < BLOOM_LEVELS; i++) pComp.uniforms["uB" + i].value = level(i).texture;
       pass(null, pComp);
-      /* leave no chain texture bound, or next frame's scene pass draws into a
-         target that is still on a texture unit and drivers cry feedback loop */
-      for (let i = BLOOM_LEVELS; i >= 0; i--) bindTex(i, null);
     },
   };
 }

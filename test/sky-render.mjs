@@ -6,6 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import http from "node:http";
 import { spawn } from "node:child_process";
+import { build } from "esbuild";
 
 if (process.env.RUN_WEBGL_TESTS !== "1") {
   console.log("Skipping browser/GPU checks. Explicit opt-in: npm run test:sky");
@@ -13,7 +14,7 @@ if (process.env.RUN_WEBGL_TESTS !== "1") {
 }
 
 async function checkSky() {
-  const { Sea, WEATHERS, SEA_FS, SEA_VS } = await import("/sea.js");
+  const { Sea, WEATHERS, SEA_FS, SEA_VS, WebGLRenderer, ShaderMaterial, BufferGeometry, Float32BufferAttribute, Mesh, Camera } = await import("/sea.js");
   const check = (ok, message) => { if (!ok) throw new Error(message); };
   const errors = [];
   console.error = (...args) => errors.push(args.join(" "));
@@ -25,17 +26,16 @@ async function checkSky() {
   if (fallback) {
     HTMLCanvasElement.prototype.getContext = function(type, attrs) {
       if (type === "webgl2") return null;
-      const gl = context.call(this, type, attrs);
-      if (gl && type === "webgl") {
-        const extension = gl.getExtension.bind(gl);
-        gl.getExtension = name => /standard_derivatives|float/.test(name) ? null : extension(name);
-      }
-      return gl;
+      return context.call(this, type, attrs);
     };
   }
   const sea = Sea(canvas);
-  check(sea, "WebGL must be available");
-  const gl = canvas.getContext("webgl") || canvas.getContext("webgl2");
+  if (fallback) {
+    check(sea === null, "WebGL2 unavailable must return null without a WebGL1 fallback");
+    return { fallback: true };
+  }
+  check(sea, "WebGL2 must be available");
+  const gl = canvas.getContext("webgl2");
   const pixels = () => {
     const data = new Uint8Array(canvas.width*canvas.height*4);
     gl.readPixels(0, 0, canvas.width, canvas.height, gl.RGBA, gl.UNSIGNED_BYTE, data);
@@ -80,34 +80,43 @@ async function checkSky() {
   const pixelsWithRipple = pixels();
   check(calm.some((v, i) => v !== pixelsWithRipple[i]), "cast ripples must survive calm water");
 
-  function compile(type, source) {
-    const shader = gl.createShader(type);
-    gl.shaderSource(shader, source); gl.compileShader(shader);
-    check(gl.getShaderParameter(shader, gl.COMPILE_STATUS), gl.getShaderInfoLog(shader));
-    return shader;
-  }
-  // Isolate the actual shader functions, without clouds/bloom, for pixel checks.
+  const reflectionStats = sea.reflectionStats();
+  check(reflectionStats.captures > 0, "official PMREM must have captured the authored sky");
+  sea.dispose();
+  // Same authored functions through Three's GLSL3 path, isolated from clouds
+  // and bloom. No raw WebGL shader programs or stale WebGL1 derivative paths.
+  const renderer = new WebGLRenderer({ canvas, context: gl, antialias: false });
+  renderer.setSize(canvas.width, canvas.height, false);
+  const geometry = new BufferGeometry();
+  geometry.setAttribute("a", new Float32BufferAttribute([-1, -1, 3, -1, -1, 3], 2));
+  geometry.setDrawRange(0, 3);
+  const mesh = new Mesh(geometry);
+  mesh.frustumCulled = false;
+  const camera = new Camera();
+  const probes = [];
   function probe(body) {
-    const program = gl.createProgram();
-    gl.attachShader(program, compile(gl.VERTEX_SHADER, SEA_VS));
-    gl.attachShader(program, compile(gl.FRAGMENT_SHADER, "#define FW(x) 0.018\n" + SEA_FS.slice(0, SEA_FS.lastIndexOf("void main(){")) + `
+    const material = new ShaderMaterial({
+      vertexShader: SEA_VS,
+      fragmentShader: SEA_FS.slice(0, SEA_FS.lastIndexOf("void main(){")) + `
 void main(){
   vec2 sp = (gl_FragCoord.xy - 0.5*uRes)/uRes.y;
   ${body}
-}`));
-    gl.bindAttribLocation(program, 0, "a"); gl.linkProgram(program);
-    check(gl.getProgramParameter(program, gl.LINK_STATUS), gl.getProgramInfoLog(program));
-    gl.useProgram(program);
-    gl.uniform2f(gl.getUniformLocation(program, "uRes"), canvas.width, canvas.height);
-    gl.uniform1f(gl.getUniformLocation(program, "uPx"), Math.min(devicePixelRatio, 1.5));
-    gl.uniform1f(gl.getUniformLocation(program, "uZoom"), 1);
-    return program;
+}`,
+      depthTest: false, depthWrite: false, toneMapped: false,
+      uniforms: {
+        uRes: { value: [canvas.width, canvas.height] }, uPx: { value: Math.min(devicePixelRatio, 1.5) },
+        uZoom: { value: 1 }, uTime: { value: 0 }, uMoonDir: { value: [0, 0, -1] },
+      },
+    });
+    probes.push(material);
+    mesh.material = material;
+    return material;
   }
   const program = probe("gl_FragColor = vec4(vec3(starfield(sp, uTime)/3.0), 1.0);");
   const frames = [];
   for (const time of [0, 2, 5, 9]) {
-    gl.uniform1f(gl.getUniformLocation(program, "uTime"), time);
-    gl.drawArrays(gl.TRIANGLES, 0, 3); frames.push(pixels());
+    program.uniforms.uTime.value = time;
+    renderer.render(mesh, camera); frames.push(pixels());
   }
   let brightPixels = 0, changed = 0;
   for (let i = 0; i < frames[0].length; i += 4) {
@@ -135,8 +144,7 @@ void main(){
     float surface = disc > 0.0 ? moonSurface(dv).r : 0.0;
     gl_FragColor = vec4(disc, surface*disc/2.0, sunBody(dv), 1.0);
   `);
-  gl.uniform3f(gl.getUniformLocation(moonProbe, "uMoonDir"), 0, 0, -1);
-  gl.drawArrays(gl.TRIANGLES, 0, 3);
+  renderer.render(mesh, camera);
   const bodies = pixels(), shades = [];
   let moonPixels = 0, sunPixels = 0;
   for (let i = 0; i < bodies.length; i += 4) {
@@ -148,12 +156,18 @@ void main(){
   check(sunPixels > moonPixels*0.7 && sunPixels <= moonPixels, "sun must be a small disc, not spokes");
   check(Math.max(...shades) - Math.min(...shades) > 60, "moon needs a shaded terminator, not a flat dot");
   check(errors.length === 0, errors.join("\n"));
-  return { scenes, fallback, dpr: devicePixelRatio, brightPixels, longestStarRun: longest, moonPixels, timeDelta: delta };
+  for (const material of probes) material.dispose();
+  geometry.dispose(); renderer.dispose();
+  return { scenes, fallback, dpr: devicePixelRatio, brightPixels, longestStarRun: longest, moonPixels, timeDelta: delta, reflectionStats };
 }
 
 // Keep the browser fixture in this file, so the check is independently runnable.
 const browserCheck = checkSky.toString();
 const source = fs.readFileSync(new URL("../src/sea.js", import.meta.url), "utf8");
+const bundle = await build({
+  stdin: { contents: source + "\nexport { SEA_FS, SEA_VS, WebGLRenderer, ShaderMaterial, BufferGeometry, Float32BufferAttribute, Mesh, Camera };", resolveDir: process.cwd(), loader: "js" },
+  bundle: true, write: false, format: "esm", platform: "browser",
+});
 let report;
 const server = http.createServer((req, res) => {
   if (req.url === "/result") {
@@ -162,7 +176,7 @@ const server = http.createServer((req, res) => {
     req.on("end", () => { res.end("ok"); report(data); });
   } else if (req.url === "/sea.js") {
     res.setHeader("Content-Type", "text/javascript");
-    res.end(source + "\nexport { SEA_FS, SEA_VS };\n");
+    res.end(bundle.outputFiles[0].text);
   } else if (req.url.startsWith("/capture/")) {
     let data = "";
     req.on("data", chunk => data += chunk);

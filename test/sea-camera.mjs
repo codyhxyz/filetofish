@@ -1,9 +1,8 @@
 import assert from "node:assert/strict";
-import fs from "node:fs";
+import { loadSea } from "./helpers/sea-module.mjs";
 import { PerspectiveCamera, Raycaster, Vector2, Plane, Vector3 } from "three";
 
-const source = fs.readFileSync(new URL("../src/sea.js", import.meta.url), "utf8");
-const { waterIntersection } = await import(`data:text/javascript;base64,${Buffer.from(source).toString("base64")}`);
+const { waterIntersection } = await loadSea();
 const identity = [1, 0, 0, 0, 1, 0, 0, 0, 1];
 assert.deepEqual(waterIntersection(400, 250, 800, 500, [0, 2.5, 0], identity, [1, -.115]), [0, -2.5 / .115]);
 assert.equal(waterIntersection(400, 0, 800, 500, [0, 2.5, 0], identity, [1, -.115]), null);

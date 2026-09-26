@@ -13,7 +13,8 @@ assert.match(source, /float twinkle = 0\.94 \+ 0\.06\*sin/, "twinkle must keep a
 assert.match(source, /float radius = mix\(0\.55, 0\.85, bright\)\*uPx\*px;/, "stars must use tiny pixel-sized cores");
 assert.match(source, /waveIntensity = clamp\(value, 0, 2\)/, "wave intensity must stay bounded");
 assert.match(source, /a\.set\(nrm\(moon\), 46\); a\[49\] = moon\[3\];/, "moon direction and visibility must be packed");
-assert.match(source, /gl\.uniform3fv\(u\.moonDir, cur\.subarray\(46, 49\)\); gl\.uniform1f\(u\.moon, cur\[49\]\);/, "packed moon state must reach the shader");
+assert.match(source, /uMoonDir: cur\.subarray\(46, 49\), uMoon: cur\[49\]/, "packed moon state must reach the shader");
+assert.match(source, /uniforms\.uMoon\.value = cur\[49\]/, "moon visibility must update during fades and scrubs");
 
 const night = /night:\s*\{([\s\S]*?)\n  \},/.exec(source)?.[1] || "";
 const values = name => (new RegExp(`${name}: \\[([^\\]]+)\\]`).exec(night)?.[1] || "").split(",").map(Number);
