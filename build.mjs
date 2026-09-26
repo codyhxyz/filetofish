@@ -40,6 +40,7 @@ async function page(entry, shell, injections = {}) {
   const out = await esbuild.build({
     entryPoints: [entry],
     bundle: true, minify: true, format: "iife", target: "es2020",
+    loader: { ".html": "text" },
     write: false, legalComments: "none",
   });
   const js = asciiJs(out.outputFiles[0].text.replace(/<\/script/gi, "<\\/script"));
@@ -167,7 +168,7 @@ ${rw.doc.replace(/<title>[\s\S]*?<\/title>\s*/i, "")}
 </html>`);
 
 // 6) the ocean mockup -- the file-viewer prototype, deployed at /ocean
-const oc = await page("src/ocean.js", "src/ocean.html");
+const oc = await page("src/ocean-entry.js", "src/ocean.html");
 const ocTitle = (oc.doc.match(/<title>([\s\S]*?)<\/title>/i) || [, "ocean"])[1];
 fs.mkdirSync("dist/ocean", {recursive: true});
 fs.writeFileSync("dist/ocean/index.html", `<!doctype html>

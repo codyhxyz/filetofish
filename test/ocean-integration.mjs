@@ -97,6 +97,10 @@ assert.equal(ocean.perspective, "third");
 assert.deepEqual(snapshot(), before, "view preserves position and heading");
 tick();
 assert.equal(ocean.player.rod.visible, true);
+ocean.cam.pitch = ocean.cam.pitchT = 1.22;
+tick(20);
+assert.equal(frameData.underwater, false, "looking up in third person cannot submerge the camera from the dock");
+ocean.cam.pitch = ocean.cam.pitchT = before.at(-1);
 ocean.toggleView();
 assert.deepEqual(snapshot(), before);
 
@@ -115,6 +119,11 @@ key("v", { composedPath: () => [{ tagName: "BUTTON" }, root, host] }); release("
 assert.equal(ocean.perspective, "first", "composed UI path owns keys");
 key(" ", { composedPath: () => [{ isContentEditable: true }, root] }); release(" ");
 assert.equal(ocean.phase, "dock");
+let summaryPrevented = false;
+key(" ", { composedPath: () => [{ tagName: "SUMMARY" }, root],
+  preventDefault: () => { summaryPrevented = true; } }); release(" ");
+assert.equal(ocean.phase, "dock", "Space on version history does not dive");
+assert.equal(summaryPrevented, false, "summary retains native keyboard activation");
 
 ocean.returnToDock();
 ocean.greetKelp();
@@ -130,6 +139,8 @@ release(" ");
 key(" ");
 assert.equal(ocean.phase, "jump", "Space dives from the back of the dock");
 assert.equal(ocean.perspective, "third");
+assert.equal(ocean.toggleView(), false, "view cannot interrupt dive");
+assert.equal(ocean.returnToDock(), false, "return cannot interrupt dive");
 tick(4);
 assert.equal(ocean.cam.pos.y, 1, "jump approaches edge on the deck before crossing");
 tick(35);
@@ -192,4 +203,7 @@ assert(win.ocean.world.files.length > 0);
 tick(30);
 assert.equal(standalone.phase, "ocean");
 assert(standalone.guide.root.position.y < 0, "standalone retains its underwater guide berth");
+doc.querySelector("#haul").hidden = false;
+key("Escape", { composedPath: () => [{ tagName: "BUTTON" }, doc] });
+assert.equal(doc.querySelector("#haul").hidden, true, "Escape closes standalone haul from focused controls");
 console.log("ocean integration: dock bounds, input ownership, blocking, Space edges, view, surface and renderer invariants passed");

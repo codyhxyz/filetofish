@@ -132,9 +132,13 @@ It scales ambient surface height, not cast ripples or rain impacts.
 This remains a surface-shading preview, not displaced or breaking-wave geometry.
 
 The fishing HUD groups track selection, mute, and volume together.
-Source and version share a compact bottom-left strip. Idle instructions are removed; catch status remains.
+Source and version share a compact strip below the title. Movement controls show short keyboard hints; catch status remains.
 Kelp accepts direct character clicks and taps on the dock, alongside the existing E/button greeting.
-The larger mode merger is proposed in `INTEGRATION.md`, not implemented.
+The fishing page embeds the ocean runtime for dock movement and diving.
+Space dives, V changes perspective, and Q returns to the dock.
+The same camera drives the sea projection and cast ripples above water.
+Depth controls low-pass filtering and reverb without restarting the soundtrack.
+Controls, input ownership, and remaining limits are in `INTEGRATION.md`.
 
 `npm test` runs lightweight checks. `npm run test:sky` explicitly starts browser/GPU checks and can consume substantial CPU.
 

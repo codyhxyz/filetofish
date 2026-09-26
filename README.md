@@ -10,7 +10,7 @@ Same file, same fish, every time.
 
 Nothing is uploaded — the first 64 KB is read in the browser, hashed, and thrown away. Back to the ocean. Like a fish.
 
-The `source` link in the bottom-left corner of the site points here. The whole thing
+The `source` link below the title points here. The whole thing
 is one self-contained HTML file, so view-source on the deployed page is also the
 whole program.
 
@@ -47,7 +47,10 @@ Five to start from:
 Why the light does what it does is in [DESIGN.md](DESIGN.md).
 
 The [water lab](https://filetofish.codyh.xyz/render-world/) has a wave-intensity slider and all seven weather choices.
-The dock/swimming merger is still a proposal: [INTEGRATION.md](INTEGRATION.md).
+Walk on the dock with **WASD**. Press **Space** to dive, **V** to change view, and **Q** to return.
+Walking cannot take you off the dock. Underwater sound gets softer and more reverberant as you descend.
+Touch controls provide a movement stick, drag-look, Dive, Return, and depth buttons.
+Controls and integration limits are in [INTEGRATION.md](INTEGRATION.md).
 
 `npm test` runs lightweight checks without a browser.
 `npm run test:sky` opts into browser/GPU checks, which can consume substantial CPU.
@@ -96,5 +99,5 @@ A landed fish is **not** logged. Three buttons decide, and you get exactly one:
 Making the dex a decision rather than a side effect is the whole point: giving a
 fish away has to cost something or sharing is just a copy button.
 
-Dropping a folder skips all of this — a haul is logged wholesale, so those two
-buttons hide and only sending is left.
+Dropping a folder logs the haul immediately. Keep and Release disappear.
+You can send the displayed fish or select **back to the water** without sharing it.

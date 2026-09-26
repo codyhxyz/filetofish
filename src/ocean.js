@@ -58,8 +58,8 @@ const TUNE = {
   snow: 2600,
 
   /* --- feel -------------------------------------------------------------- */
-  swimSpeed: 52,
-  boost: 3.4,
+  swimSpeed: embedded ? 10 : 52,
+  boost: embedded ? 2 : 3.4,
   wheelSpeed: 0.85,       // world units of dive per notch of wheel
   settle: 0.14,           // seconds of stillness after which the dial detents
   damp: 5.0,              // how fast the body catches up to the intent
@@ -1622,6 +1622,7 @@ function buildWorld(files, label) {
   if (embedded) {
     // Ambient demo only: keep the existing animals within a short swim of the pier.
     for (const f of files) { f.x *= 0.18; f.z = f.z * 0.18 - 45; f.y *= 0.25; }
+    DEPTH *= 0.25;
   }
 
   /* --- points: every file, always --------------------------------------- */
@@ -1837,7 +1838,7 @@ function setVertical(y) {
 }
 function ownsKeys(e) {
   return (e.composedPath?.() || [e.target]).some(el => el &&
-    (/^(INPUT|TEXTAREA|SELECT|BUTTON|A)$/.test(el.tagName) || el.isContentEditable));
+    (/^(INPUT|TEXTAREA|SELECT|BUTTON|A|SUMMARY)$/.test(el.tagName) || el.isContentEditable));
 }
 let dragPointer = null, lastX = 0, lastY = 0, moved = 0;
 /* where the wheel last moved, so the dial can find its notch once you let go */
@@ -1869,6 +1870,7 @@ function updateChaseCamera(dt, snap) {
     .addScaledVector(chaseForward, phase === "dock" ? -3.6 : -TUNE.chaseBack)
     .addScaledVector(chaseRight, phase === "dock" ? 0.45 : TUNE.chaseSide);
   chaseWant.y += phase === "dock" ? 1.7 : TUNE.chaseRise;
+  if (embedded && phase === "dock") chaseWant.y = Math.max(chaseWant.y, DOCK_Y + 0.3);
   if (embedded && phase === "ocean") chaseWant.y = Math.min(chaseWant.y, -0.6);
   if (snap) cam.eye.copy(chaseWant);
   else cam.eye.lerp(chaseWant, 1 - Math.exp(-dt * TUNE.chaseDamp));
@@ -1900,14 +1902,14 @@ function enterOceanAt(back, eye) {
   updateChaseCamera(0, true);
 }
 function toggleView() {
-  if (isBlocked()) { clearInput(); return false; }
+  if (phase === "jump" || isBlocked()) { clearInput(); return false; }
   perspective = perspective === "first" ? "third" : "first";
   player.root.visible = perspective === "third";
   updateChaseCamera(0, true);
   return true;
 }
 function returnToDock() {
-  if (isBlocked()) { clearInput(); return false; }
+  if (phase === "jump" || isBlocked()) { clearInput(); return false; }
   clearInput(); jump = null;
   stageDock();
   return true;
@@ -2051,6 +2053,7 @@ addEventListener("keydown", e => {
   const k = e.key.toLowerCase();
   const repeated = e.repeat || down.has(k);
   down.add(k);
+  if (!embedded && e.key === "Escape") { closeHaul(); return; }
   if (ownsKeys(e)) return;
   if (embedded) {
     if (options.isBlocked?.()) { clearInput(); return; }
@@ -2064,7 +2067,7 @@ addEventListener("keydown", e => {
     if (e.code === "Space" || /^Arrow/.test(e.code)) e.preventDefault();
     if (!repeated) {
       if (e.code === "Space") beginJump();
-      if (k === "q") returnToDock();
+      if (k === "q" && phase === "ocean") returnToDock();
       if (k === "v") toggleView();
       if (k === "e") greetKelp();
     }
@@ -2072,7 +2075,6 @@ addEventListener("keydown", e => {
     if (SWIM_KEYS.includes(k)) letGo();
     return;
   }
-  if (e.key === "Escape") { closeHaul(); return; }
   if (!$("#haul").hidden || !$("#confirm").hidden) return;
   if (e.code === "Space" || /^Arrow/.test(e.code)) e.preventDefault();
   if (talkMode && (e.code === "Space" || e.key === "Enter" || (phase === "dock" && k === "e"))) {

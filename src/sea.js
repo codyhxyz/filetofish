@@ -205,6 +205,9 @@ const SEA_FS = `
 precision highp float;
 uniform vec2 uRes; uniform float uTime; uniform float uPx; uniform float uZoom; uniform vec4 uRip[6]; uniform vec4 uTune;
 uniform float uWaveIntensity;
+uniform vec3 uEye;
+uniform mat3 uView;
+uniform vec2 uLens;
 uniform vec3 cDeep, cShal, cFoam, cSky, cSky2;
 uniform vec3 uSun, uKey, uSunCol, uHaze, uCloudB;
 uniform vec4 uCloudA;
@@ -526,8 +529,8 @@ ${SEA_FINISH_GLSL}
 void main(){
   vec2 uv = (gl_FragCoord.xy - 0.5*uRes)/uRes.y;
   vec2 rayUv = uv / max(uZoom, 0.5);
-  vec3 ro = vec3(0.0, 2.5, 0.0);
-  vec3 rd = normalize(vec3(rayUv.x, rayUv.y - 0.115, -1.0));
+  vec3 ro = uEye;
+  vec3 rd = normalize(uView * vec3(rayUv * uLens.x + vec2(0.0, uLens.y), -1.0));
   float t = uTime; vec3 col;
   /* JOIN: with the sky on, the whole frame is linear radiance until finish(),
      so the authored screen colours the water uses are pulled back through the
@@ -785,6 +788,19 @@ void main(){
   gl_FragColor = vec4(uFinish > 0.5 ? finish(c) : c, 1.0);
 }`;
 
+/* Same ray as the shader, including the moving world camera. */
+export function waterIntersection(cx, cy, width, height, eye, view, lens, zoom = 1) {
+  if (!(width > 0 && height > 0) || eye[1] <= 0) return null;
+  const x = (cx - width / 2) / height / zoom * lens[0];
+  const y = (height / 2 - cy) / height / zoom * lens[0] + lens[1];
+  const dx = view[0] * x + view[3] * y - view[6];
+  const dy = view[1] * x + view[4] * y - view[7];
+  const dz = view[2] * x + view[5] * y - view[8];
+  if (dy / Math.hypot(dx, dy, dz) > -0.004) return null;
+  const t = -eye[1] / dy;
+  return [eye[0] + dx * t, eye[2] + dz * t];
+}
+
 export function Sea(canvas) {
   const attrs = { antialias: false, alpha: false, depth: false, stencil: false };
   /* The context has two jobs: compile fwidth in a GLSL ES 1.00 shader (the foam
@@ -859,6 +875,7 @@ export function Sea(canvas) {
     cloudB: U("uCloudB"), cloudA: U("uCloudA"), amt: U("uAmt"), amt2: U("uAmt2"),
     moonDir: U("uMoonDir"), moon: U("uMoon"),
     fx: U("uFx"), raw: U("uRaw"), waveIntensity: U("uWaveIntensity"),
+    eye: U("uEye"), view: U("uView"), lens: U("uLens"),
   };
   gl.uniform1f(u.raw, 0);
 
@@ -1015,6 +1032,9 @@ export function Sea(canvas) {
     gl.uniform3fv(u.sunCol, V.sunCol); gl.uniform3fv(u.haze, V.haze);
     gl.uniform1f(u.zoom, zoom);
     gl.uniform1f(u.waveIntensity, waveIntensity);
+    gl.uniform3fv(u.eye, eye);
+    gl.uniformMatrix3fv(u.view, false, view);
+    gl.uniform2fv(u.lens, lens);
     gl.uniform4fv(u.tune, tune);
     gl.uniform3fv(u.cloudB, V.cloudB);
     gl.uniform4fv(u.cloudA, V.cloudA); gl.uniform4fv(u.amt, V.amt); gl.uniform4fv(u.amt2, V.amt2);
@@ -1029,16 +1049,23 @@ export function Sea(canvas) {
   let zoom = 1, waveIntensity = 1;
   const tune = new Float32Array(4);
   const fxv = new Float32Array([1, 1, 1, 1]);
+  const eye = new Float32Array([0, 2.5, 0]);
+  const view = new Float32Array([1, 0, 0, 0, 1, 0, 0, 0, 1]);
+  const lens = new Float32Array([1, -0.115]);
 
   return {
     ripple(x, z, s, now) { rip.set([x, z, now, s], slot * 4); slot = (slot + 1) % 6; },
     screenToWorld(cx, cy) {
-      const w = canvas.clientWidth, h = canvas.clientHeight;
-      const ux = (cx - w / 2) / h, uy = (h / 2 - cy) / h;
-      const dy = uy - 0.115, len = Math.hypot(ux, dy, 1), ry = dy / len;
-      if (ry > -0.004) return null;
-      const t = -2.5 / ry;
-      return [ux / len * t, -t / len];
+      return waterIntersection(cx, cy, canvas.clientWidth, canvas.clientHeight, eye, view, lens, zoom);
+    },
+    setCamera(camera) {
+      camera.updateMatrixWorld();
+      const m = camera.matrixWorld.elements;
+      eye.set([m[12], m[13], m[14]]);
+      view.set([m[0], m[1], m[2], m[4], m[5], m[6], m[8], m[9], m[10]]);
+      lens.set([2 * Math.tan(camera.fov * Math.PI / 360) / camera.zoom, 0]);
+      zoom = 1;
+      dirty = true;
     },
     setWeather(name) {
       if (!PACK[name] || name === cw) return;
