@@ -229,7 +229,7 @@ uniform vec4 uFx; uniform float uRaw;
 #define SPEC uAmt2.w
 /* WATER knobs. REFL_MAX caps how much of the sky the sea is allowed to become
    at grazing angles -- at 1.0 it is a mirror and stops being a sea. SPEC_GAIN
-   is the HDR gain on the sun/moon lobe: it is meant to clip white under the
+   is the HDR gain on the sun lobe: it is meant to clip white under the
    identity finish() and to bloom once the post pass lands. SSS_GAIN is the
    backlit crest glow. */
 #define REFL_MAX 0.80
@@ -581,7 +581,9 @@ void main(){
     col = mix(col, far, smoothstep(mix(18.0,5.0,FOG), mix(84.0,26.0,FOG), dist)
                         * mix(1.0, mix(0.40, 1.0, max(FOG, RAIN*0.60)), FX_WATER));
     float specPow = mix(46.0, 96.0, uTune.w);
-    vec3 shineDir = normalize(mix(uSun, uMoonDir, clamp(uMoon,0.0,1.0)));
+    /* The extra highlights belong to the visible sun, never an interpolated
+       point between sun and moon. Moonlight remains in skyBase's reflection. */
+    vec3 shineDir = uSun;
     /* half-vector slope: the facet tilt this pixel would need to mirror the
        sun. Small near the sun's azimuth, growing sideways -- that is the
        glitter path, narrow at the horizon and spreading toward the camera.
@@ -590,16 +592,11 @@ void main(){
     vec3 hv = normalize(shineDir - rd);
     float sl = length(hv.xz)/max(hv.y, 0.05);
     float pathW = exp(-sl*sl*2.4);
-    /* WATER: which body is doing the shining. The direction stays the existing
-       sun/moon mix; the colour only goes cold once the sun disc has gone, so a
-       dusk sea whose shine vector has already handed over to the risen moon
-       still burns orange the way the sky above it does. */
-    float moonW = clamp(uMoon,0.0,1.0)*(1.0 - DISC*0.85);
-    vec3 shineCol = mix(uSunColR, vec3(0.62,0.74,1.00), moonW);
-    float shineAmt = max(DISC, clamp(uMoon,0.0,1.0)*0.85)*smoothstep(-0.05, 0.12, shineDir.y);
+    vec3 shineCol = uSunColR;
+    float shineAmt = DISC*smoothstep(0.0, 0.12, uSun.y);
     col = mix(col, mix(vec3(1.0), uSunColR, 0.5),
               step(0.34, pow(max(dot(reflect(rd,n),shineDir),0.0),specPow))
-              *fade*0.85*SPEC*(1.0 - FX_WATER));
+              *fade*0.85*SPEC*shineAmt*(1.0 - FX_WATER));
     if (FX_WATER > 0.5) {
       /* Sub-pixel chop is roughness, not geometry: flatten the normal with
          distance and hand the lost detail to the specular lobe's width. That
@@ -627,7 +624,7 @@ void main(){
       vec3 skyRefl = skyBase(normalize(vec3(rr.x, max(ry, 0.11), rr.z)), t);
       skyRefl = mix(skyRefl, uHazeR, 1.0 - smoothstep(0.0, mix(0.105, 0.40, FOG), ry));
       col = mix(col, skyRefl, fq);
-      /* --- the sun's and the moon's own reflection --------------------------
+      /* --- the sun's own reflection ---------------------------------------
          a normalised GGX lobe (peak 1 at any roughness) instead of a step:
          tight and sparkling underfoot, spread into a glare band at distance,
          which is what makes it read as a path rather than a highlight. The
@@ -656,14 +653,12 @@ void main(){
                      *(1.0 - fq*0.70)*SSS_GAIN);
     }
     if (GLIT > 0.001) {
-      float wash = exp(-sl*sl*4.6) + 0.32*exp(-sl*sl*0.85);
-      wash = mix(wash, floor(wash*5.0 + 0.5)*0.2, 0.45);
       vec3 fn = normalize(n + vec3(sin(p.x*6.3 + t*2.1), 0.0, cos(p.y*5.9 - t*1.7))*0.22);
       float spark = smoothstep(mix(0.9925,0.9970,uTune.w), mix(0.9948,0.9990,uTune.w),
-                               max(dot(reflect(rd,fn),shineDir),0.0))*fade;
-      /* WATER: the broad wash is the GGX lobe's job now, so under FX_WATER the
-         glitter keeps only its sparkle and sits inside the new path. */
-      float gm = clamp((wash*mix(0.52, 0.18, FX_WATER) + spark*mix(0.85, 1.10, FX_WATER))
+                               max(dot(reflect(rd,fn),shineDir),0.0))*fade*shineAmt;
+      /* Sparkles follow wave normals. No broad, quantized fan painted over
+         the water; its authored cel bands and foam remain untouched. */
+      float gm = clamp((spark*mix(0.85, 1.10, FX_WATER))
                        *(0.5 + 0.5*smoothstep(-0.40,0.50,h))*GLIT, 0.0, 1.0);
       col = mix(col, mix(min(uSunColR*1.30, vec3(1.0)), shineCol*1.35, FX_WATER), gm);
     }
