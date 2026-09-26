@@ -34,11 +34,11 @@ doc.body = body;
 const shadow = { querySelector: $ };
 $("#intro").hidden = true;
 const host = { attachShadow: () => shadow };
-const moves = [], looks = [], vertical = [], depths = [], cameras = [];
+const sprints = [], moves = [], looks = [], vertical = [], depths = [], cameras = [];
 let opts, blocked = false, dives = 0, returns = 0, views = 0, cleared = 0;
 const api = {
   beginJump: () => dives++, returnToDock: () => returns++, toggleView: () => views++,
-  setMove: (x, z) => moves.push([x, z]), setLook: (x, up) => looks.push([x, up]),
+  setMove: (x, z, fast) => { moves.push([x, z]); sprints.push(!!fast); }, setLook: (x, up) => looks.push([x, up]),
   setVertical: y => vertical.push(y),
   clearInput: () => cleared++,
 };
@@ -70,11 +70,18 @@ const stick = $("#move-stick");
 stick.emit("pointerdown", { clientX: 82, clientY: 18 });
 assert(Math.abs(Math.hypot(...moves.at(-1)) - 1) < 1e-10, "diagonal stick is normalized");
 assert(moves.at(-1)[0] > 0 && moves.at(-1)[1] > 0, "right/up gesture means right/forward");
+assert.equal(sprints.at(-1), false, "a normal tilt walks");
+stick.emit("pointermove", { clientX: 50, clientY: -30 });
+assert.equal(sprints.at(-1), true, "pushing past the rim sprints");
+assert(stick.classes.has("fast"));
+assert(Math.abs(Math.hypot(...moves.at(-1)) - 1) < 1e-10, "sprint keeps full tilt, not more");
 const count = moves.length;
 stick.emit("pointermove", { pointerId: 2, clientX: 0, clientY: 0 });
 assert.equal(moves.length, count, "second finger cannot steal the stick");
 stick.emit("pointercancel");
 assert.deepEqual(moves.at(-1), [0, 0]);
+assert.equal(sprints.at(-1), false, "letting go ends the sprint");
+assert(!stick.classes.has("fast"));
 assert.equal(stick.captures.size, 0, "cancellation releases capture without recursive reset");
 const look = $("#look-stick");
 look.emit("pointerdown", { pointerId: 3, clientX: 82, clientY: 50 });

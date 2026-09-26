@@ -1,4 +1,4 @@
-import { sfx, isOn, setOn, audio } from "./sfx.js";
+import { sfx, isOn, setOn, audio, unlockAudio } from "./sfx.js";
 import {
   TRACKS, initMusic, setMusicTrack, nextMusicTrack, getMusicTrack,
   syncMusicToTime, setMusicSoundOn, getMusicVolume, setMusicVolume, duckMusic
@@ -1422,10 +1422,16 @@ async function haul(files) {
   }
 }
 
-const unlock = () => { if (isOn()) startMusic(); };
-/* A suspended context gets another resume attempt on each real interaction. */
-addEventListener("pointerdown", unlock, { capture: true });
-addEventListener("keydown", unlock, { capture: true });
+const unlock = () => {
+  if (!isOn()) return;
+  unlockAudio();
+  startMusic();
+};
+/* A suspended context gets another resume attempt on each real interaction.
+   On a phone the finger's pointerdown is not a gesture; its pointerup is. */
+for (const type of ["pointerdown", "pointerup", "touchend", "click", "keydown"]) {
+  addEventListener(type, unlock, { capture: true, passive: true });
+}
 $("#cast").addEventListener("click", e => {
   if (catchPending() || readingFiles || exploration?.busy()) return;
   e.stopPropagation(); unlock();

@@ -65,6 +65,24 @@ export function audio() {
   return AC;
 }
 
+/* Called from inside a real gesture. Phones only count pointerup, touchend,
+   click and keydown as gestures -- pointerdown from a finger does not -- and
+   iOS routes Web Audio through the ringer, so the silent switch muted the
+   whole game. "playback" is the media category: it plays with the switch on. */
+export function unlockAudio() {
+  try { if (navigator.audioSession) navigator.audioSession.type = "playback"; } catch (e) { }
+  const c = audio();
+  if (!c || c.state === "running") return c;
+  /* WebKit wants a sound started inside the gesture, not just a resume */
+  try {
+    const src = c.createBufferSource();
+    src.buffer = c.createBuffer(1, 1, 22050);
+    src.connect(c.destination);
+    src.start(0);
+  } catch (e) { }
+  return c;
+}
+
 /* one oscillator: exponential pitch slide, percussive envelope */
 function bleep(c, t, type, f0, f1, dur, peak, dest) {
   if (peak <= 0.0002 || dur <= 0.005) return;

@@ -61,8 +61,8 @@ export function mountExploration(host, { sea, isBlocked, onDepth }) {
         view.textContent = frame.perspective === "first" ? "1st person · V" : "3rd person · V";
         view.setAttribute("aria-label", `Switch to ${frame.perspective === "first" ? "third" : "first"} person (V)`);
         $("#move-help").textContent = phase === "ocean"
-          ? "WASD swim · drag to look · ↑ ↓ depth"
-          : "WASD walk · drag to look";
+          ? "WASD swim · Shift sprint · drag to look · ↑ ↓ depth"
+          : "WASD walk · Shift sprint · drag to look";
       }
       status.textContent = underwater ? `${Math.round(frame.depth)} m deep` : "";
       if (blocked) { movePad.reset(); lookPad.reset(); }
@@ -81,17 +81,21 @@ export function mountExploration(host, { sea, isBlocked, onDepth }) {
       pointer = null;
       if (held !== null && el.hasPointerCapture(held)) el.releasePointerCapture(held);
       knobEl.style.transform = "";
-      onMove(0, 0);
+      el.classList.toggle("fast", false);
+      onMove(0, 0, false);
     };
     const move = e => {
       if (e.pointerId !== pointer) return;
       const r = el.getBoundingClientRect(), radius = r.width * 0.32;
       let x = (e.clientX - r.left - r.width / 2) / radius;
       let y = (e.clientY - r.top - r.height / 2) / radius;
-      const length = Math.hypot(x, y);
+      /* pushing past the rim is the sprint: the knob stops at the edge but the
+         thumb keeps going, the way it does on every console stick */
+      const length = Math.hypot(x, y), fast = length > SPRINT_REACH;
       if (length > 1) { x /= length; y /= length; }
       knobEl.style.transform = `translate(${x * radius}px,${y * radius}px)`;
-      onMove(x, -y);
+      el.classList.toggle("fast", fast);
+      onMove(x, -y, fast);
     };
     el.addEventListener("pointerdown", e => {
       if (el.disabled || pointer !== null || e.button !== 0) return;
@@ -106,7 +110,8 @@ export function mountExploration(host, { sea, isBlocked, onDepth }) {
     }
     return { reset: () => { if (pointer !== null) reset(); } };
   }
-  const movePad = thumbStick(stick, knob, (x, z) => api.setMove(x, z));
+  const SPRINT_REACH = 1.45;
+  const movePad = thumbStick(stick, knob, (x, z, fast) => api.setMove(x, z, fast));
   const lookPad = thumbStick(lookStick, lookKnob, (x, up) => api.setLook(x, up));
   for (const [button, direction] of [[up, 1], [down, -1]]) {
     let pointer = null;

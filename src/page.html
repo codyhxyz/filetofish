@@ -84,6 +84,9 @@ body.has-catch #rig{opacity:.22;}
   display:block;margin:auto;width:36px;height:36px;border-radius:50%;
   background:#E1EEF0;pointer-events:none;
 }
+#move-stick{transition:border-color .15s,box-shadow .15s;}
+#move-stick.fast{border-color:#FFC49A;box-shadow:0 0 0 3px rgba(255,196,154,.35),0 0 22px rgba(255,196,154,.4);}
+#move-stick.fast #move-knob{background:#FFD9A8;}
 #swim-depth{position:fixed;z-index:6;right:1.1rem;bottom:18rem;display:flex;flex-direction:column;gap:.5rem;}
 #swim-depth button{touch-action:none;}
 #swim-depth button[hidden]{display:none;}
@@ -617,6 +620,7 @@ body.hint-send #fish{opacity:.62; transform:translateX(14px);}
     right:calc(var(--edge) + var(--rod) + .9rem); bottom:calc(var(--floor) + var(--stick) + .8rem);
     flex-direction:row;
   }
+  #swim-depth button{font-family:var(--f-mono); font-size:.68rem; letter-spacing:.06em; min-width:3.6rem;}
 
   #tools{display:contents;}
   .music-control{display:none;}
@@ -671,7 +675,7 @@ body.hint-send #fish{opacity:.62; transform:translateX(14px);}
 </div>
 <div id="hit" title="pick a file"></div>
 <div id="explore-status"></div>
-<div id="move-help">WASD walk · drag to look</div>
+<div id="move-help">WASD walk · Shift sprint · drag to look</div>
 <div id="travel" role="group" aria-label="Explore the ocean">
   <button id="dive" type="button">Dive · Space</button>
   <button id="view" type="button">1st person · V</button>

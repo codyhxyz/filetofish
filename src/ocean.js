@@ -59,7 +59,12 @@ const TUNE = {
 
   /* --- feel -------------------------------------------------------------- */
   swimSpeed: embedded ? 10 : 52,
-  boost: embedded ? 2 : 3.4,
+  boost: embedded ? 2.6 : 3.4,
+  /* In the water the diver is drawn at this multiple of his dock size. At 1x
+     he is two units long -- smaller than a 1 MB fish -- and reads as a toy
+     among the files. Scaled, he outsizes the everyday small files and is still
+     dwarfed by anything past a few tens of MB, which is the honest ratio. */
+  diverScale: 2.2,
   wheelSpeed: 0.85,       // world units of dive per notch of wheel
   settle: 0.14,           // seconds of stillness after which the dial detents
   damp: 5.0,              // how fast the body catches up to the intent
@@ -1903,13 +1908,13 @@ const cam = {
 };
 const keys = new Set();
 const down = new Set(); // physical key edges survive clearInput until keyup
-let moveX = 0, moveZ = 0, vertical = 0, lookX = 0, lookUp = 0;
+let moveX = 0, moveZ = 0, vertical = 0, lookX = 0, lookUp = 0, sprint = false;
 function isBlocked() {
   return !!talkMode || !!options.isBlocked?.() || !$("#haul").hidden ||
     !$("#confirm").hidden || !$("#scan").hidden;
 }
 function clearInput() {
-  keys.clear(); moveX = moveZ = vertical = lookX = lookUp = 0;
+  keys.clear(); moveX = moveZ = vertical = lookX = lookUp = 0; sprint = false;
   cam.vel.set(0, 0, 0); cam.depthT = cam.pos.y;
   cam.yawT = cam.yaw; cam.pitchT = cam.pitch;
   glide = null; wheelAt = 0;
@@ -1918,10 +1923,11 @@ function clearInput() {
     dragPointer = null;
   }
 }
-function setMove(x, z) {
+function setMove(x, z, fast = false) {
   if (isBlocked()) { clearInput(); return; }
   moveX = Number.isFinite(x) ? clamp(x, -1, 1) : 0;
   moveZ = Number.isFinite(z) ? clamp(z, -1, 1) : 0;
+  sprint = !!fast && (moveX !== 0 || moveZ !== 0);
   letGo();
 }
 /* a held look stick turns the head at a rate, not by a distance like a drag */
@@ -1958,6 +1964,12 @@ const forwardOf = (yaw, pitch) => {
   return new Vector3(-Math.sin(yaw) * cp, Math.sin(pitch), -Math.cos(yaw) * cp);
 };
 const chaseWant = new Vector3(), chaseForward = new Vector3(), chaseRight = new Vector3();
+/* dock size on the dock, water size in the water, grown across the jump */
+function diverSize() {
+  if (phase === "ocean") return TUNE.diverScale;
+  if (phase !== "jump") return 1;
+  return lerp(1, TUNE.diverScale, clamp((DOCK_Y - cam.pos.y) / (DOCK_Y + 6.5), 0, 1));
+}
 function updateChaseCamera(dt, snap) {
   if (perspective === "first") {
     cam.eye.copy(cam.pos); cam.eye.y += 1.1;
@@ -1966,10 +1978,11 @@ function updateChaseCamera(dt, snap) {
   const cp = Math.cos(cam.pitch);
   chaseForward.set(-Math.sin(cam.yaw) * cp, Math.sin(cam.pitch), -Math.cos(cam.yaw) * cp);
   chaseRight.set(Math.cos(cam.yaw), 0, -Math.sin(cam.yaw));
+  const k = diverSize();
   chaseWant.copy(cam.pos)
-    .addScaledVector(chaseForward, phase === "dock" ? -3.6 : -TUNE.chaseBack)
-    .addScaledVector(chaseRight, phase === "dock" ? 0.45 : TUNE.chaseSide);
-  chaseWant.y += phase === "dock" ? 1.7 : TUNE.chaseRise;
+    .addScaledVector(chaseForward, phase === "dock" ? -3.6 : -TUNE.chaseBack * k)
+    .addScaledVector(chaseRight, phase === "dock" ? 0.45 : TUNE.chaseSide * k);
+  chaseWant.y += phase === "dock" ? 1.7 : TUNE.chaseRise * k;
   if (embedded && phase === "dock") chaseWant.y = Math.max(chaseWant.y, DOCK_Y + 0.3);
   if (embedded && phase === "ocean") chaseWant.y = Math.min(chaseWant.y, -0.6);
   if (snap) cam.eye.copy(chaseWant);
@@ -2747,7 +2760,7 @@ function frame(nowMs) {
   cam.yaw += (cam.yawT - cam.yaw) * kl;
   cam.pitch += (cam.pitchT - cam.pitch) * kl;
 
-  const boost = keys.has("shift") ? TUNE.boost : 1;
+  const boost = keys.has("shift") || sprint ? TUNE.boost : 1;
   let fx = 0, fz = 0, fy = 0;
   if (!blocked && phase !== "jump") {
     fx = moveX; fz = moveZ; fy = phase === "ocean" ? vertical : 0;
@@ -2833,6 +2846,7 @@ function frame(nowMs) {
      the transition from reading as a camera cut. */
   player.root.visible = perspective === "third" && (phase !== "ocean" || (!!world && (embedded || !held())));
   player.rod.visible = embedded && phase === "dock";
+  player.root.scale.setScalar(diverSize());
   if (player.root.visible) {
     if (phase === "dock") {
       const moving = clamp(cam.vel.length() / 2.8, 0, 1);
@@ -3164,5 +3178,6 @@ return {
   cam, camera, player, guide,
   get phase() { return phase; }, get perspective() { return perspective; },
   beginJump, returnToDock, toggleView, clearInput, setMove, setLook, setVertical, greetKelp,
+  get sprinting() { return sprint || keys.has("shift"); },
 };
 }
