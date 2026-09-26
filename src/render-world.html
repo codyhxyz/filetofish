@@ -45,15 +45,16 @@ h1{margin:0;font-size:clamp(1.5rem,3vw,2.25rem);font-weight:500;letter-spacing:-
   <section class="controls" aria-label="Water shader controls">
     <div class="control-copy">
       <h2>Candidate controls</h2>
-      <p>Tune the right pane. The left pane stays on the production surface. “Animate test” sweeps the candidate from soft to crisp and back.</p>
+      <p>Tune the right pane. The left pane stays on the production surface. Compare calm water with stronger swells. “Animate test” sweeps the candidate from soft to crisp and back.</p>
     </div>
     <div class="control-body">
       <div class="topline">
         <label for="weather">weather</label>
-        <select id="weather"><option value="day">clear day</option><option value="sunrise">sunrise</option><option value="dusk">dusk</option><option value="rain">rain</option></select>
+        <select id="weather"><option value="day">clear day</option><option value="dawn">dawn</option><option value="sunrise">sunrise</option><option value="dusk">dusk</option><option value="night">night</option><option value="fog">fog</option><option value="rain">rain</option></select>
         <div class="buttons"><button class="btn" id="reset" type="button">reset</button><button class="btn hero" id="animate" type="button">animate test</button></div>
       </div>
       <div class="sliders">
+        <div class="slider"><div class="slider-head"><label for="waves">wave intensity</label><span class="value" id="waves-v">100%</span></div><input id="waves" type="range" min="0" max="200" value="100"><span class="hint">calm to strong swells in the right pane</span></div>
         <div class="slider"><div class="slider-head"><label for="zoom">inspection zoom</label><span class="value" id="zoom-v">100%</span></div><input id="zoom" type="range" min="100" max="300" value="100"><span class="hint">magnifies the same water patch in both panes</span></div>
         <div class="slider"><div class="slider-head"><label for="crisp">normal sharpness</label><span class="value" id="crisp-v">0%</span></div><input id="crisp" type="range" min="0" max="100" value="72"><span class="hint">narrows the surface sampling for harder facets</span></div>
         <div class="slider"><div class="slider-head"><label for="detail">surface detail</label><span class="value" id="detail-v">68%</span></div><input id="detail" type="range" min="0" max="100" value="68"><span class="hint">adds small directional wave texture to the crests</span></div>

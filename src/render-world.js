@@ -7,6 +7,7 @@ const keys = ["crisp", "detail", "foam", "shine"];
 const inputs = keys.map(k => $("#" + k));
 const values = keys.map(k => $("#" + k + "-v"));
 const zoomInput = $("#zoom"), zoomValue = $("#zoom-v");
+const waveInput = $("#waves"), waveValue = $("#waves-v");
 const target = inputs.map(input => Number(input.value) / 100);
 let animation = 0;
 
@@ -25,6 +26,11 @@ inputs.forEach((input, i) => input.addEventListener("input", () => {
   paint(next);
 }));
 
+waveInput.addEventListener("input", () => {
+  after.setWaveIntensity(Number(waveInput.value) / 100);
+  waveValue.textContent = `${waveInput.value}%`;
+});
+
 zoomInput.addEventListener("input", () => {
   if (animation) cancelAnimationFrame(animation), animation = 0;
   const value = Number(zoomInput.value);
@@ -40,6 +46,9 @@ $("#reset").addEventListener("click", () => {
   zoomInput.value = 100;
   zoomValue.textContent = "100%";
   before.setZoom(1); after.setZoom(1);
+  waveInput.value = 100;
+  waveValue.textContent = "100%";
+  after.setWaveIntensity(1);
   $("#status").innerHTML = `candidate: <strong>0 / 0 / 0 / 0</strong> · zoom <strong>100%</strong>`;
   $("#animate").textContent = "animate test";
 });

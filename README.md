@@ -29,9 +29,9 @@ none of them touch the fish.
 | `?fx=<list>` | Picks which lighting passes render. Absent means all of them. |
 | `#f=...` | Not a knob — a whole fish, packed by the send button. [DESIGN.md](DESIGN.md) has the format. |
 
-`fx` has four switches: `sky` (scattering sky and tonemap), `rays` (crepuscular
-rays), `water` (Fresnel reflection and the sun path), `bloom` (glow). `?fx=none`,
-or `classic`, is the frame before all of it. A plain list turns on only what it
+`fx` has four switches: `sky` (scattering sky and tonemap), `rays` (soft atmospheric
+light), `water` (Fresnel reflection and the sun path), `bloom` (glow). `?fx=none`,
+or `classic`, uses the classic palette with the refined stars, sun, and moon. A plain list turns on only what it
 names — `?fx=sky,water`. A list where *every* entry is negated turns everything
 on except those — `?fx=-bloom`. Mixing the two forms drops the negated half
 without saying so.
@@ -39,12 +39,18 @@ without saying so.
 Five to start from:
 
 - [`?t=07:30`](https://filetofish.codyh.xyz/?t=07:30) — sunrise.
-- [`?wx=dusk&t=17:30`](https://filetofish.codyh.xyz/?wx=dusk&t=17:30) — sun on the horizon, rays.
-- [`?t=19:00`](https://filetofish.codyh.xyz/?t=19:00) — dusk, crescent moon.
+- [`?wx=dusk&t=17:30`](https://filetofish.codyh.xyz/?wx=dusk&t=17:30) — low sun, warm atmospheric light.
+- [`?t=19:00`](https://filetofish.codyh.xyz/?t=19:00) — dusk, rising moon.
 - [`?t=23:00`](https://filetofish.codyh.xyz/?t=23:00) — moonlit night.
-- [`?fx=none`](https://filetofish.codyh.xyz/?fx=none) — the frame before the lighting pass, for comparison.
+- [`?fx=none`](https://filetofish.codyh.xyz/?fx=none) — classic lighting, for comparison.
 
 Why the light does what it does is in [DESIGN.md](DESIGN.md).
+
+The [water lab](https://filetofish.codyh.xyz/render-world/) has a wave-intensity slider and all seven weather choices.
+The dock/swimming merger is still a proposal: [INTEGRATION.md](INTEGRATION.md).
+
+`npm test` runs lightweight checks without a browser.
+`npm run test:sky` opts into browser/GPU checks, which can consume substantial CPU.
 
 
 ## The fish are generated, not modelled
@@ -92,4 +98,3 @@ fish away has to cost something or sharing is just a copy button.
 
 Dropping a folder skips all of this — a haul is logged wholesale, so those two
 buttons hide and only sending is left.
-

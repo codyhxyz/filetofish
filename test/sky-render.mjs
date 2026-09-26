@@ -1,4 +1,4 @@
-/* Real WebGL regression check, no npm dependencies. Run: node test/sky-render.mjs
+/* Opt-in WebGL regression check: npm run test:sky (can use substantial CPU).
    CHROME may point to Chromium; SKY_ARTIFACTS optionally saves scene PNGs. */
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -6,6 +6,11 @@ import os from "node:os";
 import path from "node:path";
 import http from "node:http";
 import { spawn } from "node:child_process";
+
+if (process.env.RUN_WEBGL_TESTS !== "1") {
+  console.log("Skipping browser/GPU checks. Explicit opt-in: npm run test:sky");
+  process.exit(0);
+}
 
 async function checkSky() {
   const { Sea, WEATHERS, SEA_FS, SEA_VS } = await import("/sea.js");
