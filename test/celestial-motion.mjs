@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
-import { celestialForDate } from "../src/sea-weather.mjs";
+import fs from "node:fs";
+
+const source = fs.readFileSync(new URL("../src/sea.js", import.meta.url), "utf8");
+const { celestialForDate } = await import(`data:text/javascript;base64,${Buffer.from(source).toString("base64")}`);
 const at = (h, m = 0, s = 0) => celestialForDate(new Date(2024, 0, 1, h, m, s));
 const distance = (a, b) => Math.hypot(...a.map((v, i) => v - b[i]));
 
