@@ -28,6 +28,7 @@ class Element {
 }
 const root = new Element(), host = new Element(), doc = new Element(), win = new Element();
 root.host = host;
+doc.hidden = false;
 doc.body = new Element();
 doc.createElement = () => new Element();
 let renderers = 0, renderer, clock = 0, nextFrame, frameData, blocked = false;
@@ -147,6 +148,20 @@ tick(35);
 assert.equal(ocean.phase, "ocean");
 assert.equal(frameData.underwater, true);
 assert.equal(renderer.screenAlpha, 1);
+const jellyScene = renderer.scenes.find(scene => scene.getObjectByName("moon-jellies"));
+const jellies = jellyScene.getObjectByName("moon-jellies");
+assert.equal(jellies.count, 24, "ambient life has a fixed instancing budget");
+assert.equal(jellies.visible, true);
+assert([...jellies.geometry.attributes.position.array].every(Number.isFinite));
+assert([...jellies.instanceMatrix.array].every(Number.isFinite));
+const jellyClock = jellies.material.uniforms.uTime.value;
+tick(3);
+assert(jellies.material.uniforms.uTime.value > jellyClock, "jelly bells and tentacles animate");
+doc.hidden = true;
+const hiddenClock = jellies.material.uniforms.uTime.value;
+tick(3);
+assert.equal(jellies.material.uniforms.uTime.value, hiddenClock, "ambient animation pauses in hidden tabs");
+doc.hidden = false;
 assert.equal(ocean.guide.root.position.y, 1, "dock and Kelp stay on surface");
 assert.equal(ocean.guide.root.visible, true);
 assert.equal(ocean.guide.root.rotation.z, 0);
@@ -163,6 +178,8 @@ assert.deepEqual(snapshot(), before, "underwater blocking and resize cannot move
 assert.equal(ocean.returnToDock(), false);
 blocked = false; release("w");
 ocean.returnToDock();
+tick();
+assert.equal(jellies.visible, false, "jellies never float above the dock");
 key(" ", { repeat: true });
 assert.equal(ocean.phase, "dock", "held jump key does not re-dive after return");
 release(" ");
@@ -182,12 +199,19 @@ assert(ocean.cam.yawT < ocean.cam.yaw, "second touch can look while first operat
 fire(canvas, "pointercancel", touch);
 ocean.clearInput();
 
+doc.hidden = false;
 win.matchMedia = () => ({ matches: true });
 const reducedRoot = new Element(); reducedRoot.host = new Element();
 const quick = context.initOcean(reducedRoot, { embedded: true });
 quick.beginJump(); tick();
 assert.equal(quick.phase, "ocean", "reduced motion skips long jump animation");
 assert.equal(quick.guide.root.position.y, 1);
+const quietScene = renderer.scenes.find(scene => scene.getObjectByName("moon-jellies"));
+const quietJellies = quietScene.getObjectByName("moon-jellies");
+tick(5);
+assert.equal(quietJellies.material.uniforms.uTime.value, 0, "reduced motion retains still jellyfish");
+assert.equal(quietScene.children.find(mesh => mesh.geometry.attributes.pat).material.uniforms.uTime.value, 0,
+  "reduced motion stops ambient fish movement too");
 
 // Standalone still starts on its dock and explicitly loads/dives into a demo.
 context.location.search = "";
@@ -202,6 +226,43 @@ assert.equal(standalone.phase, "jump");
 assert(win.ocean.world.files.length > 0);
 tick(30);
 assert.equal(standalone.phase, "ocean");
+assert(!renderer.scenes.some(scene => scene.getObjectByName("moon-jellies")),
+  "the file viewer never adds animals without files");
+const world = win.ocean.world;
+const school = world.files.find(f => f.school.n > 5).school;
+const members = world.files.filter(f => f.school === school);
+assert(Math.abs(school.speed - members.reduce((n, f) => n + f.speed, 0) / members.length) < 1e-12,
+  "shoals share a size- and age-appropriate pace");
+const fish = world.files.find(f => f.scale < win.ocean.TUNE.bigFrom && f.y < -10);
+standalone.cam.pos.set(fish.x, fish.y, fish.z);
+standalone.cam.depthT = fish.y;
+tick(4);
+const mesh = world.insts[fish.arch];
+assert([...mesh.userData.ids].includes(fish.index), "test fish is in the nearby mesh tier");
+const restPosition = () => {
+  const ph = mesh.material.uniforms.uTime.value * fish.school.speed +
+    fish.school.phase + (fish.phase - fish.school.phase) * 0.15;
+  return new THREE.Vector3(fish.x + Math.cos(ph * 0.42) * fish.scale * fish.orbit,
+    fish.y + Math.sin(ph * 1.7) * fish.scale * fish.bob,
+    fish.z + Math.sin(ph * 0.42) * fish.scale * fish.orbit);
+};
+doc.hidden = true; // Freeze the school clock so only the diver's effect changes.
+const rest = restPosition();
+standalone.cam.pos.copy(rest).add(new THREE.Vector3(-1, 0, 0));
+standalone.cam.depthT = standalone.cam.pos.y;
+tick();
+assert(fish.px > rest.x + 0.5, "small fish part away from a nearby diver");
+assert(Math.hypot(fish.px - rest.x, fish.py - rest.y, fish.pz - rest.z) <= 3.001,
+  "avoidance stays inside the spatial hash's existing margin");
+standalone.cam.pos.x -= 15;
+tick();
+assert(Math.abs(fish.px - rest.x) < 1e-6, "fish resume their shoal when the diver leaves");
+fish.netted = true;
+standalone.cam.pos.copy(rest); standalone.cam.depthT = rest.y;
+tick();
+assert(Math.abs(fish.px - rest.x) < 1e-6, "netted files do not flee");
+fish.netted = false;
+doc.hidden = false;
 assert(standalone.guide.root.position.y < 0, "standalone retains its underwater guide berth");
 doc.querySelector("#haul").hidden = false;
 key("Escape", { composedPath: () => [{ tagName: "BUTTON" }, doc] });

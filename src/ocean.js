@@ -497,7 +497,7 @@ function layout(places) {
       if (!s) {
         const r = mulberry32(fnv1a(p.name + key));
         const th = r() * TAU, rad = Math.sqrt(r()) * p.r * 0.60;
-        s = { x: Math.cos(th) * rad, z: Math.sin(th) * rad, n: 0, phase: r() * TAU, big: 0 };
+        s = { x: Math.cos(th) * rad, z: Math.sin(th) * rad, n: 0, phase: r() * TAU, big: 0, speed: 0 };
         schools.set(key, s);
       }
       f.school = s; s.n++;
@@ -536,6 +536,7 @@ function layout(places) {
       const slow = 1 - TUNE.languor * f.fade;
       f.phase = s.phase + r() * 1.4;
       f.speed = (0.35 + r() * 0.5) * lerp(1.45, 0.16, sT) * slow;
+      s.speed += f.speed;
       f.orbit = lerp(0.80, 2.10, sT);
       f.bob = lerp(0.16, 0.022, sT) * lerp(1, 0.62, f.fade);
       f.roll = lerp(0.11, 0.016, sT) * slow;
@@ -568,6 +569,7 @@ function layout(places) {
       }
       f.place = p;
     }
+    for (const s of schools.values()) s.speed /= s.n;
   }
 }
 
@@ -914,11 +916,17 @@ function archGeometry(a) {
 const A_FLOOR = 0.15;
 const FISH_VS = `
 attribute vec3 tint; attribute vec2 pat; attribute float part;
+uniform float uTime;
 varying vec3 vN, vC, vO, vW; varying vec2 vPat; varying float vFog, vPart, vBig;
 void main(){
   vC = tint; vPat = pat; vPart = part; vO = position;
   vN = normalize(mat3(instanceMatrix) * normal);
-  vec4 wp = instanceMatrix * vec4(position, 1.0);
+  vec3 p = position;
+  float size = length(instanceMatrix[0].xyz);
+  float beat = uTime * (3.0 / (1.0 + size * 0.22)) + pat.y;
+  float tail = smoothstep(-0.15, 1.0, p.x);
+  p.z += sin(beat - p.x * 2.5) * tail * tail * 0.13;
+  vec4 wp = instanceMatrix * vec4(p, 1.0);
   vW = wp.xyz;
   vec4 mv = modelViewMatrix * wp;
   vFog = -mv.z;
@@ -1260,6 +1268,90 @@ const snowPos = new Float32Array(TUNE.snow * 3);
   var snow = new Points(g, snowMat);
   snow.frustumCulled = false;
   scene.add(snow);
+}
+
+/* Moon jellies belong to the fishing world's scenery, never the file viewer:
+   there, every animal must still be a real file. One mesh, one draw call. */
+let jellies = null;
+if (embedded) {
+  const vertices = [], parts = [];
+  const tri = (a, b, c, part) => { vertices.push(...a, ...b, ...c); parts.push(part, part, part); };
+  const bell = (i, j) => {
+    const a = i / 6 * Math.PI * 0.52, b = j / 12 * TAU;
+    return [Math.sin(a) * Math.cos(b), Math.cos(a) * 0.65, Math.sin(a) * Math.sin(b)];
+  };
+  for (let i = 0; i < 6; i++) for (let j = 0; j < 12; j++) {
+    tri(bell(i, j), bell(i + 1, j), bell(i, j + 1), 0);
+    tri(bell(i, j + 1), bell(i + 1, j), bell(i + 1, j + 1), 0);
+  }
+  for (let j = 0; j < 8; j++) {
+    const a = j / 8 * TAU, length = 1.6 + (j % 3) * 0.45;
+    const strand = (i, side) => {
+      const t = i / 10, r = 0.72 - t * 0.28, w = (1 - t * 0.85) * 0.045 * side;
+      return [Math.cos(a) * r - Math.sin(a) * w, -0.04 - t * length,
+        Math.sin(a) * r + Math.cos(a) * w];
+    };
+    for (let i = 0; i < 10; i++) {
+      tri(strand(i, -1), strand(i + 1, -1), strand(i, 1), 1);
+      tri(strand(i, 1), strand(i + 1, -1), strand(i + 1, 1), 1);
+    }
+  }
+  const g = new BufferGeometry();
+  g.setAttribute("position", new BufferAttribute(new Float32Array(vertices), 3));
+  g.setAttribute("part", new BufferAttribute(new Float32Array(parts), 1));
+  const material = new ShaderMaterial({
+    side: DoubleSide,
+    uniforms: { uTime: { value: 0 }, uWater: { value: water }, uFog: { value: TUNE.fogNear } },
+    vertexShader: `
+      attribute float part;
+      uniform float uTime;
+      varying float vPart, vPhase, vDepth, vRim;
+      void main(){
+        vPart = part;
+        vPhase = instanceMatrix[3].x * 0.7;
+        float t = uTime * 1.25 + vPhase;
+        vec3 p = position;
+        float pulse = sin(t);
+        p.xz *= 0.92 + pulse * 0.08;
+        p.y *= 1.0 - pulse * 0.12;
+        float trail = max(0.0, -position.y);
+        p.x += sin(t - trail * 1.6) * trail * 0.16;
+        p.z += cos(t * 0.7 - trail) * trail * 0.12;
+        vec4 wp = instanceMatrix * vec4(p, 1.0);
+        wp.x += sin(uTime * 0.17 + vPhase) * 1.5;
+        wp.y += sin(t) * 0.35;
+        vDepth = length(cameraPosition - wp.xyz);
+        vRim = 1.0 - smoothstep(0.0, 0.35, position.y);
+        gl_Position = projectionMatrix * viewMatrix * wp;
+      }`,
+    fragmentShader: `
+      uniform vec3 uWater;
+      uniform float uFog;
+      varying float vPart, vPhase, vDepth, vRim;
+      void main(){
+        vec3 tint = mix(vec3(0.48, 0.82, 0.80), vec3(0.72, 0.63, 0.86),
+          sin(vPhase) * 0.5 + 0.5);
+        float vis = exp(-vDepth * max(uFog, 0.018)) *
+          (1.0 - smoothstep(75.0, 110.0, vDepth));
+        vis *= mix(0.32 + vRim * 0.28, 0.6, vPart);
+        gl_FragColor = vec4(mix(tint, uWater, 0.18),
+          ${A_FLOOR.toFixed(2)} + ${(1 - A_FLOOR).toFixed(2)} * vis);
+      }`,
+  });
+  jellies = new InstancedMesh(g, material, 24);
+  jellies.name = "moon-jellies";
+  jellies.frustumCulled = false; // vertex motion extends the static bounds
+  const r = mulberry32(0x1e11);
+  const pose = new Object3D();
+  for (let i = 0; i < jellies.count; i++) {
+    const group = Math.floor(i / 8), a = r() * TAU, radius = 5 + r() * 18;
+    pose.position.set(Math.cos(a) * radius + group * 12,
+      -7 - group * 30 - r() * 16, -19 - group * 28 + Math.sin(a) * radius);
+    pose.scale.setScalar(0.65 + r() * 0.85);
+    pose.updateMatrix();
+    jellies.setMatrixAt(i, pose.matrix);
+  }
+  fishScene.add(jellies);
 }
 
 /* --- surface and light shafts ------------------------------------------- */
@@ -2595,7 +2687,7 @@ const upload = (attr, n) => {
   if (attr.clearUpdateRanges) { attr.clearUpdateRanges(); attr.addUpdateRange(0, n); }
   attr.needsUpdate = true;
 };
-let W = 0, H = 0, last = performance.now(), t = 0;
+let W = 0, H = 0, last = performance.now(), t = 0, lifeTime = 0;
 const dpr = Math.min(devicePixelRatio || 1, 2);
 const ink = new Color();
 
@@ -2603,6 +2695,7 @@ function frame(nowMs) {
   requestAnimationFrame(frame);
   const elapsed = nowMs - last;
   const dt = Math.min(0.05, elapsed / 1000); last = nowMs; t += dt;
+  if (!reducedMotion && !document.hidden && phase === "ocean") lifeTime += dt;
   const blocked = isBlocked();
   if (blocked) {
     clearInput();
@@ -2767,7 +2860,12 @@ function frame(nowMs) {
   fishMat.uniforms.uFar.value = TUNE.meshFar;
   fishMat.uniforms.uFarBig.value = TUNE.meshFarBig;
   fishMat.uniforms.uFogBig.value = TUNE.fogBig;
-  fishMat.uniforms.uTime.value = t;
+  fishMat.uniforms.uTime.value = lifeTime;
+  if (jellies) {
+    jellies.visible = phase === "ocean" && underwater;
+    jellies.material.uniforms.uTime.value = lifeTime;
+    jellies.material.uniforms.uFog.value = fog;
+  }
   /* the ink is graded to the water rather than fixed black, or it goes from a
      hard cartoon line at the surface to invisible in the abyss */
   ink.setRGB(0.030 + water.r * 0.22, 0.048 + water.g * 0.22, 0.062 + water.b * 0.22);
@@ -2858,13 +2956,25 @@ function frame(nowMs) {
       if (i >= CAP) continue;
       /* behaviour follows size: the arc a creature turns on is its own body
          lengths across, and a leviathan's is very wide and very slow */
-      const ph = t * f.speed + f.phase;
+      /* A shared school clock keeps neighbours swimming together instead of
+         slowly dissolving into independent circles. */
+      const ph = lifeTime * f.school.speed + f.school.phase + (f.phase - f.school.phase) * 0.15;
       const yaw = ph * 0.42;
       const orb = f.scale * f.orbit;
       dummy.position.set(
         f.x + Math.cos(yaw) * orb,
         f.y + Math.sin(ph * 1.7) * f.scale * f.bob,
         f.z + Math.sin(yaw) * orb);
+      /* Small fish yield gently; whales keep their course. Bounded offsets
+         preserve the file layout and its existing spatial hash. */
+      if (!reducedMotion && f.scale < TUNE.bigFrom && !f.netted) {
+        const dx = dummy.position.x - cam.pos.x, dz = dummy.position.z - cam.pos.z;
+        const distance = Math.hypot(dx, dummy.position.y - cam.pos.y, dz);
+        const push = Math.pow(Math.max(0, 1 - distance / (5 + f.scale)), 2) * 3;
+        const horizontal = Math.hypot(dx, dz);
+        dummy.position.x += (horizontal > 0.001 ? dx / horizontal : Math.cos(f.phase)) * push;
+        dummy.position.z += (horizontal > 0.001 ? dz / horizontal : Math.sin(f.phase)) * push;
+      }
       dummy.rotation.set(0, -yaw + Math.PI / 2, Math.sin(ph * 2.4) * f.roll);
       dummy.scale.set(f.scale * f.sx, f.scale * f.sy, f.scale * f.sz);
       dummy.updateMatrix();
@@ -2931,7 +3041,7 @@ function frame(nowMs) {
 
   /* 1. the animals, alone, at PX-to-one with their own depth buffer, so they
         still occlude each other */
-  const anyFish = phase === "ocean" && !!world && nearSet.length > 0;
+  const anyFish = phase === "ocean" && (!!world && nearSet.length > 0 || jellies?.visible);
   const showGuide = guide.root.visible || player.root.visible;
   if (anyFish) {
     renderer.setRenderTarget(fishRT);
