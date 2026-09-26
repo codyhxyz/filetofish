@@ -82,6 +82,37 @@ npm run soundtrack:inspect        # build and open the score inspector
 npm run soundtrack:inspect:check  # check phrase grouping and pitch conversion
 ```
 
+### The model-written soundtrack
+
+The six slots keep their hours and job, but each has a new brief in
+`soundtrack/room/sessions.json`: key, tempo, SoundFont trio, an A and a B chord
+progression, and a form (intro, A, A2, B, tag). The harmony is authored; models write
+the notes.
+
+```sh
+npm run soundtrack:compose        # Magenta: one take per slot into soundtrack/room/takes/
+npm run soundtrack:room:import    # best take per slot -> src/room-tracks.json
+```
+
+`soundtrack/magenta/compose.mjs` runs two of Magenta's pretrained models on the CPU.
+ImprovRNN (an LSTM trained on lead sheets) writes the tune one sixteenth at a time,
+conditioned on the chord under it; each phrase is drawn a dozen times and scored for
+chord-tone fit, stepwise motion, density and a returning motif. MusicVAE's
+chord-conditioned multitrack model decodes a one-bar band arrangement per chord from a
+latent groove held for the whole section, which gives the bass and comping a
+consistent feel through the changes. A slot takes about five minutes; slots run in
+parallel.
+
+ROOM ([solo363614/ROOM-v2](https://huggingface.co/spaces/solo363614/ROOM-v2)) is the
+other generator: it writes audio from `prompt`, separates stems and transcribes them.
+`npm run soundtrack:room` (needs `pip install gradio_client` and Hugging Face access)
+drops its takes beside Magenta's, and the importer grids them, finds the downbeat and
+splits bass / chords / lead. Takes compete on grid fit and coverage; pin one by ear
+with `--take day=magenta-2`.
+
+`src/music.js` plays an imported track in place of the hand-written one with the same
+slug; delete a slug from `src/room-tracks.json` to fall back.
+
 `soundtrack/scores.json` and `soundtrack/render.py` are older renderer-neutral
 listening sketches. Their WAV files are local build artifacts, not site assets.
 

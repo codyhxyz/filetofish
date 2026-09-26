@@ -1,0 +1,302 @@
+{
+  "space": "solo363614/ROOM-v2",
+  "api": "/_generate_impl",
+  "steps": 32,
+  "guidance": 7.0,
+  "takes": 3,
+  "sessions": [
+    {
+      "slug": "late_night",
+      "title": "Late Night",
+      "hours": "00:00-05:00",
+      "bpm": 58,
+      "meter": 4,
+      "swing": 0.5,
+      "bars": 24,
+      "defaults": {
+        "bass": "acoustic_bass",
+        "chords": "acoustic_grand_piano",
+        "lead": "music_box"
+      },
+      "prompt": "instrumental lullaby, Db major, 58 BPM, 4/4, sleepy island dock after midnight, solo celesta melody over slow harp arpeggios and soft upright bass, sparse, gentle, no drums, no vocals",
+      "sections": {
+        "A": [
+          "Dbmaj7",
+          "Bbm7",
+          "Gbmaj7",
+          "Ab7",
+          "Dbmaj7",
+          "Fm7",
+          "Gbmaj7",
+          "Ab7"
+        ],
+        "B": [
+          "Gbmaj7",
+          "Fm7",
+          "Ebm7",
+          "Ab7",
+          "Gbmaj7",
+          "Gbm",
+          "Dbmaj7",
+          "Ab7"
+        ]
+      },
+      "form": [
+        "intro",
+        "A",
+        "B",
+        "tag"
+      ],
+      "leadRange": [
+        72,
+        91
+      ]
+    },
+    {
+      "slug": "dawn",
+      "title": "Dawn",
+      "hours": "05:00-08:00",
+      "bpm": 72,
+      "meter": 4,
+      "swing": 0.5,
+      "bars": 32,
+      "defaults": {
+        "bass": "acoustic_bass",
+        "chords": "acoustic_guitar_nylon",
+        "lead": "flute"
+      },
+      "prompt": "instrumental folk lullaby, A major, 72 BPM, 4/4, first light over a quiet harbor, ocarina melody, fingerpicked nylon guitar, pizzicato string bass, hopeful and fresh, no drums, no vocals",
+      "sections": {
+        "A": [
+          "Amaj7",
+          "C#m7",
+          "Dmaj7",
+          "E7",
+          "F#m7",
+          "Bm7",
+          "Dmaj7",
+          "E7"
+        ],
+        "B": [
+          "Dmaj7",
+          "C#m7",
+          "Bm7",
+          "E7",
+          "Dmaj7",
+          "Dm",
+          "Amaj7",
+          "E7"
+        ]
+      },
+      "form": [
+        "intro",
+        "A",
+        "A2",
+        "B",
+        "tag"
+      ],
+      "leadRange": [
+        64,
+        86
+      ]
+    },
+    {
+      "slug": "morning",
+      "title": "Morning",
+      "hours": "08:00-11:00",
+      "bpm": 104,
+      "meter": 4,
+      "swing": 0.6,
+      "bars": 32,
+      "defaults": {
+        "bass": "acoustic_bass",
+        "chords": "marimba",
+        "lead": "accordion"
+      },
+      "prompt": "instrumental cozy village morning tune, F major, 104 BPM, 4/4, light swing, bouncy clarinet melody, plucky kalimba chords, walking upright bass, cheerful video game town music, no drums, no vocals",
+      "sections": {
+        "A": [
+          "F6",
+          "Dm7",
+          "Gm7",
+          "C7",
+          "F6",
+          "A7",
+          "Dm7",
+          "C7"
+        ],
+        "B": [
+          "Bbmaj7",
+          "Bbm",
+          "Am7",
+          "D7",
+          "Gm7",
+          "C7",
+          "F6",
+          "C7"
+        ]
+      },
+      "form": [
+        "intro",
+        "A",
+        "A2",
+        "B",
+        "tag"
+      ],
+      "leadRange": [
+        60,
+        82
+      ]
+    },
+    {
+      "slug": "day",
+      "title": "Day",
+      "hours": "11:00-17:00",
+      "bpm": 96,
+      "meter": 4,
+      "swing": 0.62,
+      "bars": 32,
+      "defaults": {
+        "bass": "acoustic_bass",
+        "chords": "acoustic_guitar_nylon",
+        "lead": "flute"
+      },
+      "prompt": "instrumental sunny fishing pier bossa nova, Bb major, 96 BPM, 4/4, swung, steel drum melody, jazz guitar comping seventh chords, upright bass, relaxed and playful, no drums, no vocals",
+      "sections": {
+        "A": [
+          "Bbmaj7",
+          "Gm7",
+          "Cm7",
+          "F7",
+          "Dm7",
+          "G7",
+          "Cm7",
+          "F7"
+        ],
+        "B": [
+          "Ebmaj7",
+          "Ebm",
+          "Dm7",
+          "G7",
+          "Cm7",
+          "F7",
+          "Bbmaj7",
+          "F7"
+        ]
+      },
+      "form": [
+        "intro",
+        "A",
+        "A2",
+        "B",
+        "tag"
+      ],
+      "leadRange": [
+        64,
+        86
+      ]
+    },
+    {
+      "slug": "sunset",
+      "title": "Sunset",
+      "hours": "17:00-20:00",
+      "bpm": 78,
+      "meter": 4,
+      "swing": 0.58,
+      "bars": 32,
+      "defaults": {
+        "bass": "acoustic_bass",
+        "chords": "electric_piano_1",
+        "lead": "vibraphone"
+      },
+      "prompt": "instrumental golden hour slow jazz ballad, Eb major, 78 BPM, 4/4, warm and wistful, muted trumpet melody, soft electric piano chords, fretless bass, end of a long day by the water, no drums, no vocals",
+      "sections": {
+        "A": [
+          "Ebmaj7",
+          "Cm7",
+          "Fm7",
+          "Bb7",
+          "Gm7",
+          "C7",
+          "Fm7",
+          "Bb7"
+        ],
+        "B": [
+          "Abmaj7",
+          "Abm",
+          "Gm7",
+          "C7",
+          "Fm7",
+          "Bb7",
+          "Ebmaj7",
+          "Bb7"
+        ]
+      },
+      "form": [
+        "intro",
+        "A",
+        "A2",
+        "B",
+        "tag"
+      ],
+      "leadRange": [
+        58,
+        80
+      ]
+    },
+    {
+      "slug": "night",
+      "title": "Night",
+      "hours": "20:00-00:00",
+      "bpm": 68,
+      "meter": 4,
+      "swing": 0.56,
+      "bars": 32,
+      "defaults": {
+        "bass": "acoustic_bass",
+        "chords": "electric_piano_1",
+        "lead": "vibraphone"
+      },
+      "prompt": "instrumental late evening lounge jazz, A minor, 68 BPM, 4/4, moonlight on calm water, breathy alto sax melody, mellow rhodes electric piano chords, upright bass, intimate and calm, no drums, no vocals",
+      "sections": {
+        "A": [
+          "Am7",
+          "Dm7",
+          "G7",
+          "Cmaj7",
+          "Fmaj7",
+          "Bm7b5",
+          "E7",
+          "Am7"
+        ],
+        "B": [
+          "Fmaj7",
+          "E7",
+          "Am7",
+          "A7",
+          "Dm7",
+          "G7",
+          "Cmaj7",
+          "E7"
+        ]
+      },
+      "form": [
+        "intro",
+        "A",
+        "A2",
+        "B",
+        "tag"
+      ],
+      "leadRange": [
+        57,
+        79
+      ]
+    }
+  ],
+  "magenta": {
+    "melody": "https://storage.googleapis.com/magentadata/js/checkpoints/music_rnn/chord_pitches_improv",
+    "accompaniment": "https://storage.googleapis.com/magentadata/js/checkpoints/music_vae/multitrack_med_chords",
+    "melodyCandidates": 12,
+    "grooveCandidates": 8
+  }
+}

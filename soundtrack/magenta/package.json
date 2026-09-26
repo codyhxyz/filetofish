@@ -1,0 +1,14 @@
+{
+  "name": "filetofish-magenta-composer",
+  "private": true,
+  "description": "Offline composer for the soundtrack. Kept out of the site's dependencies.",
+  "type": "module",
+  "scripts": {
+    "compose": "NODE_USE_ENV_PROXY=1 node compose.mjs"
+  },
+  "dependencies": {
+    "@magenta/music": "1.23.1",
+    "playwright-core": "^1.56.1",
+    "tone": "14.7.77"
+  }
+}

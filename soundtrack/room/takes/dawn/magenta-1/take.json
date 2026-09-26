@@ -1,0 +1,61 @@
+{
+  "slug": "dawn",
+  "aligned": true,
+  "bpm": 72,
+  "meter": 4,
+  "models": {
+    "melody": "https://storage.googleapis.com/magentadata/js/checkpoints/music_rnn/chord_pitches_improv",
+    "accompaniment": "https://storage.googleapis.com/magentadata/js/checkpoints/music_vae/multitrack_med_chords"
+  },
+  "chords": [
+    "Amaj7",
+    "C#m7",
+    "Dmaj7",
+    "E7",
+    "Amaj7",
+    "C#m7",
+    "Dmaj7",
+    "E7",
+    "F#m7",
+    "Bm7",
+    "Dmaj7",
+    "E7",
+    "Amaj7",
+    "C#m7",
+    "Dmaj7",
+    "E7",
+    "F#m7",
+    "Bm7",
+    "Dmaj7",
+    "E7",
+    "Dmaj7",
+    "C#m7",
+    "Bm7",
+    "E7",
+    "Dmaj7",
+    "Dm",
+    "Amaj7",
+    "E7",
+    "Amaj7",
+    "C#m7",
+    "Dmaj7",
+    "E7"
+  ],
+  "form": [
+    "intro",
+    "A",
+    "A2",
+    "B",
+    "tag"
+  ],
+  "melodyScores": {
+    "A": 6.13,
+    "B": 6.15,
+    "cadence": 6.4
+  },
+  "notes": {
+    "bass": 149,
+    "chords": 207,
+    "lead": 76
+  }
+}
