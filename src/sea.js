@@ -164,7 +164,7 @@ for (const k in SCENES) {
    - SKY:    sunBody/moonBody/clouds/sky() and SEA_FINISH_GLSL. Owns exposure and
              tonemap. sky() returns linear scene radiance: the classic values were
              ~0..1 with 1.0 = bright daytime sky; the sun disc may be >> 1.
-             skyBase(rd,t) is the same sky without the crepuscular ray march --
+             skyBase(rd,t) is the same sky without the atmospheric aureole --
              call that one for reflections. Under FX_SKY the whole frame is
              linear radiance by the time it reaches finish(), so a palette
              colour used as a final colour must be lifted with unmapc() first
@@ -176,7 +176,8 @@ for (const k in SCENES) {
              cShal, cFoam, uHaze and friends in unmapc().
    - POST:   the JS in Sea(): context, programs, render targets, render(). Uses
              uRaw=1 to receive HDR and applies finish() in its own composite.
-   Every new term is gated on its FX_* switch so ?fx=none is the classic frame. */
+   FX_* switches retain the classic palette/water path; the refined celestial
+   silhouettes and pixel-sized stars are shared by both sky paths. */
 export const SEA_FINISH_GLSL = `
 /* Exposure, tonemap and output transform, in one place. Identity while
    FX_SKY == 0 so the classic frame is untouched; with the sky on, sky() and
@@ -203,6 +204,7 @@ const SEA_VS = "attribute vec2 a;void main(){gl_Position=vec4(a,0.,1.);}";
 const SEA_FS = `
 precision highp float;
 uniform vec2 uRes; uniform float uTime; uniform float uPx; uniform float uZoom; uniform vec4 uRip[6]; uniform vec4 uTune;
+uniform float uWaveIntensity;
 uniform vec3 cDeep, cShal, cFoam, cSky, cSky2;
 uniform vec3 uSun, uKey, uSunCol, uHaze, uCloudB;
 uniform vec4 uCloudA;
@@ -252,7 +254,7 @@ float fineHgt(vec2 p, float t){
        + sin(q.y*3.3 - q.x*0.7 - t*1.3)*0.30
        + (vnoise(q*1.8) - 0.5)*0.35;
 }
-float surfaceH(vec2 p, float t){ return hgt(p,t) + uTune.y*0.06*fineHgt(p,t); }
+float surfaceH(vec2 p, float t){ return uWaveIntensity*(hgt(p,t) + uTune.y*0.06*fineHgt(p,t)); }
 vec2 ripples(vec2 p, float t){
   vec2 o = vec2(0.);
   for(int i=0;i<6;i++){
@@ -296,15 +298,22 @@ vec2 drops(vec2 p, float t, float sc, float sk, float rate){
   float env = edge*arcs*dec*dec;
   return vec2(sin((r - d)*30.0)*env, env);
 }
-/* fixed stars: position depends on direction only, only the twinkle moves */
+/* Fixed directions, not screen noise. A tiny CSS-pixel core with one render
+   pixel of antialiasing survives the capped DPR and derivative-free fallback.
+   Twinkle never extinguishes a star; brightness is independent of occupancy. */
+float skyPixel(){ return 1.0/(uRes.y*max(uZoom, 0.5)); }
 float starfield(vec2 sp, float t){
-  vec2 gp = sp*15.0;
+  vec2 gp = sp*34.0;
   vec2 ip = floor(gp), f = fract(gp);
   float h = hash21(ip + 0.5);
-  vec2 c = vec2(hash21(ip + 2.31), hash21(ip + 9.17));
-  float d = length(f - c);
-  float s = (1.0 - smoothstep(0.0, 0.11, d))*step(0.76, h);
-  return s*(0.35 + 0.65*h)*(0.58 + 0.42*sin(t*1.9 + h*47.0));
+  float bright = hash21(ip + 17.13);
+  vec2 c = 0.20 + 0.60*vec2(hash21(ip + 2.31), hash21(ip + 9.17));
+  float d = length(f - c)/34.0;
+  float px = skyPixel();
+  float radius = mix(0.55, 0.85, bright)*uPx*px;
+  float core = 1.0 - smoothstep(radius - px*0.5, radius + px*0.5, d);
+  float twinkle = 0.94 + 0.06*sin(t*(0.55 + bright*0.35) + h*47.0);
+  return core*step(0.86, h)*mix(1.25, 2.30, bright*bright)*twinkle;
 }
 /* screen space rain: slanted columns of falling dashes. cw/ch are the cell
    size in CSS pixels, not in fractions of the frame -- so streak width, dash
@@ -375,41 +384,30 @@ vec3 inscat(vec3 rd, vec3 L, vec3 bM, vec3 bE, vec3 omT, float g){
   vec3 bMv = bM*(0.18 + 0.82*exp(-clamp(rd.y*2.75, 0.0, 1.0)*2.0));
   return (BETA_R*phaseR(c)*exp(-bE*sam*0.42) + bMv*phaseM(c, g)*exp(-bE*sam*1.30))/bE*omT;
 }
-vec2 cloudUV(vec3 rd, float t){ return rd.xz/max(rd.y, 0.030)*0.15 + vec2(t*0.010, 0.0); }
-/* one octave, lifted by the mean of the three fbm() octaves it drops: close
-   enough to the drawn cloud for the shafts to land in the gaps, a quarter of
-   the cost, and the march can afford eighteen of them. */
-float cloudLo(vec2 q){ return 0.5*vnoise(q) + 0.219; }
-/* the march needs its own projection. cloudUV() divides by rd.y, so within a
-   few degrees of the horizon the cloud field explodes into noise the samples
-   cannot resolve and every shaft averages itself away; flooring the divisor
-   flattens that band into the coherent layer the shafts need. */
-vec2 cloudUVLo(vec3 rd, float t){ return rd.xz/max(rd.y, 0.105)*0.15 + vec2(t*0.010, 0.0); }
+/* A finite cloud layer avoids the high-frequency pinching at the horizon. */
+vec2 cloudUV(vec3 rd, float t){ return rd.xz/(max(rd.y, 0.0) + 0.065)*0.15 + vec2(t*0.010, 0.0); }
 float sunLit(){ return smoothstep(-0.40, -0.01, uSun.y); }
 vec3 sunHue(){ return uSunCol/max(max(uSunCol.r, uSunCol.g), max(uSunCol.b, 0.002)); }
 
 float sunBody(vec3 dv){
-  float r = length(dv);
-  if (FX_SKY < 0.5) {
-    float a = atan(dv.y, dv.x);
-    float core = 1.0 - smoothstep(0.027, 0.034, r);
-    float rays = (1.0 - smoothstep(0.030, 0.075, r))*pow(0.5 + 0.5*cos(a*12.0 + uTime*0.08), 10.0);
-    return max(core, rays*0.72);
-  }
-  /* a disc with a soft, slightly darkened limb. The twelve spokes are gone --
-     what surrounds the sun now is the Mie lobe, which is the real thing. */
-  return (1.0 - smoothstep(0.0235, 0.0310, r))*(1.0 - 0.26*smoothstep(0.004, 0.028, r));
+  float r = length(dv), aa = skyPixel()*0.7;
+  return (1.0 - smoothstep(0.010 - aa, 0.010 + aa, r))
+       * (1.0 - 0.18*smoothstep(0.0, 0.010, r));
 }
 float moonBody(vec3 dv){
-  float r = length(dv);
-  if (FX_SKY < 0.5) {
-    float outer = 1.0 - smoothstep(0.033, 0.039, r);
-    float shadow = 1.0 - smoothstep(0.027, 0.034, length(dv.xy - vec2(0.017, 0.003)));
-    return outer*(0.16 + 0.84*(1.0 - shadow));
-  }
-  float outer = 1.0 - smoothstep(0.0325, 0.0378, r);
-  float shadow = 1.0 - smoothstep(0.026, 0.0335, length(dv.xy - vec2(0.017, 0.003)));
-  return outer*(0.12 + 0.88*(1.0 - shadow));
+  float aa = skyPixel()*0.7;
+  return 1.0 - smoothstep(0.0105 - aa, 0.0105 + aa, length(dv));
+}
+/* A small gibbous sphere, not two overlapping circles. Surface markings stay
+   attached to its tangent plane as it travels; broad maria, no crater dots. */
+vec3 moonSurface(vec3 dv){
+  vec3 right = normalize(cross(uMoonDir, vec3(0.0, 1.0, 0.0)));
+  vec3 up = cross(right, uMoonDir);
+  vec2 p = vec2(dot(dv, right), dot(dv, up))/0.0105;
+  vec3 n = vec3(p, sqrt(max(0.0, 1.0 - dot(p,p))));
+  float light = smoothstep(-0.08, 0.72, dot(n, normalize(vec3(-0.48, 0.24, 0.84))));
+  float maria = smoothstep(0.30, 0.68, fbm(p*3.1 + vec2(4.7, 9.2)));
+  return vec3(0.92, 0.94, 0.90)*(0.09 + 1.45*light)*(0.78 + 0.22*maria);
 }
 /* the frame as it shipped: a two-colour ramp, thresholded clouds, a pow() glow */
 vec3 skyClassic(vec3 rd, float t){
@@ -431,9 +429,8 @@ vec3 skyClassic(vec3 rd, float t){
   if (DISC > 0.001) s = mix(s, min(uSunCol*1.42, vec3(1.0)), sunBody(rd - uSun)*DISC);
   if (uMoon > 0.001) {
     vec3 dv = rd - uMoonDir;
-    float cr = (1.0 - smoothstep(0.005, 0.011, length(dv.xy - vec2(0.008, 0.005))))
-             + (1.0 - smoothstep(0.004, 0.009, length(dv.xy + vec2(0.010,-0.006))));
-    s = mix(s, vec3(0.72,0.80,1.0)*(1.0 - 0.18*clamp(cr,0.0,1.0)), moonBody(dv)*uMoon);
+    float disc = moonBody(dv);
+    if (disc > 0.0) s = mix(s, moonSurface(dv)*0.60, disc*uMoon*(1.0 - m1*0.92));
   }
   return mix(s, uHaze, 1.0 - smoothstep(0.0, mix(0.085, 0.50, FOG), rd.y));
 }
@@ -467,12 +464,12 @@ vec3 skyScatter(vec3 rd, float t){
   vec2 q = cloudUV(rd, t);
   float d = fbm(q);
   float cv = uCloudA.w;
-  float m1 = smoothstep(0.505 - cv*0.15, 0.545 - cv*0.15, d);
-  float m2 = smoothstep(0.585 - cv*0.17, 0.615 - cv*0.17, d);
+  float m1 = smoothstep(0.465 - cv*0.15, 0.585 - cv*0.15, d);
+  float m2 = smoothstep(0.555 - cv*0.17, 0.665 - cv*0.17, d);
   if (STAR > 0.001) {
     float cm = clamp(m1*0.92 + m2*0.55, 0.0, 1.0);
     float st = starfield(rd.xy/max(-rd.z, 0.25), t);
-    s += vec3(0.80,0.86,1.0)*(st*STAR*0.70)*smoothstep(0.0,0.12,rd.y)*(1.0 - cm*0.9);
+    s += vec3(0.90,0.94,1.0)*(st*STAR)*smoothstep(0.0,0.12,rd.y)*(1.0 - cm*0.9);
   }
   /* one step along the light ray inside the cloud plane. Thinner that way means
      this is the sun-facing slope, and that is where the silver lining lives;
@@ -490,61 +487,39 @@ vec3 skyScatter(vec3 rd, float t){
   /* -- horizon haze eats the low sky, and in fog it eats all of it */
   s = mix(s, unmapc(uHaze), 1.0 - smoothstep(0.0, mix(0.085, 0.50, FOG), rd.y));
 
-  /* -- disc and glare go on last. At sunrise the sun IS on the horizon, so it
-     has to survive the haze mix or there is no sun in the one frame that wants
-     one; the clouds still occlude it, which is what the shafts need. */
+  /* The disc survives horizon haze, but not cloud cover. Its aureole has no
+     angular modulation, radial samples or moving spokes. */
   float th = length(rd - uSun);
-  vec3 glare = sh*(SUN_I*lit*GLOW)*(0.10*exp(-th*15.0) + 0.035*exp(-th*4.5));
+  vec3 glare = sh*(SUN_I*lit*GLOW)*(0.035*exp(-th*th*90.0) + 0.012*exp(-th*th*9.0));
   if (DISC > 0.001) glare += sh*(DISC_I*DISC*lit)*sunBody(rd - uSun);
   s += glare*(1.0 - m1*0.80)*(1.0 - FOG*0.55);
 
   if (uMoon > 0.001) {
     vec3 dv = rd - uMoonDir;
     float mr = length(dv);
-    float cr = (1.0 - smoothstep(0.005, 0.011, length(dv.xy - vec2(0.008, 0.005))))
-             + (1.0 - smoothstep(0.004, 0.009, length(dv.xy + vec2(0.010,-0.006))));
-    vec3 mg = MOON_COL*(2.6*uMoon)*moonBody(dv)*(1.0 - 0.20*clamp(cr, 0.0, 1.0));
-    mg += MOON_COL*(uMoon*0.55)*(0.30*exp(-mr*22.0) + 0.09*exp(-mr*6.0));
-    s += mg*(1.0 - m1*0.75);
+    float visible = uMoon*(1.0 - m1*0.92)*(1.0 - m2*0.55)
+                  * (1.0 - FOG*0.90)*smoothstep(-0.012, 0.025, rd.y);
+    s += MOON_COL*(visible*0.025)*exp(-mr*mr*650.0);
+    float disc = moonBody(dv);
+    if (disc > 0.0) s = mix(s, moonSurface(dv), disc*visible);
   }
   return s;
 }
-/* no ray march: the water calls this for reflections and should not pay for the
-   shafts twice. Same units as sky(). */
+/* The water shares the sky lighting without the extra aerial glow. */
 vec3 skyBase(vec3 rd, float t){
   if (FX_SKY < 0.5) return skyClassic(rd, t);
   return skyScatter(rd, t);
 }
-/* Crepuscular rays. The clouds are a function of direction, so the shafts come
-   from marching the line from this pixel toward the sun and accumulating how
-   much of it is open sky. This is the only loop in the shader: it bails when
-   the sun is under the horizon or the pixel is nowhere near it, the samples are
-   one octave of noise, and the offset is hashed per pixel so the eighteen steps
-   do not band. */
-vec3 godrays(vec3 rd, float t){
-  if (uSun.y < -0.30) return vec3(0.0);
-  float sc = dot(rd, uSun);
-  float reach = smoothstep(0.42, 0.86, sc);
-  if (reach <= 0.0) return vec3(0.0);
-  float thr = 0.500 - uCloudA.w*0.15;
-  float jit = hash21(gl_FragCoord.xy + fract(t)*17.0);
-  float acc = 0.0, wsum = 0.0;
-  for (int i = 0; i < 18; i++) {
-    float f = (float(i) + jit)*(1.0/18.0);
-    vec3 p = normalize(mix(rd, uSun, f*0.88));
-    float w = 1.0 - f*0.72;
-    acc += (1.0 - smoothstep(thr - 0.045, thr + 0.045, cloudLo(cloudUVLo(p, t))))*w;
-    wsum += w;
-  }
-  /* a low sun puts the shafts through more haze, which is what makes them show
-     at sunrise and dusk even where the cloud is thin */
-  float lowSun = 1.0 - smoothstep(0.03, 0.42, uSun.y);
-  float amt = (acc/wsum)*reach*sunLit()*mix(0.42, 1.05, lowSun)*(0.40 + 0.60*GLOW);
-  return sunHue()*(amt*0.38*mix(0.32, 1.0, FX_SKY)*(1.0 - FOG*0.60)*(1.0 - RAIN*0.55));
+/* Keep the existing rays switch as a soft aerial-light control. A continuous
+   forward lobe replaces the noisy eighteen-tap shafts, also on mobile. */
+vec3 aerialGlow(vec3 rd){
+  float spread = exp(-dot(rd - uSun, rd - uSun)*7.0);
+  float clear = (1.0 - FOG*0.90)*(1.0 - RAIN*0.85);
+  return sunHue()*(spread*sunLit()*GLOW*clear*0.12);
 }
 vec3 sky(vec3 rd, float t){
   vec3 c = skyBase(rd, t);
-  if (FX_RAYS > 0.5) c += godrays(rd, t);
+  if (FX_RAYS > 0.5) c += aerialGlow(rd);
   return c;
 }
 ${SEA_FINISH_GLSL}
@@ -888,7 +863,7 @@ export function Sea(canvas) {
     sun: U("uSun"), key: U("uKey"), sunCol: U("uSunCol"), haze: U("uHaze"), zoom: U("uZoom"), tune: U("uTune"),
     cloudB: U("uCloudB"), cloudA: U("uCloudA"), amt: U("uAmt"), amt2: U("uAmt2"),
     moonDir: U("uMoonDir"), moon: U("uMoon"),
-    fx: U("uFx"), raw: U("uRaw"),
+    fx: U("uFx"), raw: U("uRaw"), waveIntensity: U("uWaveIntensity"),
   };
   gl.uniform1f(u.raw, 0);
 
@@ -1044,6 +1019,7 @@ export function Sea(canvas) {
     gl.uniform3fv(u.sun, V.sun); gl.uniform3fv(u.key, V.key);
     gl.uniform3fv(u.sunCol, V.sunCol); gl.uniform3fv(u.haze, V.haze);
     gl.uniform1f(u.zoom, zoom);
+    gl.uniform1f(u.waveIntensity, waveIntensity);
     gl.uniform4fv(u.tune, tune);
     gl.uniform3fv(u.cloudB, V.cloudB);
     gl.uniform4fv(u.cloudA, V.cloudA); gl.uniform4fv(u.amt, V.amt); gl.uniform4fv(u.amt2, V.amt2);
@@ -1055,7 +1031,7 @@ export function Sea(canvas) {
   const rip = new Float32Array(24);
   let slot = 0, W = 0, H = 0, cw = "day";
   let mixT = 1, dirty = true, live = false, last = -1;
-  let zoom = 1;
+  let zoom = 1, waveIntensity = 1;
   const tune = new Float32Array(4);
   const fxv = new Float32Array([1, 1, 1, 1]);
 
@@ -1085,6 +1061,12 @@ export function Sea(canvas) {
     setCelestialTime(d) { updateCelestial(d); },
     weather() { return cw; },
     setZoom(value) { zoom = clamp(Number(value) || 1, 0.5, 4); dirty = true; },
+    /* Ambient swell only: cast ripples and rain impacts retain their energy. */
+    setWaveIntensity(value) {
+      if (!Number.isFinite(value)) return;
+      waveIntensity = clamp(value, 0, 2); dirty = true;
+    },
+    waveIntensity() { return waveIntensity; },
     setTuning(values) {
       if (Array.isArray(values)) tune.set(values.slice(0, 4));
       else for (const [i, key] of ["crisp", "detail", "foam", "shine"].entries()) tune[i] = clamp(Number(values?.[key]) || 0, 0, 1);

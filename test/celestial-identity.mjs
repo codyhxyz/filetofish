@@ -7,6 +7,11 @@ assert.match(source, /uniform float uMoon;/, "day/night scenes need an explicit 
 assert.match(source, /uniform vec3 uMoonDir;/, "the moon needs a path separate from the sun");
 assert.match(source, /float sunBody\(/, "the sun needs its own silhouette");
 assert.match(source, /float moonBody\(/, "the moon needs its own silhouette");
+assert.match(source, /vec3 moonSurface\(/, "the moon needs surface shading, not cutout crater dots");
+assert.doesNotMatch(source, /vec3 godrays\(|float cloudLo\(|atan\(dv\.y/, "radial marches and angular sun spokes must not return");
+assert.match(source, /float twinkle = 0\.94 \+ 0\.06\*sin/, "twinkle must keep an 88% brightness floor");
+assert.match(source, /float radius = mix\(0\.55, 0\.85, bright\)\*uPx\*px;/, "stars must use tiny pixel-sized cores");
+assert.match(source, /waveIntensity = clamp\(value, 0, 2\)/, "wave intensity must stay bounded");
 assert.match(source, /a\.set\(nrm\(moon\), 46\); a\[49\] = moon\[3\];/, "moon direction and visibility must be packed");
 assert.match(source, /gl\.uniform3fv\(u\.moonDir, cur\.subarray\(46, 49\)\); gl\.uniform1f\(u\.moon, cur\[49\]\);/, "packed moon state must reach the shader");
 
