@@ -3,6 +3,7 @@
    gradual smooth fade-in, instant hotswapping, and gameplay ducking. */
 
 import Soundfont from "soundfont-player";
+import { getUnderwaterInput } from "./underwater-audio.mjs";
 import { SOUNDFONT_BANK, readMusicVolume, writeMusicVolume } from "./music-settings.mjs";
 
 export const TRACKS = [
@@ -286,7 +287,7 @@ export const TRACKS = [
   }
 ];
 
-let AC = null, BUS = null, MASTER_FADE = null, DUCK_GAIN = null;
+let AC = null, BUS = null, MASTER_FADE = null, DUCK_GAIN = null, ENV_INPUT = null;
 let musicInitialized = false;
 let hasStartedMusic = false;
 let trackRequest = 0;
@@ -400,7 +401,7 @@ async function getOrLoadInstrument(instName) {
   }
   const loading = Soundfont.instrument(AC, instName, {
     soundfont: SOUNDFONT_BANK,
-    destination: DUCK_GAIN || BUS
+    destination: ENV_INPUT
   }).catch(error => {
     instrumentCache.delete(key);
     throw error;
@@ -424,10 +425,13 @@ export function initMusic(audioContext, masterDestination, soundEnabled = true, 
 
     DUCK_GAIN.gain.setValueAtTime(1.0, AC.currentTime);
 
+    ENV_INPUT = getUnderwaterInput(AC, DUCK_GAIN);
     DUCK_GAIN.connect(MASTER_FADE);
     MASTER_FADE.connect(BUS);
     BUS.connect(masterDestination || AC.destination);
   }
+
+  BUS.gain.value = isSoundOn ? 1 : 0;
 
   // Initialization is idempotent: radio clicks must not reset the selected track.
   if (!musicInitialized) {
@@ -511,6 +515,7 @@ export function syncMusicToTime(date, force = false) {
 
 export function setMusicSoundOn(enabled) {
   isSoundOn = !!enabled;
+  if (BUS) BUS.gain.value = isSoundOn ? 1 : 0;
   if (!isSoundOn) {
     stopPlayback();
   } else if (!isPlaying && AC && AC.state === "running" && Object.values(channels).every(Boolean)) {
@@ -532,6 +537,8 @@ export function setMusicVolume(value) {
 export function auditionMusicNote(channel, note, durationSec = 0.6, gain = 0.6) {
   const instrument = channels[channel];
   if (!AC || !instrument) return false;
+  // The score inspector previews notes while its transport is stopped.
+  BUS.gain.value = 1;
   const now = AC.currentTime;
   if (!hasStartedMusic) {
     hasStartedMusic = true;
