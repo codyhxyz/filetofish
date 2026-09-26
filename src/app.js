@@ -1,6 +1,6 @@
 import { sfx, isOn, setOn, audio } from "./sfx.js";
 import {
-  initMusic, setMusicTrack, nextMusicTrack, getMusicTrack,
+  TRACKS, initMusic, setMusicTrack, nextMusicTrack, getMusicTrack,
   syncMusicToTime, setMusicSoundOn, getMusicVolume, setMusicVolume, duckMusic
 } from "./music.js";
 import { Sea, WEATHERS, fxFromSearch } from "./sea.js";
@@ -20,11 +20,21 @@ const lerp = (a, b, t) => a + (b - a) * t;
 const ease = t => (t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 
 const versionBox = $("#versionbox");
+const elSettings = $("#settings"), elSettingsBtn = $("#settings-btn"), elSettingsPanel = $("#settings-panel");
+function openSettings(open) {
+  elSettingsPanel.hidden = !open;
+  elSettingsBtn.setAttribute("aria-expanded", String(open));
+  if (!open) versionBox.open = false;
+}
+elSettingsBtn.addEventListener("click", e => { e.stopPropagation(); openSettings(elSettingsPanel.hidden); });
 addEventListener("pointerdown", e => {
   if (versionBox.open && !versionBox.contains(e.target)) versionBox.open = false;
+  if (!elSettingsPanel.hidden && !elSettings.contains(e.target)) openSettings(false);
 }, true);
 addEventListener("keydown", e => {
-  if (e.key === "Escape" && versionBox.open) { versionBox.open = false; $("#version").focus(); }
+  if (e.key !== "Escape") return;
+  if (versionBox.open) { versionBox.open = false; $("#version").focus(); }
+  else if (!elSettingsPanel.hidden) { openSettings(false); elSettingsBtn.focus(); }
 });
 
 function fnv1a(bytes, seed) {
@@ -653,6 +663,25 @@ function FishStage(canvas) {
 /* ============================================================ sound & music */
 const elRadio = $("#radio"), elRadioNm = $("#radionm");
 const elMusicVol = $("#musicvol"), elMusicVolOut = $("#musicvolout");
+/* The phone gets one music button instead of the radio and slider: each tap is
+   the next song, and after the last song comes silence. The clock only ever
+   picks songs, so silence is somewhere you can only get to by tapping. */
+const elMusic = $("#music"), elNowPlaying = $("#now-playing"), elNowPlayingT = $("#now-playing-t");
+const MUTE_KEY = "filetofish.musicMuted";
+let musicMuted = false, shownTrack = "", nowPlayingTimer = 0;
+try { musicMuted = localStorage.getItem(MUTE_KEY) === "1"; } catch (e) { }
+function flashNowPlaying(title, label = "now playing") {
+  elNowPlaying.firstChild.textContent = label;
+  elNowPlayingT.textContent = title;
+  elNowPlaying.classList.add("on");
+  clearTimeout(nowPlayingTimer);
+  nowPlayingTimer = setTimeout(() => elNowPlaying.classList.remove("on"), 3000);
+}
+function setMusicMuted(muted) {
+  musicMuted = muted;
+  try { localStorage.setItem(MUTE_KEY, muted ? "1" : "0"); } catch (e) { }
+  syncSound();
+}
 function syncMusicVolume(volume = getMusicVolume()) {
   const percent = Math.round(volume * 100);
   elMusicVol.value = String(percent);
@@ -660,7 +689,7 @@ function syncMusicVolume(volume = getMusicVolume()) {
   elMusicVolOut.textContent = `${percent}%`;
 }
 async function startMusic() {
-  if (!isOn()) return;
+  if (!isOn() || musicMuted) return;
   const c = audio();
   if (!c) return;
   initMusic(c, null, true, worldNow());
@@ -673,6 +702,13 @@ function updateRadioUI(track = getMusicTrack()) {
     elRadio.title = `now playing: ${track.title} · click to change the song`;
     elRadio.setAttribute("aria-label", `Now playing ${track.title}; click to change the song`);
   }
+  elMusic.setAttribute("aria-pressed", String(!musicMuted));
+  elMusic.setAttribute("aria-label", musicMuted ? "Music off. Tap to turn it back on"
+    : `Music: ${track?.title || ""}. Tap for the next song`);
+  if (track && track.title !== shownTrack) {
+    shownTrack = track.title;
+    if (!musicMuted) flashNowPlaying(track.title);
+  }
 }
 
 function syncSound() {
@@ -681,7 +717,7 @@ function syncSound() {
   soundButton.setAttribute("aria-pressed", String(enabled));
   soundButton.setAttribute("aria-label", enabled ? "Mute sound" : "Unmute sound");
   soundButton.title = enabled ? "Mute sound" : "Unmute sound";
-  setMusicSoundOn(enabled);
+  setMusicSoundOn(enabled && !musicMuted);
 }
 $("#snd").addEventListener("click", e => {
   e.stopPropagation();
@@ -689,9 +725,24 @@ $("#snd").addEventListener("click", e => {
   syncSound();
   if (isOn()) { startMusic(); sfx("tick"); }
 });
+elMusic.addEventListener("click", e => {
+  e.stopPropagation();
+  const last = TRACKS.indexOf(getMusicTrack()) === TRACKS.length - 1;
+  if (!musicMuted && last) {
+    setMusicMuted(true);
+    updateRadioUI();
+    flashNowPlaying("muted", "music");
+    return;
+  }
+  if (musicMuted) setMusicMuted(false);
+  startMusic();
+  shownTrack = "";
+  updateRadioUI(nextMusicTrack());
+});
 if (elRadio) {
   elRadio.addEventListener("click", e => {
     e.stopPropagation();
+    if (musicMuted) setMusicMuted(false);
     startMusic();
     updateRadioUI(nextMusicTrack());
     elRadio.classList.remove("pop");
@@ -708,6 +759,7 @@ elMusicVol.addEventListener("click", e => e.stopPropagation());
 elMusicVol.addEventListener("pointerdown", e => e.stopPropagation());
 syncSound();
 syncMusicVolume();
+shownTrack = getMusicTrack()?.title || "";
 updateRadioUI();
 
 
@@ -809,7 +861,7 @@ let W = 0, H = 0, state = "idle", t0 = 0, fish = null;
 let exploration = null, readingFiles = false, pickingFile = false;
 const catchPending = () => state !== "idle" && state !== "gone";
 const movementBlocked = () => catchPending() || readingFiles || pickingFile ||
-  !$("#dex").hidden || versionBox.open || !$("#time-reel").hidden;
+  !$("#dex").hidden || versionBox.open || !elSettingsPanel.hidden || !$("#time-reel").hidden;
 let bob = { x: 0, y: 0 }, target = { x: 0, y: 0 }, from = { x: 0, y: 0 };
 /* where a fish leaving re-enters the water, and the trail it leaves heading out */
 let sendTo = { x: 0, y: 0 }, goneNote = "sent", goneWake = false, sentSplash = false, wake = null;
@@ -1546,7 +1598,7 @@ for (const [id, cls] of [["#release", "hint-release"],
 
 /* ---------------------------------------------------------------- clock */
 /* The clock opens a full-day reel: one swipe crosses all 24 hours and the sky
-   answers immediately. Weather gets its own visible control beside it. */
+   answers immediately. The weather control rides inside the same reel. */
 const elClock = $("#clock"), elClockT = $("#clock-t"), elClockW = $("#clock-w");
 const elClockNow = $("#clock-now"), elTimeReel = $("#time-reel");
 const elTimeRange = $("#time-range"), elTimeChoice = $("#time-choice");
@@ -1564,6 +1616,7 @@ function showWeather() {
   elClockW.dataset.weather = name;
   elClockW.setAttribute("aria-label", `Weather: ${p.label}. Change weather`);
   elClockW.title = `change weather: ${p.label}`;
+  $("#clock-wl").textContent = p.label;
   document.body.style.setProperty("--wx", p.css || "#FFC49A");
 }
 function applyWeather(name) {

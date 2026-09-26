@@ -34,11 +34,12 @@ doc.body = body;
 const shadow = { querySelector: $ };
 $("#intro").hidden = true;
 const host = { attachShadow: () => shadow };
-const moves = [], vertical = [], depths = [], cameras = [];
+const moves = [], looks = [], vertical = [], depths = [], cameras = [];
 let opts, blocked = false, dives = 0, returns = 0, views = 0, cleared = 0;
 const api = {
   beginJump: () => dives++, returnToDock: () => returns++, toggleView: () => views++,
-  setMove: (x, z) => moves.push([x, z]), setVertical: y => vertical.push(y),
+  setMove: (x, z) => moves.push([x, z]), setLook: (x, up) => looks.push([x, up]),
+  setVertical: y => vertical.push(y),
   clearInput: () => cleared++,
 };
 const source = fs.readFileSync(new URL("../src/explore.js", import.meta.url), "utf8")
@@ -57,6 +58,8 @@ const mounted = ctx.mountExploration(host, {
 const frame = extra => opts.onFrame({ phase: "dock", perspective: "first", underwater: false, depth: 0, camera: {}, ...extra });
 frame();
 assert.equal(opts.embedded, true);
+assert.equal(opts.autoPerspective, false, "desktop keeps the manual view switch");
+assert.equal($("#explore-status").textContent, "", "the dock needs no label");
 assert.equal($("#dive").textContent, "Dive · Space");
 assert.equal($("#swim-up").hidden, true);
 $("#dive").emit("click");
@@ -73,10 +76,16 @@ assert.equal(moves.length, count, "second finger cannot steal the stick");
 stick.emit("pointercancel");
 assert.deepEqual(moves.at(-1), [0, 0]);
 assert.equal(stick.captures.size, 0, "cancellation releases capture without recursive reset");
+const look = $("#look-stick");
+look.emit("pointerdown", { pointerId: 3, clientX: 82, clientY: 50 });
+assert(looks.at(-1)[0] > 0 && Math.abs(looks.at(-1)[1]) < 1e-10, "look stick right means turn right");
 stick.emit("pointerdown", { clientX: 50, clientY: 0 });
+assert(moves.at(-1)[1] > 0, "both thumbs steer at once");
 blocked = true;
 frame();
 assert.deepEqual(moves.at(-1), [0, 0]);
+assert.deepEqual(looks.at(-1), [0, 0], "blocking lets go of the look stick too");
+assert.equal(look.disabled, true);
 assert.equal(stick.disabled, true);
 $("#dive").emit("click");
 assert.equal(dives, 1, "pending catch or panel blocks dive");

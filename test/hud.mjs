@@ -17,7 +17,9 @@ for (const id of ["radio", "snd", "musicvol", "musicvolout"]) assert(music.inclu
 const elements = new Map();
 const $ = id => {
   if (!elements.has(id)) elements.set(id, {
-    attrs: {}, listeners: {}, style: { setProperty() {} }, classList: { add() {}, remove() {} },
+    attrs: {}, listeners: {}, style: { setProperty() {} }, firstChild: {},
+    classes: new Set(),
+    get classList() { const c = this.classes; return { add: k => c.add(k), remove: k => c.delete(k) }; },
     setAttribute(k, v) { this.attrs[k] = v; },
     addEventListener(k, fn) { this.listeners[k] = fn; },
   });
@@ -25,10 +27,13 @@ const $ = id => {
 };
 let enabled = true, musicEnabled, volume = .7, track = 0;
 const tracks = [{ title: "Sunlit Bobber" }, { title: "Evening Tide" }];
+const stored = new Map();
 const context = vm.createContext({
   $, isOn: () => enabled, setOn: v => { enabled = v; }, audio: () => null, sfx() {},
+  TRACKS: tracks, setTimeout: () => 0, clearTimeout() {},
+  localStorage: { getItem: k => stored.get(k) ?? null, setItem: (k, v) => stored.set(k, v) },
   getMusicVolume: () => volume, setMusicVolume: v => volume = v,
-  getMusicTrack: () => tracks[track], nextMusicTrack: () => tracks[++track],
+  getMusicTrack: () => tracks[track], nextMusicTrack: () => tracks[track = (track + 1) % tracks.length],
   setMusicSoundOn: v => { musicEnabled = v; },
 });
 vm.runInContext(app.slice(app.indexOf('const elRadio = $("#radio")'), app.indexOf('/* ============================================================ files */')), context);
@@ -50,6 +55,23 @@ fire("#snd", "click");
 assert.equal(musicEnabled, true);
 assert.equal($("#snd").attrs["aria-label"], "Mute sound");
 assert.equal(volume, .25, "sound toggle must retain the music level");
+
+// The phone's one music button: next song, and silence only after the last song.
+track = 0;
+fire("#music", "click");
+assert.equal(tracks[track].title, "Evening Tide");
+assert.equal($("#now-playing-t").textContent, "Evening Tide", "a track change names itself");
+assert($("#now-playing").classes.has("on"));
+assert.equal(musicEnabled, true);
+fire("#music", "click");
+assert.equal(musicEnabled, false, "after the last song comes silence");
+assert.equal(track, 1, "muting does not skip a song");
+assert.equal($("#music").attrs["aria-pressed"], "false");
+assert.equal(stored.get("filetofish.musicMuted"), "1");
+fire("#music", "click");
+assert.equal(musicEnabled, true);
+assert.equal(tracks[track].title, "Sunlit Bobber", "silence rolls over to the first song");
+assert.equal($("#music").attrs["aria-pressed"], "true");
 
 // Completion feedback stays until the existing gone -> idle transition clears it.
 const idle = app.match(/if \(age > 3\.2\) \{ state = "idle";[^\n]+/)[0];

@@ -59,9 +59,10 @@ The sun highlight uses the visible sun's direction and the existing wave surface
 It never interpolates between the sun and moon positions.
 
 Which sky you get is your actual local time (`weatherForDate`), with a small chance
-of fog or rain rolling in instead. A monochrome icon beside the clock shows the
-current weather and is the explicit control for cycling it; `?wx=night` pins one so
-a particular sky can be shared or screenshotted.
+of fog or rain rolling in instead. The clock sits centred on the top edge; the
+reel it opens carries a monochrome weather line that shows the current sky and is
+the explicit control for cycling it; `?wx=night` pins one so a particular sky can
+be shared or screenshotted.
 
 The clock opens a **wind the sky** reel. Its native range covers the complete
 24-hour day in one swipe, with midnight, dawn, noon and dusk marked on the track.
@@ -71,7 +72,7 @@ the clock goes the colour of the weather, a **back to now** appears under it, an
 the offset rides on top of the machine clock so the seconds keep running from
 wherever you left them. The wheel remains a 10-minute crown and `?t=19:30` boots
 straight into an hour. Moving the reel hands weather back to the selected time;
-the separate weather icon pins a sky regardless.
+the weather line in the reel pins a sky regardless.
 
 Whatever the sea is doing, the catch is lit to match: `paletteNow()` hands back the
 mid-cross-fade light, which grades the fish through a uniform in the post pass and
