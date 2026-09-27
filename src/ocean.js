@@ -1276,88 +1276,101 @@ const snowPos = new Float32Array(TUNE.snow * 3);
   scene.add(snow);
 }
 
-/* Moon jellies belong to the fishing world's scenery, never the file viewer:
-   there, every animal must still be a real file. One mesh, one draw call. */
-let jellies = null;
+/* Rooted kelp and seagrass frame the swim out from the dock. Scenery stays
+   outside the file population and picker. One mesh, one draw call. */
+let vegetation = null;
 if (embedded) {
   const vertices = [], parts = [];
   const tri = (a, b, c, part) => { vertices.push(...a, ...b, ...c); parts.push(part, part, part); };
-  const bell = (i, j) => {
-    const a = i / 6 * Math.PI * 0.52, b = j / 12 * TAU;
-    return [Math.sin(a) * Math.cos(b), Math.cos(a) * 0.65, Math.sin(a) * Math.sin(b)];
+  /* Faceted reef ledges give stems a holdfast. Their sides descend below the
+     swim area and fade into the murk, rather than floating like plant pots. */
+  const rock = (i, j) => {
+    const a = j / 9 * TAU, radius = [0, 2.8, 3.4, 5.0][i];
+    return [Math.cos(a) * radius, [0.15, 0, -1.6, -1200][i],
+      Math.sin(a) * radius * 0.8];
   };
-  for (let i = 0; i < 6; i++) for (let j = 0; j < 12; j++) {
-    tri(bell(i, j), bell(i + 1, j), bell(i, j + 1), 0);
-    tri(bell(i, j + 1), bell(i + 1, j), bell(i + 1, j + 1), 0);
+  for (let i = 0; i < 3; i++) for (let j = 0; j < 9; j++) {
+    tri(rock(i, j), rock(i + 1, j), rock(i, j + 1), 1);
+    tri(rock(i, j + 1), rock(i + 1, j), rock(i + 1, j + 1), 1);
   }
-  for (let j = 0; j < 8; j++) {
-    const a = j / 8 * TAU, length = 1.6 + (j % 3) * 0.45;
-    const strand = (i, side) => {
-      const t = i / 10, r = 0.72 - t * 0.28, w = (1 - t * 0.85) * 0.045 * side;
-      return [Math.cos(a) * r - Math.sin(a) * w, -0.04 - t * length,
-        Math.sin(a) * r + Math.cos(a) * w];
+  for (let j = 0; j < 11; j++) {
+    const a = j * 2.4, tall = j < 4, height = tall ? 6 + j * 1.3 : 2 + (j % 3) * 0.7;
+    const x = Math.cos(a) * (tall ? 0.65 : 1.5), z = Math.sin(a) * (tall ? 0.65 : 1.5);
+    const stem = t => [x + Math.sin(t * 2.5 + a) * t * 0.75, t * height,
+      z + Math.cos(a) * t * t * 0.9];
+    const blade = (i, side) => {
+      const t = i / 10, p = stem(t);
+      const width = tall ? 0.055 * (1 - t) : Math.sin(Math.PI * t) * 0.22 + 0.015;
+      return [p[0] + Math.cos(a) * width * side, p[1], p[2] + Math.sin(a) * width * side];
     };
     for (let i = 0; i < 10; i++) {
-      tri(strand(i, -1), strand(i + 1, -1), strand(i, 1), 1);
-      tri(strand(i, 1), strand(i + 1, -1), strand(i + 1, 1), 1);
+      tri(blade(i, -1), blade(i + 1, -1), blade(i, 1), 0);
+      tri(blade(i, 1), blade(i + 1, -1), blade(i + 1, 1), 0);
+    }
+    if (tall) for (let i = 2; i < 10; i++) {
+      const p = stem(i / 10), side = i % 2 ? -1 : 1, reach = (1 - i / 13) * 1.5;
+      const tip = [p[0] + Math.cos(a) * reach * side, p[1] + 0.65, p[2] + Math.sin(a) * reach * side];
+      const mid = [(p[0] + tip[0]) / 2, p[1] + 0.14, (p[2] + tip[2]) / 2];
+      tri(p, [mid[0], mid[1] + 0.28, mid[2]], tip, 0);
+      tri(p, tip, [mid[0], mid[1] - 0.18, mid[2]], 0);
     }
   }
   const g = new BufferGeometry();
   g.setAttribute("position", new BufferAttribute(new Float32Array(vertices), 3));
   g.setAttribute("part", new BufferAttribute(new Float32Array(parts), 1));
+  g.computeVertexNormals();
   const material = new ShaderMaterial({
     side: DoubleSide,
     uniforms: { uTime: { value: 0 }, uWater: { value: water }, uFog: { value: TUNE.fogNear } },
     vertexShader: `
       attribute float part;
       uniform float uTime;
-      varying float vPart, vPhase, vDepth, vRim;
+      varying float vPart, vDepth, vHeight;
+      varying vec3 vN;
       void main(){
         vPart = part;
-        vPhase = instanceMatrix[3].x * 0.7;
-        float t = uTime * 1.25 + vPhase;
+        float phase = instanceMatrix[3].x * 0.17 + instanceMatrix[3].z * 0.11;
         vec3 p = position;
-        float pulse = sin(t);
-        p.xz *= 0.92 + pulse * 0.08;
-        p.y *= 1.0 - pulse * 0.12;
-        float trail = max(0.0, -position.y);
-        p.x += sin(t - trail * 1.6) * trail * 0.16;
-        p.z += cos(t * 0.7 - trail) * trail * 0.12;
+        float bend = max(0.0, p.y) * (1.0 - part);
+        p.x += sin(uTime * 0.55 + phase + p.y * 0.3) * bend * 0.10;
+        p.z += cos(uTime * 0.4 + phase + p.y * 0.25) * bend * 0.06;
         vec4 wp = instanceMatrix * vec4(p, 1.0);
-        wp.x += sin(uTime * 0.17 + vPhase) * 1.5;
-        wp.y += sin(t) * 0.35;
         vDepth = length(cameraPosition - wp.xyz);
-        vRim = 1.0 - smoothstep(0.0, 0.35, position.y);
+        vHeight = max(0.0, position.y) / 10.0;
+        vN = normalize(mat3(instanceMatrix) * normal);
         gl_Position = projectionMatrix * viewMatrix * wp;
       }`,
     fragmentShader: `
       uniform vec3 uWater;
       uniform float uFog;
-      varying float vPart, vPhase, vDepth, vRim;
+      varying float vPart, vDepth, vHeight;
+      varying vec3 vN;
       void main(){
-        vec3 tint = mix(vec3(0.48, 0.82, 0.80), vec3(0.72, 0.63, 0.86),
-          sin(vPhase) * 0.5 + 0.5);
-        float vis = exp(-vDepth * max(uFog, 0.018)) *
-          (1.0 - smoothstep(75.0, 110.0, vDepth));
-        vis *= mix(0.32 + vRim * 0.28, 0.6, vPart);
-        gl_FragColor = vec4(mix(tint, uWater, 0.18),
+        vec3 tint = mix(vec3(0.20, 0.40, 0.27), vec3(0.50, 0.56, 0.25), vHeight);
+        tint = mix(tint, vec3(0.28, 0.34, 0.33), vPart);
+        float light = abs(dot(normalize(vN), normalize(vec3(0.3, 1.0, 0.4))));
+        tint *= 0.65 + floor(light * 2.99) * 0.18;
+        float vis = exp(-vDepth * max(uFog, 0.012)) *
+          (1.0 - smoothstep(100.0, 150.0, vDepth));
+        gl_FragColor = vec4(mix(uWater, tint, vis),
           ${A_FLOOR.toFixed(2)} + ${(1 - A_FLOOR).toFixed(2)} * vis);
       }`,
   });
-  jellies = new InstancedMesh(g, material, 24);
-  jellies.name = "moon-jellies";
-  jellies.frustumCulled = false; // vertex motion extends the static bounds
+  vegetation = new InstancedMesh(g, material, 18);
+  vegetation.name = "kelp-beds";
+  vegetation.frustumCulled = false; // vertex motion extends the static bounds
   const r = mulberry32(0x1e11);
   const pose = new Object3D();
-  for (let i = 0; i < jellies.count; i++) {
-    const group = Math.floor(i / 8), a = r() * TAU, radius = 5 + r() * 18;
-    pose.position.set(Math.cos(a) * radius + group * 12,
-      -7 - group * 30 - r() * 16, -19 - group * 28 + Math.sin(a) * radius);
-    pose.scale.setScalar(0.65 + r() * 0.85);
+  for (let i = 0; i < vegetation.count; i++) {
+    const row = Math.floor(i / 2), side = i % 2 ? -1 : 1;
+    pose.position.set(side * (9 + r() * 8), -22 - r() * 6,
+      -12 - Math.floor(row / 3) * 20 - r() * 14);
+    pose.rotation.y = r() * TAU;
+    pose.scale.set(1.0 + r() * 0.5, 0.85 + r() * 0.6, 1.0 + r() * 0.5);
     pose.updateMatrix();
-    jellies.setMatrixAt(i, pose.matrix);
+    vegetation.setMatrixAt(i, pose.matrix);
   }
-  fishScene.add(jellies);
+  fishScene.add(vegetation);
 }
 
 /* --- surface and light shafts ------------------------------------------- */
@@ -2891,10 +2904,10 @@ function frame(nowMs) {
   fishMat.uniforms.uFarBig.value = TUNE.meshFarBig;
   fishMat.uniforms.uFogBig.value = TUNE.fogBig;
   fishMat.uniforms.uTime.value = lifeTime;
-  if (jellies) {
-    jellies.visible = phase === "ocean" && underwater;
-    jellies.material.uniforms.uTime.value = lifeTime;
-    jellies.material.uniforms.uFog.value = fog;
+  if (vegetation) {
+    vegetation.visible = phase === "ocean" && underwater;
+    vegetation.material.uniforms.uTime.value = lifeTime;
+    vegetation.material.uniforms.uFog.value = fog;
   }
   /* the ink is graded to the water rather than fixed black, or it goes from a
      hard cartoon line at the surface to invisible in the abyss */
@@ -3071,7 +3084,7 @@ function frame(nowMs) {
 
   /* 1. the animals, alone, at PX-to-one with their own depth buffer, so they
         still occlude each other */
-  const anyFish = phase === "ocean" && (!!world && nearSet.length > 0 || jellies?.visible);
+  const anyFish = phase === "ocean" && (!!world && nearSet.length > 0 || vegetation?.visible);
   const showGuide = guide.root.visible || player.root.visible;
   if (anyFish) {
     renderer.setRenderTarget(fishRT);
