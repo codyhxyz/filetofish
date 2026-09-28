@@ -1,0 +1,52 @@
+{
+  "slug": "late_night",
+  "aligned": true,
+  "bpm": 58,
+  "meter": 4,
+  "models": {
+    "melody": "https://storage.googleapis.com/magentadata/js/checkpoints/music_rnn/chord_pitches_improv",
+    "accompaniment": "https://storage.googleapis.com/magentadata/js/checkpoints/music_vae/multitrack_med_chords"
+  },
+  "chords": [
+    "Dbmaj7",
+    "Bbm7",
+    "Gbmaj7",
+    "Ab7",
+    "Dbmaj7",
+    "Bbm7",
+    "Gbmaj7",
+    "Ab7",
+    "Dbmaj7",
+    "Fm7",
+    "Gbmaj7",
+    "Ab7",
+    "Gbmaj7",
+    "Fm7",
+    "Ebm7",
+    "Ab7",
+    "Gbmaj7",
+    "Gbm",
+    "Dbmaj7",
+    "Ab7",
+    "Dbmaj7",
+    "Bbm7",
+    "Gbmaj7",
+    "Ab7"
+  ],
+  "form": [
+    "intro",
+    "A",
+    "B",
+    "tag"
+  ],
+  "melodyScores": {
+    "A": 6.2,
+    "B": 5.03,
+    "cadence": 6.45
+  },
+  "notes": {
+    "bass": 106,
+    "chords": 291,
+    "lead": 56
+  }
+}

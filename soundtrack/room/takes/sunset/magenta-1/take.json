@@ -1,0 +1,61 @@
+{
+  "slug": "sunset",
+  "aligned": true,
+  "bpm": 78,
+  "meter": 4,
+  "models": {
+    "melody": "https://storage.googleapis.com/magentadata/js/checkpoints/music_rnn/chord_pitches_improv",
+    "accompaniment": "https://storage.googleapis.com/magentadata/js/checkpoints/music_vae/multitrack_med_chords"
+  },
+  "chords": [
+    "Ebmaj7",
+    "Cm7",
+    "Fm7",
+    "Bb7",
+    "Ebmaj7",
+    "Cm7",
+    "Fm7",
+    "Bb7",
+    "Gm7",
+    "C7",
+    "Fm7",
+    "Bb7",
+    "Ebmaj7",
+    "Cm7",
+    "Fm7",
+    "Bb7",
+    "Gm7",
+    "C7",
+    "Fm7",
+    "Bb7",
+    "Abmaj7",
+    "Abm",
+    "Gm7",
+    "C7",
+    "Fm7",
+    "Bb7",
+    "Ebmaj7",
+    "Bb7",
+    "Ebmaj7",
+    "Cm7",
+    "Fm7",
+    "Bb7"
+  ],
+  "form": [
+    "intro",
+    "A",
+    "A2",
+    "B",
+    "tag"
+  ],
+  "melodyScores": {
+    "A": 5.36,
+    "B": 6,
+    "cadence": 5.86
+  },
+  "notes": {
+    "bass": 129,
+    "chords": 279,
+    "lead": 95
+  }
+}

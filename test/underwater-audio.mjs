@@ -3,6 +3,7 @@ import fs from "node:fs";
 import vm from "node:vm";
 import { getUnderwaterInput, setUnderwaterDepth, setUnderwaterSoundOn, UNDERWATER_AUDIO } from "../src/underwater-audio.mjs";
 import * as settings from "../src/music-settings.mjs";
+import { unpackTrack } from "../src/music-analysis.mjs";
 
 class Param {
   value = 1;
@@ -123,6 +124,8 @@ const ac = sfx.audio();
 const instruments = [];
 const music = load("music.js", {
   ...globals,
+  unpackTrack,
+  ROOM_TRACKS: JSON.parse(read("room-tracks.json")),
   Soundfont: { instrument: async (context, name, options) => {
     assert.equal(context, ac);
     instruments.push(options.destination);

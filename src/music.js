@@ -5,8 +5,12 @@
 import Soundfont from "soundfont-player";
 import { getUnderwaterInput } from "./underwater-audio.mjs";
 import { SOUNDFONT_BANK, readMusicVolume, writeMusicVolume } from "./music-settings.mjs";
+import { unpackTrack } from "./music-analysis.mjs";
+import ROOM_TRACKS from "./room-tracks.json";
 
-export const TRACKS = [
+/* Hand-written arrangements. A ROOM take imported by soundtrack/room/import.mjs
+   into room-tracks.json replaces the track with the same slug. */
+const WRITTEN_TRACKS = [
   {
     slug: "day",
     title: "Day",
@@ -287,6 +291,11 @@ export const TRACKS = [
   }
 ];
 
+export const TRACKS = WRITTEN_TRACKS.map(track => {
+  const room = ROOM_TRACKS.find(item => item.slug === track.slug);
+  return room ? unpackTrack(room) : track;
+});
+
 let AC = null, BUS = null, MASTER_FADE = null, DUCK_GAIN = null, ENV_INPUT = null;
 let musicInitialized = false;
 let hasStartedMusic = false;
@@ -329,6 +338,8 @@ function expandTrack(track) {
 }
 
 export function compileTimeline(track) {
+  // Imported tracks arrive as finished note events; chords only carry bar layers.
+  if (track.events) return track.events.map(event => ({ ...event })).sort((a, b) => a.beat - b.beat);
   expandTrack(track);
   const events = [];
   // Match the calibrated SoundFont studio mix: its reference is 1.1 / 0.8 bass,

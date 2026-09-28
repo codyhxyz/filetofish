@@ -1,0 +1,61 @@
+{
+  "slug": "night",
+  "aligned": true,
+  "bpm": 68,
+  "meter": 4,
+  "models": {
+    "melody": "https://storage.googleapis.com/magentadata/js/checkpoints/music_rnn/chord_pitches_improv",
+    "accompaniment": "https://storage.googleapis.com/magentadata/js/checkpoints/music_vae/multitrack_med_chords"
+  },
+  "chords": [
+    "Am7",
+    "Dm7",
+    "G7",
+    "Cmaj7",
+    "Am7",
+    "Dm7",
+    "G7",
+    "Cmaj7",
+    "Fmaj7",
+    "Bm7b5",
+    "E7",
+    "Am7",
+    "Am7",
+    "Dm7",
+    "G7",
+    "Cmaj7",
+    "Fmaj7",
+    "Bm7b5",
+    "E7",
+    "Am7",
+    "Fmaj7",
+    "E7",
+    "Am7",
+    "A7",
+    "Dm7",
+    "G7",
+    "Cmaj7",
+    "E7",
+    "Am7",
+    "Dm7",
+    "G7",
+    "Cmaj7"
+  ],
+  "form": [
+    "intro",
+    "A",
+    "A2",
+    "B",
+    "tag"
+  ],
+  "melodyScores": {
+    "A": 6.11,
+    "B": 5.46,
+    "cadence": 6.44
+  },
+  "notes": {
+    "bass": 88,
+    "chords": 380,
+    "lead": 142
+  }
+}

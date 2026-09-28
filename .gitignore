@@ -13,3 +13,9 @@ dist/render-world/
 soundtrack/previews/
 .pi/subagents/
 __pycache__/
+
+# ROOM takes: keep the MIDI and take.json, not the rendered audio
+soundtrack/room/takes/**/*.wav
+soundtrack/room/takes/**/*.mp3
+soundtrack/room/takes/**/*.flac
+soundtrack/room/takes/**/*.ogg
