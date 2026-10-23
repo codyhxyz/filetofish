@@ -1625,19 +1625,24 @@ function buildPlayer() {
   const M = g => new Mesh(g, guideMat);
   const root = new Object3D();
   root.rotation.order = "YXZ";
+  /* the transform is the player's centre, and the fins hang 0.83 below it.
+     Standing, the rig is lifted by that much so he stands on the deck instead
+     of in it; swimming, it drops back so he still turns about his middle. */
+  const rig = new Object3D();
+  root.add(rig);
 
   const body = kit();
   body.ball(0, 0.52, 0, 0.31, 0.47, 0.22, SUIT, 9, 6);
   body.box(0, 0.56, 0.25, 0.36, 0.48, 0.16, HAIR);       // air tank
   body.box(0, 0.44, 0.345, 0.13, 0.29, 0.07, CORAL);    // tank stripe
-  root.add(M(body.geo()));
+  rig.add(M(body.geo()));
 
   const head = kit();
   head.ball(0, 1.10, 0, 0.27, 0.29, 0.25, SKIN, 10, 7);
   head.ball(0, 1.19, 0.04, 0.28, 0.22, 0.25, HAIR, 9, 5);
   head.box(0, 1.10, -0.235, 0.38, 0.14, 0.055, GLASS);
   head.box(0, 1.01, -0.26, 0.10, 0.09, 0.07, HAIR);
-  root.add(M(head.geo()));
+  rig.add(M(head.geo()));
 
   const limb = kit();
   limb.tube([0, 0, 0], [0.10, -0.58, 0], 0.105, 0.075, SUIT, 6);
@@ -1646,7 +1651,7 @@ function buildPlayer() {
   armR.position.set(0.29, 0.80, 0); armL.position.set(-0.29, 0.80, 0);
   armL.scale.x = -1;
   armR.add(M(armGeo)); armL.add(M(armGeo));
-  root.add(armR, armL);
+  rig.add(armR, armL);
 
   const kick = kit();
   kick.tube([0, 0, 0], [0, -0.62, 0], 0.13, 0.09, SUIT, 7);
@@ -1655,15 +1660,16 @@ function buildPlayer() {
   legR.position.set(0.16, 0.16, 0); legL.position.set(-0.16, 0.16, 0);
   legL.scale.x = -1;
   legR.add(M(legGeo)); legL.add(M(legGeo));
-  root.add(legR, legL);
+  rig.add(legR, legL);
 
   const rod = M(kit().tube([0.40, 0.18, -0.12], [0.40, 1.75, -1.65], 0.035, 0.012, PLANK, 5).geo());
-  root.add(rod);
+  rig.add(rod);
   root.visible = false;
   guideScene.add(root);
-  return { root, armR, armL, legR, legL, rod, vel: new Vector3() };
+  return { root, rig, armR, armL, legR, legL, rod, vel: new Vector3() };
 }
 const player = buildPlayer();
+const PLAYER_FEET = 0.83;                // fin tip below the transform
 
 /* Three phases are enough: walk and talk on the dock, one deterministic water
    crossing, then the existing ocean controller. ?demo keeps its direct-ocean
@@ -2942,6 +2948,7 @@ function frame(nowMs) {
       const moving = clamp(cam.vel.length() / 2.8, 0, 1);
       const step = Math.sin(t * 8.0) * moving;
       player.root.rotation.set(0, cam.yaw, 0);
+      player.rig.position.y = PLAYER_FEET;
       player.armR.rotation.x = step * 0.45;
       player.armL.rotation.x = -step * 0.45;
       player.legR.rotation.x = -step * 0.38;
@@ -2949,12 +2956,14 @@ function frame(nowMs) {
     } else if (phase === "jump") {
       const dive = clamp((DOCK_Y - cam.pos.y + 0.2) / 4.0, 0, 1);
       player.root.rotation.set(-Math.PI * 0.48 * dive, cam.yaw, 0);
+      player.rig.position.y = PLAYER_FEET * (1 - dive);
       player.armR.rotation.x = player.armL.rotation.x = -1.0 * dive;
       player.legR.rotation.x = player.legL.rotation.x = 0.18;
     } else {
       const moving = Math.max(clamp(cam.vel.length() / TUNE.swimSpeed, 0, 1), glide ? 0.55 : 0.08);
       const stroke = Math.sin(t * (2.2 + moving * 4.8));
       player.root.rotation.set(-Math.PI / 2 + cam.pitch * 0.88, cam.yaw, 0);
+      player.rig.position.y = 0;
       player.armR.rotation.x = 0.18 + stroke * 0.72 * moving;
       player.armL.rotation.x = 0.18 - stroke * 0.72 * moving;
       player.legR.rotation.x = stroke * 0.26 * moving;
