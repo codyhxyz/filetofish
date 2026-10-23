@@ -12,7 +12,7 @@ import {
   Scene, PerspectiveCamera, OrthographicCamera, WebGLRenderer, WebGLRenderTarget,
   BufferGeometry, BufferAttribute, InstancedMesh, InstancedBufferAttribute,
   Mesh, Points, ShaderMaterial, MeshBasicMaterial, Color, NearestFilter,
-  Vector3, Object3D, PlaneGeometry, DoubleSide, AdditiveBlending, Vector2, Raycaster,
+  Vector3, Vector4, Object3D, PlaneGeometry, DoubleSide, AdditiveBlending, Vector2, Raycaster,
 } from "three";
 import { P as SND, speak, beats, isOn, setOn, audio, sfx } from "./sfx.js";
 
@@ -1525,19 +1525,19 @@ function seabedY(x, z) {
     Math.max(0, vnoise(x / 17 + 11, z / 17) - 0.68) * 22;
   return bed.floor - ledge * bed.floor * 0.62 + rough * (1 + lift * 1.5);
 }
-/* fine cells as far as the murk lets you see ground, then cells that widen
-   out to the far plane: the murk has the ground long before then, but the
-   ground still has to be there to stand in front of the haze below the
-   horizon, and a ridge against that glow should not be drawn with a ruler */
-const SEABED_N = 128, SEABED_CELL = 10, SEABED_FINE = 48;
-const SEABED_NEAR = SEABED_FINE * SEABED_CELL;
-const seabedOffset = k => {
-  const m = Math.max(0, Math.abs(k) - SEABED_FINE);
-  return Math.sign(k) * (Math.min(Math.abs(k), SEABED_FINE) + Math.round(m + m * m * 1.31)) * SEABED_CELL;
-};
+/* The ground is a geometry clipmap (Losasso & Hoppe, 2004): nested square
+   grids centred on the eye, each twice the cell of the one inside it. Each
+   level moves only in steps of its parent's cell, so its vertices only ever
+   land on its own lattice and sample the rock exactly where they sampled it
+   before -- nothing re-shapes as you swim. Across the outer band of each
+   level every vertex blends, by its distance from the eye, to the height the
+   next level out draws at that spot, so by its rim a level IS the coarser
+   surface and the hand-over has no seam and no pop. The coarser level skips
+   whatever the finer one already covers. */
+const SEABED_CELL = 10, SEABED_M = 96, SEABED_LEVELS = 4;
 /* the rock as drawn, not as defined: a triangle never rises above its own
    corners, so the highest of the four lattice points round you is ground you
-   can never be inside */
+   can never be inside. Near the eye the finest level is drawn unblended. */
 function groundAt(x, z) {
   const x0 = Math.floor(x / SEABED_CELL) * SEABED_CELL, z0 = Math.floor(z / SEABED_CELL) * SEABED_CELL;
   return Math.max(seabedY(x0, z0), seabedY(x0 + SEABED_CELL, z0),
@@ -1545,14 +1545,28 @@ function groundAt(x, z) {
 }
 /* how low the swimmer may go here: the diver's own clearance off the rock */
 const bottomAt = (x, z) => Math.min(-2, groundAt(x, z) + 4);
-const SEABED_VS = `varying vec3 vW;
-void main(){ vec4 wp = modelMatrix * vec4(position, 1.0); vW = wp.xyz;
-  gl_Position = projectionMatrix * viewMatrix * wp; }`;
+const SEABED_VS = `
+attribute float hc;
+uniform float uMorphFrom, uMorphTo;
+varying vec3 vW;
+void main(){
+  vec4 wp = modelMatrix * vec4(position, 1.0);
+  vec2 d = abs(wp.xz - cameraPosition.xz);
+  wp.y = mix(position.y, hc, clamp((max(d.x, d.y) - uMorphFrom) / (uMorphTo - uMorphFrom), 0.0, 1.0));
+  vW = wp.xyz;
+  gl_Position = projectionMatrix * viewMatrix * wp;
+}`;
+/* the finer level's square, less a cell: inside it this level stands down */
+const SEABED_HOLE = `
+uniform vec4 uHole;
+bool inHole(vec2 p){ return all(greaterThan(p, uHole.xy)) && all(lessThan(p, uHole.zw)); }`;
 const SEABED_FS = `
 precision highp float;
 uniform vec3 uWater; uniform float uFog, uDepth;
 varying vec3 vW;
+${SEABED_HOLE}
 void main(){
+  if (inHole(vW.xz)) discard;
   /* one normal per triangle, straight off the screen derivatives: the ground
      is faceted the way the animals are */
   vec3 N = normalize(cross(dFdx(vW), dFdy(vW)));
@@ -1564,60 +1578,88 @@ void main(){
   vec3 col = alb * (0.30 + 0.85 * band) * mix(1.0, 0.5, clamp(-vW.y / uDepth, 0.0, 1.0));
   /* no dither: the grain is how you tell an animal from the scenery, and a
      whole wall of it is a screen door */
-  float d = length(cameraPosition - vW);
-  float f = max(1.0 - exp(-d * uFog), smoothstep(${SEABED_NEAR * 0.75}.0, ${SEABED_NEAR}.0, d));
+  float f = 1.0 - exp(-length(cameraPosition - vW) * uFog);
   gl_FragColor = vec4(mix(col, uWater, f), 1.0);
 }`;
-const seabedMat = new ShaderMaterial({
-  vertexShader: SEABED_VS, fragmentShader: SEABED_FS,
-  uniforms: {
-    uWater: { value: water }, uFog: { value: TUNE.fogDeep }, uDepth: { value: TUNE.depth },
-  },
-});
-/* One grid that travels with the swimmer in whole cells, so a vertex only
-   ever lands where a vertex already was and the ground never swims. Only the
-   heights are rewritten when it moves. */
-const seabedGeo = new BufferGeometry();
-{
-  const n = SEABED_N + 1, pos = new Float32Array(n * n * 3), idx = [];
-  for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
-    pos[(j * n + i) * 3] = seabedOffset(i - SEABED_N / 2);
-    pos[(j * n + i) * 3 + 2] = seabedOffset(j - SEABED_N / 2);
-  }
-  for (let j = 0; j < SEABED_N; j++) for (let i = 0; i < SEABED_N; i++) {
-    const a = j * n + i;
-    idx.push(a, a + n, a + 1, a + 1, a + n, a + n + 1);
-  }
-  seabedGeo.setAttribute("position", new BufferAttribute(pos, 3));
-  seabedGeo.setIndex(idx);
-}
-const seabed = new Mesh(seabedGeo, seabedMat);
-seabed.name = "seabed";
-seabed.frustumCulled = false;                    // its bounds move with it
-scene.add(seabed);
 /* The water is drawn under the animals rather than with them, so the rock
    also goes into the fish pass as depth alone: a shoal behind a ledge is
    hidden by it, and the silhouette ink still has transparent texels round
    every fish that sits in front of the ground. */
-const seabedDepth = new Mesh(seabedGeo, new ShaderMaterial({
-  vertexShader: "void main(){ gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }",
-  fragmentShader: "void main(){ gl_FragColor = vec4(0.0); }",
-  colorWrite: false,
-}));
-seabedDepth.name = "seabed-depth";
-seabedDepth.frustumCulled = false;
-seabedDepth.renderOrder = -1;                    // before the animals it hides
-fishScene.add(seabedDepth);
-let seabedAt = null;
+const SEABED_DEPTH_FS = `
+precision highp float;
+varying vec3 vW;
+${SEABED_HOLE}
+void main(){ if (inHole(vW.xz)) discard; gl_FragColor = vec4(0.0); }`;
+const seabedU = {
+  uWater: { value: water }, uFog: { value: TUNE.fogDeep }, uDepth: { value: TUNE.depth },
+};
+const seabedIndex = [];
+for (let j = 0; j < SEABED_M; j++) for (let i = 0; i < SEABED_M; i++) {
+  const a = j * (SEABED_M + 1) + i;
+  /* every quad cut on the same diagonal, so a cell's four children lie in
+     its two triangles and a fully blended level is exactly its parent */
+  seabedIndex.push(a, a + SEABED_M + 1, a + 1, a + 1, a + SEABED_M + 1, a + SEABED_M + 2);
+}
+const seabedLevels = [];
+for (let L = 0; L < SEABED_LEVELS; L++) {
+  const s = SEABED_CELL << L, half = SEABED_M / 2 * s, n = SEABED_M + 1;
+  const pos = new Float32Array(n * n * 3);
+  for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
+    pos[(j * n + i) * 3] = (i - SEABED_M / 2) * s;
+    pos[(j * n + i) * 3 + 2] = (j - SEABED_M / 2) * s;
+  }
+  const geo = new BufferGeometry();
+  geo.setAttribute("position", new BufferAttribute(pos, 3));
+  geo.setAttribute("hc", new BufferAttribute(new Float32Array(n * n), 1));
+  geo.setIndex(seabedIndex);
+  /* the eye is never more than a cell off this level's centre, so the band
+     finishes blending a few cells inside the rim whichever way it sits */
+  const last = L === SEABED_LEVELS - 1;
+  const lvl = {
+    uMorphFrom: { value: last ? 1e9 : half * 0.7 }, uMorphTo: { value: last ? 2e9 : half - 3 * s },
+    uHole: { value: new Vector4(1, 1, -1, -1) },
+  };
+  const color = new Mesh(geo, new ShaderMaterial({
+    vertexShader: SEABED_VS, fragmentShader: SEABED_FS, uniforms: { ...seabedU, ...lvl },
+  }));
+  const depth = new Mesh(geo, new ShaderMaterial({
+    vertexShader: SEABED_VS, fragmentShader: SEABED_DEPTH_FS, uniforms: lvl, colorWrite: false,
+  }));
+  color.name = L === 0 ? "seabed" : `seabed-${L}`;
+  depth.name = L === 0 ? "seabed-depth" : `seabed-depth-${L}`;
+  color.frustumCulled = depth.frustumCulled = false;   // the bounds move with them
+  depth.renderOrder = -1;                              // before the animals it hides
+  scene.add(color);
+  fishScene.add(depth);
+  seabedLevels.push({ s, half, geo, color, depth, hole: lvl.uHole.value, at: null });
+}
+function showSeabed(on) {
+  for (const l of seabedLevels) l.color.visible = l.depth.visible = on;
+}
 function placeSeabed(x, z) {
-  const ox = Math.round(x / SEABED_CELL) * SEABED_CELL, oz = Math.round(z / SEABED_CELL) * SEABED_CELL;
-  if (seabedAt && seabedAt.v === bed.v && Math.hypot(ox - seabedAt.x, oz - seabedAt.z) < 60) return;
-  seabedAt = { x: ox, z: oz, v: bed.v };
-  const a = seabedGeo.attributes.position;
-  for (let i = 0; i < a.count; i++) a.array[i * 3 + 1] = seabedY(ox + a.array[i * 3], oz + a.array[i * 3 + 2]);
-  a.needsUpdate = true;
-  seabed.position.set(ox, 0, oz);
-  seabedDepth.position.set(ox, 0, oz);
+  const n = SEABED_M + 1;
+  seabedLevels.forEach((l, L) => {
+    const ox = Math.round(x / (2 * l.s)) * 2 * l.s, oz = Math.round(z / (2 * l.s)) * 2 * l.s;
+    if (l.at && l.at.v === bed.v && l.at.x === ox && l.at.z === oz) return;
+    l.at = { x: ox, z: oz, v: bed.v };
+    const p = l.geo.attributes.position, hc = l.geo.attributes.hc, P = p.array, H = hc.array;
+    for (let i = 0; i < p.count; i++) P[i * 3 + 1] = seabedY(ox + P[i * 3], oz + P[i * 3 + 2]);
+    /* where the parent draws this vertex: on its own corner, mid-edge, or
+       mid-diagonal (the same diagonal every quad is cut on) */
+    const h = (i, j) => P[(j * n + i) * 3 + 1];
+    for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
+      const oi = i & 1, oj = j & 1;
+      H[j * n + i] = !oi && !oj ? h(i, j)
+        : oi && !oj ? (h(i - 1, j) + h(i + 1, j)) / 2
+        : !oi && oj ? (h(i, j - 1) + h(i, j + 1)) / 2
+        : (h(i + 1, j - 1) + h(i - 1, j + 1)) / 2;
+    }
+    p.needsUpdate = hc.needsUpdate = true;
+    l.color.position.set(ox, 0, oz);
+    l.depth.position.set(ox, 0, oz);
+    const outer = seabedLevels[L + 1];
+    if (outer) outer.hole.set(ox - l.half + l.s, oz - l.half + l.s, ox + l.half - l.s, oz + l.half - l.s);
+  });
 }
 
 /* ============================================================ kelp
@@ -1963,7 +2005,7 @@ function buildWorld(files, label) {
   bed.r = radius * (embedded ? 0.18 : 1);
   bed.floor = -(DEPTH + 60);
   bed.v++;
-  seabedMat.uniforms.uDepth.value = DEPTH;
+  seabedU.uDepth.value = DEPTH;
   fitZones();
 
   /* --- points: every file, always --------------------------------------- */
@@ -3290,12 +3332,12 @@ function frame(nowMs) {
   surfMat.uniforms.uWater.value.copy(water).lerp(new Color(0x2f89a8), 0.5);
   for (const m of rayMats) m.uniforms.uTime.value = t;
 
-  seabed.visible = seabedDepth.visible = underwater;
+  showSeabed(underwater);
   if (underwater) {
-    placeSeabed(cam.pos.x, cam.pos.z);
+    placeSeabed(camera.position.x, camera.position.z);
     /* the murk on the way down to the floor is the deep water's, not the
        surface's: from the top you should barely make out the bottom */
-    seabedMat.uniforms.uFog.value = lerp(fog, TUNE.fogDeep, 0.6);
+    seabedU.uFog.value = lerp(fog, TUNE.fogDeep, 0.6);
   }
   snow.visible = phase === "ocean";
   if (snow.visible) {

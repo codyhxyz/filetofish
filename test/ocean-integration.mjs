@@ -200,6 +200,50 @@ doc.hidden = false;
   ocean.setMove(0, 1); tick(1200); ocean.clearInput(); tick(20);
   assert(ocean.cam.pos.y > ground + 40, `crossing the trench climbs its wall (${ocean.cam.pos.y.toFixed(1)})`);
   assert(ocean.cam.pos.y > groundUnder() + 2, "and never passes through it");
+
+  // The far ground must not pop. Mirror the clipmap's vertex shader on the
+  // CPU and watch fixed points from near to the horizon while the eye swims:
+  // levels re-centring and handing over may only ever move the ground by
+  // the blend's own small slope, never in a jump.
+  const water = seabed.parent, levels = [seabed];
+  for (let L = 1; water.getObjectByName(`seabed-${L}`); L++) levels.push(water.getObjectByName(`seabed-${L}`));
+  assert(levels.length >= 3, "the ground is nested levels, not one grid");
+  const M = Math.sqrt(seabed.geometry.attributes.hc.count) - 1;
+  const drawnAt = (px, pz, eye) => {
+    for (const mesh of levels) {
+      const P = mesh.geometry.attributes.position.array, H = mesh.geometry.attributes.hc.array;
+      const s = P[3] - P[0], u = mesh.material.uniforms, n = M + 1;
+      const fi = (px - mesh.position.x) / s + M / 2, fj = (pz - mesh.position.z) / s + M / 2;
+      if (fi < 0 || fj < 0 || fi >= M || fj >= M) continue;
+      const i = Math.floor(fi), j = Math.floor(fj), fx = fi - i, fz = fj - j;
+      const y = (a, b) => {
+        const v = b * n + a, k = Math.min(1, Math.max(0, (Math.max(
+          Math.abs(P[v * 3] + mesh.position.x - eye.x), Math.abs(P[v * 3 + 2] + mesh.position.z - eye.z)) -
+          u.uMorphFrom.value) / (u.uMorphTo.value - u.uMorphFrom.value)));
+        return P[v * 3 + 1] + (H[v] - P[v * 3 + 1]) * k;
+      };
+      return fx + fz <= 1
+        ? y(i, j) + fx * (y(i + 1, j) - y(i, j)) + fz * (y(i, j + 1) - y(i, j))
+        : y(i + 1, j + 1) + (1 - fx) * (y(i, j + 1) - y(i + 1, j + 1)) + (1 - fz) * (y(i + 1, j) - y(i + 1, j + 1));
+    }
+    return null;
+  };
+  const spots = [];
+  for (let d = 30; d < 3400; d *= 1.13) spots.push([d * 0.6, -d * 0.8], [-d * 0.9, d * 0.3]);
+  ocean.cam.pos.set(0, ocean.cam.pos.y, -60); ocean.cam.depthT = ocean.cam.pos.y; tick(30);
+  let last = null, worst = 0, moved = 0;
+  for (let n = 0; n < 240; n++) {
+    ocean.cam.pos.x += 1.7; ocean.cam.pos.z -= 0.9; tick();
+    const eye = ocean.camera.position, now = spots.map(([x, z]) => drawnAt(x, z, eye));
+    if (last) for (let i = 0; i < now.length; i++)
+      if (now[i] !== null && last.h[i] !== null)
+        worst = Math.max(worst, Math.abs(now[i] - last.h[i]) / Math.max(0.5, eye.distanceTo(last.eye)));
+    moved += last ? eye.distanceTo(last.eye) : 0;
+    last = { h: now, eye: eye.clone() };
+  }
+  console.log(`seabed: eye swam ${moved.toFixed(0)} units, worst ground change ${worst.toFixed(3)} per unit of eye travel`);
+  assert(moved > 300, "the sweep crosses several re-centrings of every fine level");
+  assert(worst < 0.5, `distant ground never pops (worst ${worst.toFixed(3)} per unit)`);
 }
 assert.equal(ocean.guide.root.position.y, 1, "dock and Kelp stay on surface");
 assert.equal(ocean.guide.root.visible, true);
