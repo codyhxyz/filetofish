@@ -858,9 +858,9 @@ const nInk = $("#rodInk"), nDark = $("#rodDark"), nMid = $("#rodMid"), nLit = $(
 const elStatus = $("#status");
 
 let W = 0, H = 0, state = "idle", t0 = 0, fish = null;
-let exploration = null, readingFiles = false, pickingFile = false;
+let exploration = null, readingFiles = false;
 const catchPending = () => state !== "idle" && state !== "gone";
-const movementBlocked = () => catchPending() || readingFiles || pickingFile ||
+const movementBlocked = () => catchPending() || readingFiles ||
   !$("#dex").hidden || versionBox.open || !elSettingsPanel.hidden || !$("#time-reel").hidden;
 let bob = { x: 0, y: 0 }, target = { x: 0, y: 0 }, from = { x: 0, y: 0 };
 /* where a fish leaving re-enters the water, and the trail it leaves heading out */
@@ -1233,9 +1233,8 @@ function frame(nowMs) {
   const dt = Math.min(0.05, (nowMs - last) / 1000); last = nowMs;
   const now = nowMs / 1000;
   layout();
-  const busy = catchPending() || readingFiles || pickingFile || exploration?.busy();
+  const busy = catchPending() || readingFiles || exploration?.busy();
   $("#cast").disabled = !!busy;
-  $("#import-file").disabled = !!busy;
   const age = now - t0;
   let vis = false, sc = 0.5, tilt = 0, bt = 0;
 
@@ -1468,15 +1467,7 @@ hit.addEventListener("click", e => {
   hit.classList.remove("fish-drag");
   if (!exploration && !moved && !onFish) { unlock(); $("#file").click(); }
 });
-$("#import-file").addEventListener("click", () => {
-  if (catchPending() || readingFiles || exploration?.busy()) return;
-  unlock(); exploration?.clearInput();
-  pickingFile = true;
-  $("#file").click();
-});
-$("#file").addEventListener("cancel", () => { pickingFile = false; });
 $("#file").addEventListener("change", async e => {
-  pickingFile = false;
   unlock();
   if (e.target.files.length) await haul(e.target.files);
   e.target.value = "";
@@ -1541,6 +1532,14 @@ $("#release").addEventListener("click", e => {
   clearHash();
   enter("release", performance.now() / 1000);
 });
+
+/* Esc throws it back, the way Esc dismisses anything else -- unless a panel is
+   open, in which case Esc is that panel's and its own handler closes it */
+addEventListener("keydown", e => {
+  if (e.key !== "Escape" || e.repeat || state !== "caught" || !fish) return;
+  if (!dexEl.hidden || versionBox.open || !elSettingsPanel.hidden || !elTimeReel.hidden) return;
+  $(fish.bulk ? "#bulk-done" : "#release").click();
+}, true);
 
 $("#keep").addEventListener("click", e => {
   e.stopPropagation();

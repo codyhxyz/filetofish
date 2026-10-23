@@ -2169,10 +2169,15 @@ function kick() {
              cam.yawT, cam.pitchT);
 }
 
+/* Ctrl on its own flips the view, on release, so Ctrl+anything (a browser
+   shortcut, a Mac right-click, a pinch-zoom) never does */
+let ctrlAlone = false;
 addEventListener("keydown", e => {
   const k = e.key.toLowerCase();
   const repeated = e.repeat || down.has(k);
   down.add(k);
+  if (e.key !== "Control") ctrlAlone = false;
+  else if (!repeated) ctrlAlone = true;
   if (!embedded && e.key === "Escape") { closeHaul(); return; }
   if (ownsKeys(e)) return;
   if (embedded) {
@@ -2188,7 +2193,6 @@ addEventListener("keydown", e => {
     if (!repeated) {
       if (e.code === "Space") beginJump();
       if (k === "q" && phase === "ocean") returnToDock();
-      if (k === "v") toggleView();
       if (k === "e") greetKelp();
     }
     if (!repeated && !isBlocked()) keys.add(k);
@@ -2202,7 +2206,6 @@ addEventListener("keydown", e => {
   }
   if (isBlocked()) { clearInput(); return; }
   if (!repeated) keys.add(k);
-  if (!repeated && k === "v") toggleView();
   if (!repeated && k === "q") { returnToDock(); return; }
   if (phase === "dock") { if (!repeated && k === "e") dockAction(); return; }
   if (phase === "jump") return;
@@ -2213,7 +2216,12 @@ addEventListener("keydown", e => {
   if (!repeated && k === "f") toKelp();
   if (!repeated && k === "e") toggleNet();
 });
-addEventListener("keyup", e => { const k = e.key.toLowerCase(); keys.delete(k); down.delete(k); });
+addEventListener("keyup", e => {
+  const k = e.key.toLowerCase(); keys.delete(k); down.delete(k);
+  if (e.key === "Control" && ctrlAlone && !ownsKeys(e)) toggleView();
+  if (e.key === "Control") ctrlAlone = false;
+});
+for (const type of ["pointerdown", "wheel"]) addEventListener(type, () => { ctrlAlone = false; }, true);
 addEventListener("blur", () => { clearInput(); down.clear(); });
 document.addEventListener("visibilitychange", () => {
   if (document.hidden) { clearInput(); down.clear(); }

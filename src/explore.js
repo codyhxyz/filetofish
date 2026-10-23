@@ -29,7 +29,7 @@ export function mountExploration(host, { sea, isBlocked, onDepth }) {
   const touch = !!globalThis.matchMedia?.("(pointer:coarse)").matches;
   const canvas = root.querySelector("#gl");
   canvas.tabIndex = 0;
-  canvas.setAttribute("aria-label", "Fishing world. WASD to move, drag to look, Space to dive, V to change view, Q to return.");
+  canvas.setAttribute("aria-label", "Fishing world. WASD to move, drag to look, Space to dive, Ctrl to change view.");
   canvas.addEventListener("pointerdown", () => canvas.focus({ preventScroll: true }));
   let underwater = false, phase = "dock", lastLabel = "";
   const talking = () => !root.querySelector("#intro").hidden;
@@ -51,14 +51,14 @@ export function mountExploration(host, { sea, isBlocked, onDepth }) {
       document.body.classList.toggle("exploration-blocked", blocked);
       for (const control of [dive, view, stick, up, down]) control.disabled = blocked;
       up.hidden = down.hidden = phase !== "ocean";
+      dive.hidden = phase === "ocean";
       const label = `${phase}/${frame.perspective}`;
       if (label !== lastLabel) {
         lastLabel = label;
-        dive.textContent = phase === "ocean" ? (touch ? "Return" : "Return · Q")
-          : phase === "jump" ? "Diving" : touch ? "Dive" : "Dive · Space";
-        dive.setAttribute("aria-label", phase === "ocean" ? "Return to the dock (Q)" : "Jump into the ocean (Space)");
-        view.textContent = frame.perspective === "first" ? "1st person · V" : "3rd person · V";
-        view.setAttribute("aria-label", `Switch to ${frame.perspective === "first" ? "third" : "first"} person (V)`);
+        dive.textContent = phase === "jump" ? "Diving" : touch ? "Dive" : "Dive · Space";
+        dive.setAttribute("aria-label", "Jump into the ocean (Space)");
+        view.textContent = frame.perspective === "first" ? "1st person · Ctrl" : "3rd person · Ctrl";
+        view.setAttribute("aria-label", `Switch to ${frame.perspective === "first" ? "third" : "first"} person (Ctrl)`);
         $("#move-help").textContent = phase === "ocean"
           ? "WASD swim · Shift sprint · drag to look · ↑ ↓ depth"
           : "WASD walk · Shift sprint · drag to look";
@@ -69,7 +69,7 @@ export function mountExploration(host, { sea, isBlocked, onDepth }) {
     },
   });
   const act = fn => () => { if (!isBlocked() && !talking()) fn(); };
-  dive.addEventListener("click", act(() => phase === "ocean" ? api.returnToDock() : api.beginJump()));
+  dive.addEventListener("click", act(() => api.beginJump()));
   view.addEventListener("click", act(() => api.toggleView()));
 
   /* One thumb stick: drag inside it for a direction, let go to centre. Only the

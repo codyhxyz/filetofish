@@ -591,8 +591,7 @@ body.hint-send #fish{opacity:.62; transform:translateX(14px);}
 
 /* ---------------------------------------------------------------- touch HUD */
 /* A phone gets two thumbs and a corner each. Left: the move stick. Right: the
-   look stick, and the rod in the actual corner with Dive and File stacked over
-   it. The top edge holds the clock (centre) and a slim column on the right:
+   look stick, and the rod in the actual corner with Dive stacked over it. The top edge holds the clock (centre) and a slim column on the right:
    settings, dex, music. Nothing sits in the middle of the bottom edge. */
 #music,#now-playing{display:none;}
 @media (pointer:coarse){
@@ -604,16 +603,15 @@ body.hint-send #fish{opacity:.62; transform:translateX(14px);}
   }
   #move-stick{display:block; width:var(--stick); height:var(--stick); bottom:var(--floor); left:max(1rem,env(safe-area-inset-left));}
 
-  /* the keyboard chips come apart: V has no business on a phone, Dive and
-     File join the rod's column */
+  /* the keyboard chips come apart: Ctrl has no business on a phone, Dive
+     joins the rod's column */
   #travel{display:contents;}
   #view{display:none;}
-  #dive,#import-file{
+  #dive{
     position:fixed; z-index:9; right:var(--edge); width:var(--rod); min-height:2.75rem; padding:.5rem .3rem;
     font-family:var(--f-mono); font-size:.68rem; letter-spacing:.06em;
   }
   #dive{bottom:calc(var(--floor) + var(--rod) + .7rem);}
-  #import-file{bottom:calc(var(--floor) + var(--rod) + 4.1rem);}
   #swim-depth{right:calc(var(--edge) + var(--rod) + .9rem); bottom:var(--floor); flex-direction:column;}
   #swim-depth button{font-family:var(--f-mono); font-size:.68rem; letter-spacing:.06em; min-width:3.6rem;}
 
@@ -653,9 +651,6 @@ body.hint-send #fish{opacity:.62; transform:translateX(14px);}
   #foot{bottom:calc(var(--floor) + var(--stick) + 1rem);}
   /* the reel stays between the logo and the right-hand column */
   #time-reel{width:min(18rem,calc(100vw - 2 * (var(--edge) + 3.25rem)));}
-}
-@media (pointer:coarse) and (max-height:500px){
-  #import-file{bottom:var(--floor); right:calc(var(--edge) + var(--rod) + 5.9rem);}
 }
 
 /* the one-time lesson: a ghost fingertip sweeps the sea, trailing a comet */
@@ -712,8 +707,7 @@ body.hint-send #fish{opacity:.62; transform:translateX(14px);}
 <div id="move-help">WASD walk · Shift sprint · drag to look</div>
 <div id="travel" role="group" aria-label="Explore the ocean">
   <button id="dive" type="button">Dive · Space</button>
-  <button id="view" type="button">1st person · V</button>
-  <button id="import-file" type="button" aria-label="Turn a file into a fish">File</button>
+  <button id="view" type="button">1st person · Ctrl</button>
 </div>
 <button id="move-stick" type="button" aria-label="Movement joystick. Drag to walk or swim. Keyboard: W A S D."><span id="move-knob"></span></button>
 <div id="look-hint" aria-hidden="true"><i></i><span>drag to look around</span></div>
