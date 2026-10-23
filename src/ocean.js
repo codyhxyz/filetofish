@@ -1298,21 +1298,40 @@ if (embedded) {
     const x = Math.cos(a) * (tall ? 0.65 : 1.5), z = Math.sin(a) * (tall ? 0.65 : 1.5);
     const stem = t => [x + Math.sin(t * 2.5 + a) * t * 0.75, t * height,
       z + Math.cos(a) * t * t * 0.9];
-    const blade = (i, side) => {
-      const t = i / 10, p = stem(t);
-      const width = tall ? 0.055 * (1 - t) : Math.sin(Math.PI * t) * 0.22 + 0.015;
-      return [p[0] + Math.cos(a) * width * side, p[1], p[2] + Math.sin(a) * width * side];
-    };
-    for (let i = 0; i < 10; i++) {
-      tri(blade(i, -1), blade(i + 1, -1), blade(i, 1), 0);
-      tri(blade(i, 1), blade(i + 1, -1), blade(i + 1, 1), 0);
+    /* Nothing here may be a single flat card. A stem that is one ribbon, with
+       every frond in its plane, turns edge-on to half the compass and falls
+       apart into inked speckle at the fish target's resolution. So the stem
+       is a three-sided prism, the fronds spiral round it, and the seagrass
+       twists half a turn along its length. */
+    if (tall) {
+      const ring = (i, k) => {
+        const t = i / 10, p = stem(t), r = 0.13 * (1 - t * 0.6), b = a + k / 3 * TAU;
+        return [p[0] + Math.cos(b) * r, p[1], p[2] + Math.sin(b) * r];
+      };
+      for (let i = 0; i < 10; i++) for (let k = 0; k < 3; k++) {
+        tri(ring(i, k), ring(i + 1, k), ring(i, k + 1), 0);
+        tri(ring(i, k + 1), ring(i + 1, k), ring(i + 1, k + 1), 0);
+      }
+    } else {
+      const blade = (i, side) => {
+        const t = i / 10, p = stem(t), b = a + t * Math.PI * 0.9;
+        const width = Math.sin(Math.PI * t) * 0.22 + 0.03;
+        return [p[0] + Math.cos(b) * width * side, p[1], p[2] + Math.sin(b) * width * side];
+      };
+      for (let i = 0; i < 10; i++) {
+        tri(blade(i, -1), blade(i + 1, -1), blade(i, 1), 0);
+        tri(blade(i, 1), blade(i + 1, -1), blade(i + 1, 1), 0);
+      }
     }
+    /* golden-angle fronds, each leaf tilted out of the vertical so it shows a
+       face from above and below as well as from the side */
     if (tall) for (let i = 2; i < 10; i++) {
-      const p = stem(i / 10), side = i % 2 ? -1 : 1, reach = (1 - i / 13) * 1.5;
-      const tip = [p[0] + Math.cos(a) * reach * side, p[1] + 0.65, p[2] + Math.sin(a) * reach * side];
-      const mid = [(p[0] + tip[0]) / 2, p[1] + 0.14, (p[2] + tip[2]) / 2];
-      tri(p, [mid[0], mid[1] + 0.28, mid[2]], tip, 0);
-      tri(p, tip, [mid[0], mid[1] - 0.18, mid[2]], 0);
+      const p = stem(i / 10), b = a + i * 2.4, reach = (1 - i / 13) * 1.5;
+      const ox = Math.cos(b), oz = Math.sin(b), px = -oz, pz = ox;
+      const tip = [p[0] + ox * reach, p[1] + 0.65, p[2] + oz * reach];
+      const mid = [(p[0] + tip[0]) / 2, p[1] + 0.2, (p[2] + tip[2]) / 2];
+      tri(p, [mid[0] + px * 0.26, mid[1] + 0.16, mid[2] + pz * 0.26], tip, 0);
+      tri(p, tip, [mid[0] - px * 0.2, mid[1] - 0.1, mid[2] - pz * 0.2], 0);
     }
   }
   const g = new BufferGeometry();
