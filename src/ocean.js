@@ -11,7 +11,7 @@
 import {
   Scene, PerspectiveCamera, OrthographicCamera, WebGLRenderer, WebGLRenderTarget,
   BufferGeometry, BufferAttribute, InstancedMesh, InstancedBufferAttribute,
-  Mesh, Points, ShaderMaterial, Color, NearestFilter,
+  Mesh, Points, ShaderMaterial, MeshBasicMaterial, Color, NearestFilter,
   Vector3, Object3D, PlaneGeometry, DoubleSide, AdditiveBlending, Vector2, Raycaster,
 } from "three";
 import { P as SND, speak, beats, isOn, setOn, audio, sfx } from "./sfx.js";
@@ -1454,6 +1454,20 @@ const surfMat = new ShaderMaterial({
   plane.position.y = 0.5;
   plane.frustumCulled = false;
   scene.add(plane);
+}
+/* The actors render into their own targets with their own depth, so nothing
+   in the water scene can hide them -- including the surface. From below, the
+   surface is a ceiling: whatever stands on the dock above it is gone. The
+   same plane, depth only, is laid into each actor target before the actors,
+   so they are depth-tested against it like anything else. */
+const ceiling = new Scene();
+{
+  const plane = new Mesh(new PlaneGeometry(5200, 5200, 1, 1),
+    new MeshBasicMaterial({ colorWrite: false, side: DoubleSide }));
+  plane.rotation.x = Math.PI / 2;
+  plane.position.y = 0.5;
+  plane.frustumCulled = false;
+  ceiling.add(plane);
 }
 const rayMats = [];
 {
@@ -3470,12 +3484,14 @@ function frame(nowMs) {
     renderer.setRenderTarget(fishRT);
     renderer.setClearColor(0x000000, 0);
     renderer.clear();
+    if (underwater) renderer.render(ceiling, camera);
     renderer.render(fishScene, camera);
   }
   if (showGuide) {                             // Kelp and the diver, at a finer grain
     renderer.setRenderTarget(guideRT);
     renderer.setClearColor(0x000000, 0);
     renderer.clear();
+    if (underwater) renderer.render(ceiling, camera);
     renderer.render(guideScene, camera);
   }
   /* 2. the water, full res, untouched */
