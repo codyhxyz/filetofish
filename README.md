@@ -48,6 +48,7 @@ Why the light does what it does is in [DESIGN.md](DESIGN.md).
 
 The [water lab](https://filetofish.codyh.xyz/render-world/) has a wave-intensity slider and all seven weather choices.
 Walk on the dock with **WASD**. Press **Space** to dive, **V** to change view, and **Q** to return.
+Click the scene to look around with the mouse, and press **Esc** to get the cursor back.
 Walking cannot take you off the dock. Underwater sound gets softer and more reverberant as you descend.
 Touch controls provide a movement stick, drag-look, Dive, Return, and depth buttons.
 Controls and integration limits are in [INTEGRATION.md](INTEGRATION.md).

@@ -11,11 +11,14 @@ const slice = (from, to) => {
   assert(start >= 0 && end > start, `missing source section: ${from}`);
   return source.slice(start, end);
 };
-const handlers = {}, windowHandlers = {}, actionHandlers = {};
+const handlers = {}, windowHandlers = {}, actionHandlers = {}, docHandlers = {};
 const sheets = { "#haul": { hidden: true }, "#confirm": { hidden: true }, "#scan": { hidden: true } };
 const rect = { left: 80, top: 40, width: 800, height: 500 };
 const captured = new Set();
+const lockRoot = { pointerLockElement: null }, looking = new Set();
+let lockAsks = 0;
 const canvas = {
+  requestPointerLock: () => { lockAsks++; },
   addEventListener: (type, fn) => { handlers[type] = fn; },
   getBoundingClientRect: () => rect,
   setPointerCapture: id => captured.add(id),
@@ -36,8 +39,10 @@ const calls = { hello: 0, jump: 0, net: 0, advance: 0 };
 const ctx = vm.createContext({
   Raycaster, Vector2, camera, canvas, guide: { root, kelp },
   phase: "dock", world: {}, talkMode: null, introSeen: false, embedded: false, options: {},
-  document: { addEventListener() {} },
-  cam: { pos: new Vector3(2, 1, -2), yawT: 0, pitchT: 0 },
+  document: { addEventListener: (type, fn) => { docHandlers[type] = fn; } },
+  root: lockRoot, TUNE: { mouseLook: 0.0025 },
+  body: { classList: { toggle: (name, on) => on ? looking.add(name) : looking.delete(name) } },
+  cam: { pos: new Vector3(2, 1, -2), vel: new Vector3(), yaw: 0, pitch: 0, yawT: 0, pitchT: 0 },
   keys: new Set(), glide: {}, SWIM_KEYS: [],
   $: selector => sheets[selector],
   clamp: (v, a, b) => Math.max(a, Math.min(b, v)),
@@ -141,4 +146,55 @@ assert.equal(calls.net, 1, "cancelled underwater tap does not net");
 send("pointerdown"); send("pointermove", { clientX: target.clientX + 20 });
 assert(ctx.cam.yawT < 0, "drag still turns the camera");
 send("pointerup"); assert.equal(calls.net, 1, "underwater drag does not net");
-console.log("ocean Kelp click: raycast, shared greeting, edge priority, input guards, cancel, drag and net passed");
+
+// A mouse takes the cursor instead of dragging; the crosshair clicks from then on.
+const lock = held => { lockRoot.pointerLockElement = held ? canvas : null; docHandlers.pointerlockchange(); };
+const mouse = { pointerType: "mouse" };
+reset(); lockAsks = 0; ctx.phase = "ocean";
+send("pointerdown", mouse);
+assert.equal(lockAsks, 1, "a mouse click on the water asks for the cursor");
+send("pointerup", mouse); noAction();
+send("pointerdown", mouse); lock(true);
+assert(looking.has("looking"), "the page knows the cursor is held");
+assert.equal(captured.size, 0, "the lock ends the drag it started");
+send("pointerup", mouse); noAction();
+handlers.mousemove({ movementX: 40, movementY: 0 });
+assert(Math.abs(ctx.cam.yawT + 40 * 0.0025) < 1e-9, "a held mouse turns the view");
+ctx.cam.yawT = 0;
+handlers.mousemove({ movementX: 5000, movementY: 0 });
+assert(Math.abs(ctx.cam.yawT + 150 * 0.0025) < 1e-9, "a spike is clamped");
+ctx.glide = {}; handlers.mousemove({ movementX: 0, movementY: 30 });
+assert(ctx.cam.pitchT < 0, "moving down looks down");
+assert.equal(ctx.glide, null, "looking takes over from a glide");
+send("pointerdown", mouse); assert.equal(lockAsks, 2, "pointerdown is ignored while held");
+handlers.mousedown({ button: 0 }); assert.equal(calls.net, 1, "a held click nets");
+handlers.mousedown({ button: 2 }); assert.equal(calls.net, 1, "only the main button");
+sheets["#confirm"].hidden = false;
+handlers.mousedown({ button: 0 }); handlers.mousemove({ movementX: 40, movementY: 0 });
+assert.equal(calls.net, 1, "blocked held click does nothing");
+assert.equal(ctx.cam.yawT, 0, "blocked held mouse cannot turn");
+sheets["#confirm"].hidden = true;
+reset(); ctx.cam.yawT = 0; lock(true);
+camera.lookAt(2.16, 2.3, -3.9); camera.updateMatrixWorld();
+handlers.mousedown({ button: 0 });
+assert.equal(calls.hello, 1, "Kelp under the crosshair is greeted");
+camera.lookAt(2, 2, -4); camera.updateMatrixWorld();
+lock(false);
+assert(!looking.has("looking"), "Esc gives the cursor back");
+handlers.mousemove({ movementX: 40, movementY: 0 });
+handlers.mousedown({ button: 0 });
+assert.equal(calls.hello, 1, "a free cursor's moves and clicks are not held ones");
+reset(); lockAsks = 0;
+tap(mouse);
+assert.equal(lockAsks, 0, "clicking Kelp greets instead of taking the cursor");
+assert.equal(calls.hello, 1);
+reset(); lockAsks = 0; ctx.phase = "ocean";
+send("pointerdown", mouse); docHandlers.pointerlockerror(); send("pointerup", mouse);
+assert.equal(calls.net, 1, "a refused lock leaves the click its old meaning");
+send("pointerdown", mouse); send("pointermove", { ...mouse, clientX: target.clientX + 20 });
+assert(ctx.cam.yawT < 0, "and drag still looks");
+send("pointerup", mouse);
+reset(); lockAsks = 0; ctx.phase = "ocean";
+tap({ pointerType: "touch" }); tap({ pointerType: "pen" });
+assert.equal(lockAsks, 0, "fingers and pens never take the cursor");
+console.log("ocean Kelp click: raycast, shared greeting, edge priority, input guards, cancel, drag, net and pointer-lock look passed");

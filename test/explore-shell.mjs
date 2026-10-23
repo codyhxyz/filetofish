@@ -58,6 +58,12 @@ const mounted = ctx.mountExploration(host, {
 const frame = extra => opts.onFrame({ phase: "dock", perspective: "first", underwater: false, depth: 0, camera: {}, ...extra });
 frame();
 assert.equal(opts.embedded, true);
+assert.match($("#move-help").textContent, /click to look/);
+frame({ looking: true });
+assert.match($("#move-help").textContent, /Esc frees the cursor/);
+frame({ phase: "ocean", looking: true });
+assert.match($("#move-help").textContent, /^WASD swim.*Esc frees the cursor$/);
+frame();
 assert.equal(opts.autoPerspective, false, "desktop keeps the manual view switch");
 assert.equal($("#explore-status").textContent, "", "the dock needs no label");
 assert(!$("#look-hint").classes.has("on"), "a mouse never gets the drag lesson");
