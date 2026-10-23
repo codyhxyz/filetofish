@@ -73,7 +73,7 @@ body.has-catch #rig{opacity:.22;}
 #explore-status{
   position:fixed;z-index:4;pointer-events:none;font-family:var(--f-mono);
   left:clamp(1rem,3vw,2rem);top:50%;transform:translateY(-50%);
-  display:flex;flex-direction:column;width:6.6rem;height:var(--beaker,min(52vh,24rem));
+  display:flex;flex-direction:column;width:5.4rem;height:var(--beaker,min(72vh,36rem));
   font-size:.58rem;color:rgba(242,250,251,.7);text-shadow:0 1px 5px rgba(0,12,20,.95);
 }
 #explore-status[hidden]{display:none;}
@@ -84,27 +84,21 @@ body.has-catch #rig{opacity:.22;}
 #explore-status .foot{margin-top:.45rem;line-height:1.35;}
 #explore-status .foot b{display:block;font-weight:400;text-transform:none;font-size:.62rem;letter-spacing:.04em;color:rgba(242,250,251,.85);}
 #explore-status .glass{
-  position:relative;flex:1;width:2.4rem;
+  position:relative;flex:1;width:1rem;
   border:1.5px solid rgba(232,247,249,.6);border-top:0;border-radius:0 0 .45rem .45rem;
   background:linear-gradient(#9BE2EC,#4BB0C6 7%,#2180A0 18%,#11506F 36%,#0A3049 56%,#051A29 76%,#020910 92%,#000);
   box-shadow:0 8px 26px rgba(0,10,18,.5),inset 0 -14px 18px rgba(0,0,0,.55);
 }
-/* the rim, flared past the walls, and the pouring spout curling out on the left */
-#explore-status .glass::before{
-  content:"";position:absolute;left:-.5rem;right:-.2rem;top:-2px;height:.5rem;
-  border-top:3px solid rgba(232,247,249,.8);border-left:2px solid rgba(232,247,249,.8);
-  border-radius:.5rem 2px 0 0;transform:skewX(-28deg);transform-origin:100% 0;
-}
 /* the highlight a curved glass wall catches */
 #explore-status .glass::after{
-  content:"";position:absolute;left:.25rem;top:.6rem;bottom:.7rem;width:3px;border-radius:2px;
+  content:"";position:absolute;left:.18rem;top:.6rem;bottom:.7rem;width:2px;border-radius:2px;
   background:linear-gradient(rgba(255,255,255,.5),rgba(255,255,255,.12) 60%,rgba(255,255,255,0));
 }
 #explore-status .glass > i{
   position:absolute;right:0;width:.32rem;height:1px;font-style:normal;
   background:rgba(232,247,249,.42);
 }
-#explore-status .glass > i.major{width:.8rem;background:rgba(232,247,249,.85);}
+#explore-status .glass > i.major{width:.6rem;background:rgba(232,247,249,.85);}
 #explore-status .glass > i b{
   position:absolute;left:calc(100% + .42rem);top:-.38rem;font-weight:400;line-height:1;
 }
@@ -148,7 +142,7 @@ body.diving #travel{visibility:visible;}
   #travel{bottom:calc(.8rem + env(safe-area-inset-bottom));}
   body.exploring #tools{bottom:6rem;}
   #swim-depth{display:flex;bottom:20rem;}
-  :root{--beaker:min(34vh,15rem);}
+  :root{--beaker:min(46vh,21rem);}
 }
 @media(max-width:600px){
   #travel{font-size:.7rem;}
@@ -157,7 +151,7 @@ body.diving #travel{visibility:visible;}
 @media(max-height:500px){
   #swim-depth{bottom:6rem;right:5rem;flex-direction:row;}
   /* short enough that the beaker would sit on the move stick */
-  :root{--beaker:28vh;}
+  :root{--beaker:30vh;}
 }
 
 .mark{
