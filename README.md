@@ -102,3 +102,22 @@ fish away has to cost something or sharing is just a copy button.
 
 Dropping a folder logs the haul immediately. Keep and Release disappear.
 You can send the displayed fish or select **back to the water** without sharing it.
+
+## Reclaim space in a code folder
+
+`tools/reclaim.mjs` is the local half of the ocean's delete. It walks a folder
+of projects and lists what can be rebuilt: package installs, Rust `target/`,
+virtual environments, gitignored build output, git worktrees, identical large
+files, and runs someone marked with an `INVALID.txt`. Every row says how big it
+is, why it can go, and the command that brings it back. Scanning changes nothing.
+
+```sh
+npm run reclaim -- ~/code --protect claude/threejs-tpt-gpu --json report.json
+npm run reclaim -- ~/code --protect claude/threejs-tpt-gpu --trash herdr/target
+```
+
+**Safe** rows are rebuildable by a known command. **Check** rows need a human:
+no lockfile, an unknown build script, uncommitted work, or a note to read.
+**Protected** paths and the worktrees of protected repos are never trashed.
+`--trash` moves folders to the macOS Trash. Worktrees go through
+`git worktree remove`, which refuses dirty ones.
