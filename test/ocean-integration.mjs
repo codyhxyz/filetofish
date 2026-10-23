@@ -173,6 +173,34 @@ const hiddenClock = plants.material.uniforms.uTime.value;
 tick(3);
 assert.equal(plants.material.uniforms.uTime.value, hiddenClock, "ambient animation pauses in hidden tabs");
 doc.hidden = false;
+// The trench floor is ground, not a number: diving straight down settles on
+// the rock under you, swimming at a wall rides up its ledges, and the rock is
+// in the fish pass as depth so a ledge hides the shoal behind it.
+{
+  const seabed = renderer.scenes.find(scene => scene.getObjectByName("seabed"))?.getObjectByName("seabed");
+  assert(seabed, "the water pass draws the trench floor");
+  assert(renderer.scenes.some(scene => scene.getObjectByName("seabed-depth")), "the fish pass is occluded by it");
+  // the highest corner of the drawn cell the swimmer is over: no triangle rises above it
+  const groundUnder = () => {
+    const a = seabed.geometry.attributes.position.array;
+    let y = -Infinity;
+    for (let i = 0; i < a.length; i += 3)
+      if (Math.abs(a[i] + seabed.position.x - ocean.cam.pos.x) <= 10 &&
+          Math.abs(a[i + 2] + seabed.position.z - ocean.cam.pos.z) <= 10) y = Math.max(y, a[i + 1]);
+    return y;
+  };
+  ocean.setVertical(-1); tick(1500); ocean.setVertical(0); tick(20);
+  const ground = groundUnder();
+  assert(Math.abs(ground + frameData.floor) < 30, `the floor under the field sits at the reported depth (${ground})`);
+  assert(ocean.cam.pos.y > ground + 2 && ocean.cam.pos.y < ground + 7,
+    `diving stops on the rock (${ocean.cam.pos.y.toFixed(1)} over ${ground.toFixed(1)})`);
+  assert(ocean.camera.position.y > ground, "the chase camera never goes under the floor");
+  ocean.cam.yaw = ocean.cam.yawT = -Math.PI / 2;      // face +x, across the trench
+  ocean.cam.pitch = ocean.cam.pitchT = 0;
+  ocean.setMove(0, 1); tick(1200); ocean.clearInput(); tick(20);
+  assert(ocean.cam.pos.y > ground + 40, `crossing the trench climbs its wall (${ocean.cam.pos.y.toFixed(1)})`);
+  assert(ocean.cam.pos.y > groundUnder() + 2, "and never passes through it");
+}
 assert.equal(ocean.guide.root.position.y, 1, "dock and Kelp stay on surface");
 assert.equal(ocean.guide.root.visible, true);
 assert.equal(ocean.guide.root.rotation.z, 0);

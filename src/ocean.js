@@ -1457,6 +1457,136 @@ const rayMats = [];
   }
 }
 
+/* --- the trench floor ----------------------------------------------------
+   The bottom used to be a number: you stopped sixty units under the deepest
+   shoal, over nothing. Now it is ground. The files lie along a trench that
+   runs the way you arrive, down z; its walls come up in ledges outside the
+   field and it wanders off into the dark at both ends, and under the shoals
+   the floor is silt with a slow swell in it. seabedY() is the only shape, so
+   the swimmer's clamp and the rock you see can never disagree. */
+const bed = { cx: 0, cz: 0, r: TUNE.lateral, floor: -(TUNE.depth + 60), v: 0 };
+const hash2 = (x, z) => {
+  let h = Math.imul(x, 374761393) + Math.imul(z, 668265263) | 0;
+  h = Math.imul(h ^ h >>> 13, 1274126177);
+  return ((h ^ h >>> 16) >>> 0) / 4294967296;
+};
+const vnoise = (x, z) => {
+  const ix = Math.floor(x), iz = Math.floor(z);
+  let fx = x - ix, fz = z - iz;
+  fx = fx * fx * (3 - 2 * fx); fz = fz * fz * (3 - 2 * fz);
+  return lerp(lerp(hash2(ix, iz), hash2(ix + 1, iz), fx),
+    lerp(hash2(ix, iz + 1), hash2(ix + 1, iz + 1), fx), fz);
+};
+function seabedY(x, z) {
+  const along = z - bed.cz;
+  /* it bends only once it has left the field, so no shoal is ever in the wall */
+  const bend = Math.sin(along * 0.0023 + 1.3) * bed.r * 0.4 * smooth(bed.r, bed.r * 2.4, Math.abs(along));
+  const u = Math.abs(x - bed.cx - bend) / (bed.r + 24);
+  const lift = smooth(1, 1.9, u);                  // 0 on the floor, 1 at the rim
+  const steps = lift * 6;                          // strata: six ledges and their risers
+  const ledge = (Math.floor(steps) + smooth(0.6, 1, steps % 1)) / 6;
+  /* a long swell, a rubble of ridges on it, and the odd boulder -- all of it
+     under the floor's own level plus thirty, so no shoal ever sits in it */
+  const ridge = 1 - Math.abs(vnoise(x / 31 + 3, z / 31) * 2 - 1);
+  const rough = (vnoise(x / 110, z / 110) - 0.5) * 26 + ridge * ridge * 7 +
+    Math.max(0, vnoise(x / 17 + 11, z / 17) - 0.68) * 22;
+  return bed.floor - ledge * bed.floor * 0.62 + rough * (1 + lift * 1.5);
+}
+/* fine cells as far as the murk lets you see ground, then cells that widen
+   out to the far plane: the murk has the ground long before then, but the
+   ground still has to be there to stand in front of the haze below the
+   horizon, and a ridge against that glow should not be drawn with a ruler */
+const SEABED_N = 128, SEABED_CELL = 10, SEABED_FINE = 48;
+const SEABED_NEAR = SEABED_FINE * SEABED_CELL;
+const seabedOffset = k => {
+  const m = Math.max(0, Math.abs(k) - SEABED_FINE);
+  return Math.sign(k) * (Math.min(Math.abs(k), SEABED_FINE) + Math.round(m + m * m * 1.31)) * SEABED_CELL;
+};
+/* the rock as drawn, not as defined: a triangle never rises above its own
+   corners, so the highest of the four lattice points round you is ground you
+   can never be inside */
+function groundAt(x, z) {
+  const x0 = Math.floor(x / SEABED_CELL) * SEABED_CELL, z0 = Math.floor(z / SEABED_CELL) * SEABED_CELL;
+  return Math.max(seabedY(x0, z0), seabedY(x0 + SEABED_CELL, z0),
+    seabedY(x0, z0 + SEABED_CELL), seabedY(x0 + SEABED_CELL, z0 + SEABED_CELL));
+}
+/* how low the swimmer may go here: the diver's own clearance off the rock */
+const bottomAt = (x, z) => Math.min(-2, groundAt(x, z) + 4);
+const SEABED_VS = `varying vec3 vW;
+void main(){ vec4 wp = modelMatrix * vec4(position, 1.0); vW = wp.xyz;
+  gl_Position = projectionMatrix * viewMatrix * wp; }`;
+const SEABED_FS = `
+precision highp float;
+uniform vec3 uWater; uniform float uFog, uDepth;
+varying vec3 vW;
+void main(){
+  /* one normal per triangle, straight off the screen derivatives: the ground
+     is faceted the way the animals are */
+  vec3 N = normalize(cross(dFdx(vW), dFdy(vW)));
+  if (N.y < 0.0) N = -N;
+  vec3 alb = mix(vec3(0.17, 0.18, 0.21), vec3(0.33, 0.33, 0.30), smoothstep(0.55, 0.85, N.y));
+  float k = dot(N, normalize(vec3(0.15, 0.95, 0.28))) * 0.5 + 0.5;
+  float band = floor(clamp(k, 0.0, 0.999) * 4.0) / 3.0;   // the fish's hard lamp
+  /* the bottom of the trench gets less of the lamp than its rim */
+  vec3 col = alb * (0.30 + 0.85 * band) * mix(1.0, 0.5, clamp(-vW.y / uDepth, 0.0, 1.0));
+  /* no dither: the grain is how you tell an animal from the scenery, and a
+     whole wall of it is a screen door */
+  float d = length(cameraPosition - vW);
+  float f = max(1.0 - exp(-d * uFog), smoothstep(${SEABED_NEAR * 0.75}.0, ${SEABED_NEAR}.0, d));
+  gl_FragColor = vec4(mix(col, uWater, f), 1.0);
+}`;
+const seabedMat = new ShaderMaterial({
+  vertexShader: SEABED_VS, fragmentShader: SEABED_FS,
+  uniforms: {
+    uWater: { value: water }, uFog: { value: TUNE.fogDeep }, uDepth: { value: TUNE.depth },
+  },
+});
+/* One grid that travels with the swimmer in whole cells, so a vertex only
+   ever lands where a vertex already was and the ground never swims. Only the
+   heights are rewritten when it moves. */
+const seabedGeo = new BufferGeometry();
+{
+  const n = SEABED_N + 1, pos = new Float32Array(n * n * 3), idx = [];
+  for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
+    pos[(j * n + i) * 3] = seabedOffset(i - SEABED_N / 2);
+    pos[(j * n + i) * 3 + 2] = seabedOffset(j - SEABED_N / 2);
+  }
+  for (let j = 0; j < SEABED_N; j++) for (let i = 0; i < SEABED_N; i++) {
+    const a = j * n + i;
+    idx.push(a, a + n, a + 1, a + 1, a + n, a + n + 1);
+  }
+  seabedGeo.setAttribute("position", new BufferAttribute(pos, 3));
+  seabedGeo.setIndex(idx);
+}
+const seabed = new Mesh(seabedGeo, seabedMat);
+seabed.name = "seabed";
+seabed.frustumCulled = false;                    // its bounds move with it
+scene.add(seabed);
+/* The water is drawn under the animals rather than with them, so the rock
+   also goes into the fish pass as depth alone: a shoal behind a ledge is
+   hidden by it, and the silhouette ink still has transparent texels round
+   every fish that sits in front of the ground. */
+const seabedDepth = new Mesh(seabedGeo, new ShaderMaterial({
+  vertexShader: "void main(){ gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }",
+  fragmentShader: "void main(){ gl_FragColor = vec4(0.0); }",
+  colorWrite: false,
+}));
+seabedDepth.name = "seabed-depth";
+seabedDepth.frustumCulled = false;
+seabedDepth.renderOrder = -1;                    // before the animals it hides
+fishScene.add(seabedDepth);
+let seabedAt = null;
+function placeSeabed(x, z) {
+  const ox = Math.round(x / SEABED_CELL) * SEABED_CELL, oz = Math.round(z / SEABED_CELL) * SEABED_CELL;
+  if (seabedAt && seabedAt.v === bed.v && Math.hypot(ox - seabedAt.x, oz - seabedAt.z) < 60) return;
+  seabedAt = { x: ox, z: oz, v: bed.v };
+  const a = seabedGeo.attributes.position;
+  for (let i = 0; i < a.count; i++) a.array[i * 3 + 1] = seabedY(ox + a.array[i * 3], oz + a.array[i * 3 + 2]);
+  a.needsUpdate = true;
+  seabed.position.set(ox, 0, oz);
+  seabedDepth.position.set(ox, 0, oz);
+}
+
 /* ============================================================ kelp
    An otter on a moored raft, thirteen metres down, who talks you in.
 
@@ -1794,6 +1924,13 @@ function buildWorld(files, label) {
     for (const f of files) { f.x *= 0.18; f.z = f.z * 0.18 - 45; f.y *= 0.25; }
     DEPTH *= 0.25;
   }
+  /* the trench is cut to this drive: as wide as its field, sixty units under
+     its deepest shoal */
+  bed.cx = 0; bed.cz = embedded ? -45 : 0;
+  bed.r = radius * (embedded ? 0.18 : 1);
+  bed.floor = -(DEPTH + 60);
+  bed.v++;
+  seabedMat.uniforms.uDepth.value = DEPTH;
 
   /* --- points: every file, always --------------------------------------- */
   const n = files.length;
@@ -2037,7 +2174,7 @@ const letGo = () => { glide = null; };
 
 /* one notch of the dial is one doubling of file size, which is exactly one
    size band -- so settling always leaves you level with a single shoal */
-const detent = y => clamp(sizeToY(Math.round(yToSize(y))), -DEPTH - 60, -2);
+const detent = y => clamp(sizeToY(Math.round(yToSize(y))), bottomAt(cam.pos.x, cam.pos.z), -2);
 const forwardOf = (yaw, pitch) => {
   const cp = Math.cos(pitch);
   return new Vector3(-Math.sin(yaw) * cp, Math.sin(pitch), -Math.cos(yaw) * cp);
@@ -2064,6 +2201,7 @@ function updateChaseCamera(dt, snap) {
   chaseWant.y += phase === "dock" ? 1.7 : TUNE.chaseRise * k;
   if (embedded && phase === "dock") chaseWant.y = Math.max(chaseWant.y, DOCK_Y + 0.3);
   if (embedded && phase === "ocean") chaseWant.y = Math.min(chaseWant.y, -0.6);
+  if (phase === "ocean") chaseWant.y = Math.max(chaseWant.y, groundAt(chaseWant.x, chaseWant.z) + 1.5);
   if (snap) cam.eye.copy(chaseWant);
   else cam.eye.lerp(chaseWant, 1 - Math.exp(-dt * TUNE.chaseDamp));
 }
@@ -2241,7 +2379,7 @@ function glideBerth(x, y, z, yaw, pitch) {
 /* nothing in the crosshair: push off and coast, so the key is never dead */
 function kick() {
   const d = forwardOf(cam.yaw, cam.pitch).multiplyScalar(150);
-  glideBerth(cam.pos.x + d.x, clamp(cam.pos.y + d.y, -DEPTH - 60, -2), cam.pos.z + d.z,
+  glideBerth(cam.pos.x + d.x, clamp(cam.pos.y + d.y, bottomAt(cam.pos.x + d.x, cam.pos.z + d.z), -2), cam.pos.z + d.z,
              cam.yawT, cam.pitchT);
 }
 
@@ -2387,7 +2525,7 @@ addEventListener("wheel", e => {
   if (embedded || ownsKeys(e) || isBlocked() || phase !== "ocean") return;
   e.preventDefault();
   letGo();
-  cam.depthT = clamp(cam.depthT - e.deltaY * TUNE.wheelSpeed, -DEPTH - 60, -2);
+  cam.depthT = clamp(cam.depthT - e.deltaY * TUNE.wheelSpeed, bottomAt(cam.pos.x, cam.pos.z), -2);
   wheelAt = performance.now();
 }, { passive: false });
 
@@ -3005,7 +3143,7 @@ function frame(nowMs) {
           const g = 1 - Math.exp(-dt / Math.max(0.05, TUNE.glideTime) * 2.6);
           cam.pos.x += (tx - cam.pos.x) * g;
           cam.pos.z += (tz - cam.pos.z) * g;
-          cam.depthT = clamp(cam.depthT + (ty - cam.depthT) * g, -DEPTH - 60, -2);
+          cam.depthT = clamp(cam.depthT + (ty - cam.depthT) * g, bottomAt(cam.pos.x, cam.pos.z), -2);
           cam.vel.multiplyScalar(1 - g);
           if (Math.hypot(tx - cam.pos.x, ty - cam.pos.y, tz - cam.pos.z) < 0.8) glide = null;
         }
@@ -3013,7 +3151,7 @@ function frame(nowMs) {
       cam.pos.x += cam.vel.x * dt;
       cam.pos.z += cam.vel.z * dt;
       if (Math.abs(cam.vel.y) > 0.01) {
-        cam.depthT = clamp(cam.depthT + cam.vel.y * dt, -DEPTH - 60, -2);
+        cam.depthT = clamp(cam.depthT + cam.vel.y * dt, bottomAt(cam.pos.x, cam.pos.z), -2);
         wheelAt = 0;
       }
       if (wheelAt && nowMs - wheelAt > TUNE.settle * 1000) {
@@ -3023,6 +3161,10 @@ function frame(nowMs) {
       const rad = Math.hypot(cam.pos.x, cam.pos.z);
       const lim = (world ? world.radius : TUNE.lateral) * 1.9 + 200;
       if (rad > lim) { cam.pos.x *= lim / rad; cam.pos.z *= lim / rad; }
+      /* the ground is solid: swim into a ledge and you ride up over it */
+      const low = bottomAt(cam.pos.x, cam.pos.z);
+      if (cam.pos.y < low) cam.pos.y = low;
+      if (cam.depthT < low) cam.depthT = low;
     }
   }
 
@@ -3114,6 +3256,13 @@ function frame(nowMs) {
   surfMat.uniforms.uWater.value.copy(water).lerp(new Color(0x2f89a8), 0.5);
   for (const m of rayMats) m.uniforms.uTime.value = t;
 
+  seabed.visible = seabedDepth.visible = underwater;
+  if (underwater) {
+    placeSeabed(cam.pos.x, cam.pos.z);
+    /* the murk on the way down to the floor is the deep water's, not the
+       surface's: from the top you should barely make out the bottom */
+    seabedMat.uniforms.uFog.value = lerp(fog, TUNE.fogDeep, 0.6);
+  }
   snow.visible = phase === "ocean";
   if (snow.visible) {
     const a = snow.geometry.attributes.position;
