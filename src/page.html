@@ -64,16 +64,63 @@ body.has-catch #rig{opacity:.22;}
 }
 #travel button:hover:not(:disabled),#swim-depth button:hover:not(:disabled){background:#244B59;}
 #travel button:disabled,#swim-depth button:disabled{opacity:.45;cursor:default;}
-#explore-status,#move-help{
+#move-help{
   position:fixed;z-index:4;left:50%;transform:translateX(-50%);
   font-family:var(--f-mono);text-align:center;pointer-events:none;
   color:#F2FAFB;background:rgba(5,29,39,.8);border-radius:.35rem;padding:.3rem .5rem;
 }
+/* the depth beaker: lip = surface, foot = trench floor, graduated in metres */
 #explore-status{
+  position:fixed;z-index:4;pointer-events:none;font-family:var(--f-mono);
   left:clamp(1rem,3vw,2rem);top:50%;transform:translateY(-50%);
-  font-size:.75rem;text-align:left;
+  display:flex;flex-direction:column;width:6.6rem;height:var(--beaker,min(52vh,24rem));
+  font-size:.58rem;color:rgba(242,250,251,.7);text-shadow:0 1px 5px rgba(0,12,20,.95);
 }
-#explore-status:empty{display:none;}
+#explore-status[hidden]{display:none;}
+#explore-status .lip,#explore-status .foot{
+  font-size:.5rem;letter-spacing:.18em;text-transform:uppercase;color:rgba(242,250,251,.62);
+}
+#explore-status .lip{margin:0 0 .45rem -.1rem;}
+#explore-status .foot{margin-top:.45rem;line-height:1.35;}
+#explore-status .foot b{display:block;font-weight:400;text-transform:none;font-size:.62rem;letter-spacing:.04em;color:rgba(242,250,251,.85);}
+#explore-status .glass{
+  position:relative;flex:1;width:2.4rem;
+  border:1.5px solid rgba(232,247,249,.6);border-top:0;border-radius:0 0 .45rem .45rem;
+  background:linear-gradient(#9BE2EC,#4BB0C6 7%,#2180A0 18%,#11506F 36%,#0A3049 56%,#051A29 76%,#020910 92%,#000);
+  box-shadow:0 8px 26px rgba(0,10,18,.5),inset 0 -14px 18px rgba(0,0,0,.55);
+}
+/* the rim, flared past the walls, and the pouring spout curling out on the left */
+#explore-status .glass::before{
+  content:"";position:absolute;left:-.5rem;right:-.2rem;top:-2px;height:.5rem;
+  border-top:3px solid rgba(232,247,249,.8);border-left:2px solid rgba(232,247,249,.8);
+  border-radius:.5rem 2px 0 0;transform:skewX(-28deg);transform-origin:100% 0;
+}
+/* the highlight a curved glass wall catches */
+#explore-status .glass::after{
+  content:"";position:absolute;left:.25rem;top:.6rem;bottom:.7rem;width:3px;border-radius:2px;
+  background:linear-gradient(rgba(255,255,255,.5),rgba(255,255,255,.12) 60%,rgba(255,255,255,0));
+}
+#explore-status .glass > i{
+  position:absolute;right:0;width:.32rem;height:1px;font-style:normal;
+  background:rgba(232,247,249,.42);
+}
+#explore-status .glass > i.major{width:.8rem;background:rgba(232,247,249,.85);}
+#explore-status .glass > i b{
+  position:absolute;left:calc(100% + .42rem);top:-.38rem;font-weight:400;line-height:1;
+}
+#explore-status .you{
+  position:absolute;z-index:1;left:-3px;right:-3px;height:2px;margin-top:-1px;
+  background:#FFC49A;box-shadow:0 0 8px rgba(255,196,154,.85);
+}
+#explore-status .you i{
+  position:absolute;left:calc(100% + .45rem);top:50%;transform:translateY(-50%);
+  font-style:normal;white-space:nowrap;font-size:.72rem;line-height:1;text-shadow:none;
+  color:#2A1708;background:#FFC49A;border-radius:.25rem;padding:.2rem .38rem;
+}
+#explore-status .you i::before{
+  content:"";position:absolute;right:100%;top:50%;margin-top:-4px;
+  border:4px solid transparent;border-right-color:#FFC49A;border-left-width:0;
+}
 #move-help{bottom:5.3rem;font-size:.7rem;white-space:nowrap;}
 #move-stick{
   display:none;position:fixed;z-index:6;left:1.1rem;bottom:6rem;
@@ -101,6 +148,7 @@ body.diving #travel{visibility:visible;}
   #travel{bottom:calc(.8rem + env(safe-area-inset-bottom));}
   body.exploring #tools{bottom:6rem;}
   #swim-depth{display:flex;bottom:20rem;}
+  :root{--beaker:min(34vh,15rem);}
 }
 @media(max-width:600px){
   #travel{font-size:.7rem;}
@@ -108,6 +156,8 @@ body.diving #travel{visibility:visible;}
 }
 @media(max-height:500px){
   #swim-depth{bottom:6rem;right:5rem;flex-direction:row;}
+  /* short enough that the beaker would sit on the move stick */
+  :root{--beaker:28vh;}
 }
 
 .mark{
@@ -707,7 +757,7 @@ body.hint-send #fish{opacity:.62; transform:translateX(14px);}
   <canvas id="fish"></canvas>
 </div>
 <div id="hit" title="pick a file"></div>
-<div id="explore-status"></div>
+<div id="explore-status" role="meter" aria-label="Depth" aria-valuemin="0" hidden></div>
 <div id="move-help">WASD walk · Shift sprint · click to look</div>
 <div id="travel" role="group" aria-label="Explore the ocean">
   <button id="dive" type="button">Dive · Space</button>

@@ -6,6 +6,8 @@ class Element {
   listeners = {};
   hidden = false;
   disabled = false;
+  textContent = "";
+  innerHTML = "";
   style = {};
   attrs = {};
   captures = new Set();
@@ -18,6 +20,7 @@ class Element {
   }
   setAttribute(key, value) { this.attrs[key] = value; }
   focus() {}
+  querySelector(selector) { return (this.children ||= new Map()).get(selector) ?? this.children.set(selector, new Element()).get(selector); }
   getBoundingClientRect() { return { left: 0, top: 0, width: 100, height: 100 }; }
   hasPointerCapture(id) { return this.captures.has(id); }
   setPointerCapture(id) { this.captures.add(id); }
@@ -65,7 +68,7 @@ frame({ phase: "ocean", looking: true });
 assert.match($("#move-help").textContent, /^WASD swim.*Esc frees the cursor$/);
 frame();
 assert.equal(opts.autoPerspective, false, "desktop keeps the manual view switch");
-assert.equal($("#explore-status").textContent, "", "the dock needs no label");
+assert.equal($("#explore-status").hidden, true, "the dock needs no depth gauge");
 assert(!$("#look-hint").classes.has("on"), "a mouse never gets the drag lesson");
 assert.equal($("#dive").textContent, "Dive · Space");
 assert.equal($("#swim-up").hidden, true);
@@ -105,7 +108,17 @@ assert.equal(dives, 1, "dialogue never dives");
 $("#intro").hidden = true;
 frame({ phase: "jump" });
 assert.equal($("#dive").disabled, true);
-frame({ phase: "ocean", underwater: true, depth: 45, perspective: "third" });
+frame({ phase: "ocean", underwater: true, depth: 45, floor: 960, perspective: "third" });
+const gauge = $("#explore-status");
+assert.equal(gauge.hidden, false);
+assert.match(gauge.innerHTML, /class="lip">surface</);
+assert.match(gauge.innerHTML, /trench floor<b>960 m</);
+assert.equal((gauge.innerHTML.match(/class="major"/g) || []).length, 4, "majors every 200 m above a 960 m floor");
+assert.equal((gauge.innerHTML.match(/<i[ >]/g) || []).length, 23 + 1, "minors every 40 m, plus the marker label");
+assert.equal(gauge.querySelector(".you").style.top, "4.69%");
+assert.equal(gauge.querySelector(".you").querySelector("i").textContent, "45 m");
+assert.equal(gauge.attrs["aria-valuetext"], "45 m deep");
+assert.equal(gauge.attrs["aria-valuemax"], "960");
 assert.equal($("#dive").hidden, true, "no return button in the water");
 assert.equal($("#swim-up").hidden, false);
 assert.equal(depths.at(-1), 45);

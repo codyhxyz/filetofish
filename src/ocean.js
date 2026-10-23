@@ -3317,7 +3317,7 @@ function frame(nowMs) {
   /* 3. dither + ink, upscaled nearest, over the top */
   if (anyFish) renderer.render(postScene, postCam);
   if (showGuide) renderer.render(guidePostScene, postCam);
-  options.onFrame?.({ camera, phase, depth: Math.max(0, -cam.pos.y), underwater, perspective, looking: looking() });
+  options.onFrame?.({ camera, phase, depth: Math.max(0, -cam.pos.y), floor: DEPTH + 60, underwater, perspective, looking: looking() });
 }
 
 /* ============================================================ entry */

@@ -66,11 +66,46 @@ export function mountExploration(host, { sea, isBlocked, onDepth }) {
           ? `WASD swim · Shift sprint · ↑ ↓ depth · ${look}`
           : `WASD walk · Shift sprint · ${look}`;
       }
-      status.textContent = underwater ? `${Math.round(frame.depth)} m deep` : "";
+      gauge(underwater && frame.depth, frame.floor);
       if (blocked) { movePad.reset(); hint.hide(); }
       else hint.maybeShow(phase);
     },
   });
+  /* The depth reading is a graduated beaker: the surface at the lip, the
+     trench floor at the rounded foot, and the water inside darkening the way
+     the sea does on the way down. The scale is only redrawn when the sea's
+     depth changes; a frame just moves the marker. */
+  const gauge = (() => {
+    let scale = 0, shown = -1, you = null, read = null;
+    return (depth, floor) => {
+      status.hidden = depth === false;
+      if (depth === false) return;
+      floor = Math.max(floor || 0, depth, 1);
+      if (floor !== scale) {
+        scale = floor;
+        const major = [50, 100, 200, 250, 500, 1000].find(s => floor / s <= 7) || 1000, minor = major / 5;
+        let ticks = "";
+        for (let i = 1; i * minor < floor - minor / 2; i++) {
+          const m = i * minor, big = i % 5 === 0;
+          ticks += `<i${big ? ' class="major"' : ""} style="top:${(m / floor * 100).toFixed(2)}%">`
+            + (big && m < floor - major * 0.4 ? `<b>${m}</b>` : "") + "</i>";
+        }
+        status.innerHTML = `<span class="lip">surface</span><div class="glass">${ticks}`
+          + `<div class="you"><i></i></div></div>`
+          + `<span class="foot">trench floor<b>${Math.round(floor).toLocaleString("en")} m</b></span>`;
+        status.setAttribute("aria-valuemax", String(Math.round(floor)));
+        you = status.querySelector(".you"); read = you.querySelector("i"); shown = -1;
+      }
+      you.style.top = `${(depth / scale * 100).toFixed(2)}%`;
+      const m = Math.round(depth);
+      if (m !== shown) {
+        shown = m;
+        read.textContent = `${m} m`;
+        status.setAttribute("aria-valuenow", String(m));
+        status.setAttribute("aria-valuetext", `${m} m deep`);
+      }
+    };
+  })();
   const act = fn => () => { if (!isBlocked() && !talking()) fn(); };
   dive.addEventListener("click", act(() => api.beginJump()));
   view.addEventListener("click", act(() => api.toggleView()));
