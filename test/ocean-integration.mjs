@@ -247,7 +247,7 @@ assert(Math.abs(school.speed - members.reduce((n, f) => n + f.speed, 0) / member
 const fish = world.files.find(f => f.scale < win.ocean.TUNE.bigFrom && f.y < -10);
 standalone.cam.pos.set(fish.x, fish.y, fish.z);
 standalone.cam.depthT = fish.y;
-tick(4);
+tick(40); // level of detail is measured from the eye, which eases after the teleported diver
 const mesh = world.insts[fish.arch];
 assert([...mesh.userData.ids].includes(fish.index), "test fish is in the nearby mesh tier");
 const restPosition = () => {
@@ -274,6 +274,52 @@ tick();
 assert(Math.abs(fish.px - rest.x) < 1e-6, "netted files do not flee");
 fish.netted = false;
 doc.hidden = false;
+
+// Level of detail: the mesh tier must draw exactly the share of every animal
+// that the point shader's mirror of meshLod() leaves out, every frame, while
+// swimming and turning through the busiest folder -- so nothing pops, and
+// nothing is ever missing from both tiers or drawn in both. Cruising at the
+// test's 20 fps covers the same ground per frame as sprinting at 60.
+{
+  const T = win.ocean.TUNE, eye = win.ocean.camera.position;
+  const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+  const rule = (f, d) => {   // PT_VS meshLod(), line for line
+    const cut = f.scale >= T.bigFrom ? world.cutBig : world.cut;
+    if (cut <= 0) return 0;
+    const r = T.meshFar + Math.max(0, f.scale - 1.5) * T.meshFarBig;
+    return (1 - smooth(r * 0.74, r, d)) * (1 - smooth(cut * 0.65, cut, d / (0.4 + f.scale)));
+  };
+  const busiest = world.places.reduce((a, p) => p.files.length > a.files.length ? p : a);
+  const start = busiest.files[0];
+  standalone.cam.pos.set(start.x, start.y, start.z + 30);
+  standalone.cam.depthT = standalone.cam.pos.y;
+  win.ocean.updateChaseCamera(0, true);
+  tick(2);
+  const last = new Map();
+  let worst = 0, seen = 0;
+  standalone.setMove(0.4, 1);
+  for (let n = -1; n < 120; n++) {
+    if (n >= 0) { standalone.cam.yawT += 0.06; tick(); }
+    const drawn = new Map();
+    for (const m of world.insts)
+      for (let i = 0; i < m.count; i++) drawn.set(m.userData.ids[i], m.userData.lod[i]);
+    for (const f of world.files) {
+      if (f.dead) continue;
+      const share = drawn.get(f.index) || 0;
+      const want = rule(f, Math.hypot(f.x - eye.x, f.y - eye.y, f.z - eye.z));
+      assert(Math.abs(share - want) < 1e-5,
+        `mesh share ${share} matches the point shader's ${want} for ${f.name}`);
+      if (share > 0) seen++;
+      if (n >= 0) worst = Math.max(worst, Math.abs(share - (last.get(f.index) || 0)));
+      last.set(f.index, share);
+    }
+  }
+  standalone.clearInput();
+  assert(seen > 1000, "the sprint actually passed through meshes");
+  console.log(`lod: ${seen} mesh-frames, worst single-frame change ${worst.toFixed(3)}`);
+  // A whole crossfade takes at least ~170 ms of game time, even on the budget edge.
+  assert(worst < 0.3, `no fish changes tier by more than 0.3 in one 50 ms frame (worst ${worst.toFixed(3)})`);
+}
 assert(standalone.guide.root.position.y < 0, "standalone retains its underwater guide berth");
 doc.querySelector("#haul").hidden = false;
 key("Escape", { composedPath: () => [{ tagName: "BUTTON" }, doc] });

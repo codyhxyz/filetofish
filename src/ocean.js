@@ -49,7 +49,9 @@ const TUNE = {
                           //    whale is geometry long before you reach it
   bigFrom: 3.0,           // world units: at this size a creature gets the long
                           //    draw distance and a reserved slice of the budget
-  meshBudget: 1400,       // hard cap on instanced fish per frame
+  meshBudget: 1400,       // instanced fish the budget is cut for per frame
+  meshSlack: 24,          // world units the camera may move before the near
+                          //    set is gathered again; it is fetched this wide
 
   /* --- water ------------------------------------------------------------ */
   fogNear: 0.0016,
@@ -83,6 +85,7 @@ const MAX_FILES = 250000;      // past this the layout stops being comprehensibl
 const TAU = Math.PI * 2;
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const lerp = (a, b, t) => a + (b - a) * t;
+const smooth = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
 const DAY = 86400000;
 
 function mulberry32(a) {
@@ -922,11 +925,11 @@ function archGeometry(a) {
    dissolve into the murk instead of hanging there as an outlined blob. */
 const A_FLOOR = 0.15;
 const FISH_VS = `
-attribute vec3 tint; attribute vec2 pat; attribute float part;
+attribute vec3 tint; attribute vec2 pat; attribute float part, lod;
 uniform float uTime;
-varying vec3 vN, vC, vO, vW; varying vec2 vPat; varying float vFog, vPart, vBig;
+varying vec3 vN, vC, vO, vW; varying vec2 vPat; varying float vFog, vPart, vBig, vLod;
 void main(){
-  vC = tint; vPat = pat; vPart = part; vO = position;
+  vC = tint; vPat = pat; vPart = part; vO = position; vLod = lod;
   vN = normalize(mat3(instanceMatrix) * normal);
   vec3 p = position;
   float size = length(instanceMatrix[0].xyz);
@@ -936,7 +939,9 @@ void main(){
   vec4 wp = instanceMatrix * vec4(p, 1.0);
   vW = wp.xyz;
   vec4 mv = modelViewMatrix * wp;
-  vFog = -mv.z;
+  /* range, not view depth: depth is shorter at the edge of the frame, so
+     turning your head used to thin the murk on whatever sat at the side */
+  vFog = length(wp.xyz - cameraPosition);
   /* how big this instance is, straight off its own matrix -- a leviathan has
      to stay solid long after a minnow at the same distance has gone */
   vBig = max(0.0, length(instanceMatrix[0].xyz) - 1.5);
@@ -944,8 +949,9 @@ void main(){
 }`;
 const FISH_FS = `
 precision highp float;
-uniform vec3 uWater; uniform float uFog, uTime, uFar, uFarBig, uFogBig;
-varying vec3 vN, vC, vO, vW; varying vec2 vPat; varying float vFog, vPart, vBig;
+uniform vec3 uWater; uniform float uFog, uTime, uFogBig;
+varying vec3 vN, vC, vO, vW; varying vec2 vPat; varying float vFog, vPart, vBig, vLod;
+float b2(vec2 a){ a = floor(a); return fract(a.x / 2.0 + a.y * a.y * 0.75); }
 float h31(vec3 p){ return fract(sin(dot(p, vec3(12.9898,78.233,37.719))) * 43758.5453); }
 float n31(vec3 p){
   vec3 i = floor(p), f = fract(p); f = f*f*(3.0-2.0*f);
@@ -953,6 +959,12 @@ float n31(vec3 p){
              mix(mix(h31(i+vec3(0,0,1)),h31(i+vec3(1,0,1)),f.x), mix(h31(i+vec3(0,1,1)),h31(i+vec3(1,1,1)),f.x), f.y), f.z);
 }
 void main(){
+  /* the level of detail arrives as coverage. Alpha alone cannot do it: a
+     half-gone minnow still writes depth and punches its own shape out of the
+     whale behind it. A 4x4 screen door can, and it is the same ordered
+     dither the post pass speaks, so a fish dissolves into the grain. */
+  float lod = sqrt(vLod);
+  if (b2(gl_FragCoord.xy * 0.5) * 0.25 + b2(gl_FragCoord.xy) + 0.03125 >= lod) discard;
   vec3 col;
   float lure = 0.0;
   if (vPart > 2.5) {
@@ -981,15 +993,15 @@ void main(){
     float band = floor(clamp(k, 0.0, 0.999) * 4.0) / 3.0;  // the same hard lamp as the main app
     col = alb * (0.30 + 0.85 * band);
   }
-  /* turbidity is the render budget, but it is also apparent size: a big
-     silhouette survives scattering that swallows a minnow, which is what makes
-     "you can see it from across the ocean" true rather than a claim */
-  float far = uFar + vBig * uFarBig;
+  /* turbidity is also apparent size: a big silhouette survives scattering
+     that swallows a minnow, which is what makes "you can see it from across
+     the ocean" true rather than a claim */
   float f = clamp(1.0 - exp(-vFog * uFog / (1.0 + vBig * uFogBig)), 0.0, 1.0);
   /* the water takes half of it in colour and the rest in alpha, so the ink
-     fades with the fish and the far tier hands off instead of popping */
+     fades with the fish; the level of detail rides in the same alpha, so the
+     outline goes with the body as it hands off to its point */
   col = mix(col, uWater, f * mix(0.5, 0.10, lure));
-  float vis = (1.0 - f * (1.0 - lure * 0.65)) * (1.0 - smoothstep(far * 0.74, far, vFog));
+  float vis = (1.0 - f * (1.0 - lure * 0.65)) * lod;
   vis *= 1.0 - step(3.5, vPat.x) * 0.55;                   // pattern 4: the Ghost Minnow
   gl_FragColor = vec4(col, ${A_FLOOR.toFixed(2)} + ${(1 - A_FLOOR).toFixed(2)} * vis);
 }`;
@@ -1022,18 +1034,34 @@ void main(){
   gl_FragColor = vec4(c, clamp((s.a - ${A_FLOOR.toFixed(2)}) / ${(1 - A_FLOOR).toFixed(2)}, 0.0, 1.0));
 }`;
 
+/* The point is the fish wherever the mesh is not: it runs meshLod() itself,
+   on the same numbers, and takes whatever share of the animal is left over.
+   It also swims the same orbit, so the dot and the fish are one place while
+   they cross over -- a whale's circle is two body lengths wide. */
 const PT_VS = `
-attribute vec3 tint; attribute float sz; attribute float st;
-uniform float uH, uNear, uFar, uPx;
+attribute vec3 tint; attribute float sz; attribute float st; attribute vec4 swim;
+uniform float uH, uNear, uFar, uPx, uTime, uMeshFar, uMeshFarBig, uBigFrom, uCut, uCutBig;
 varying vec3 vC; varying float vA;
+float meshLod(float d, float s){
+  float cut = s >= uBigFrom ? uCutBig : uCut;
+  if (cut <= 0.0) return 0.0;
+  float r = uMeshFar + max(0.0, s - 1.5) * uMeshFarBig;
+  return (1.0 - smoothstep(r * 0.74, r, d)) * (1.0 - smoothstep(cut * 0.65, cut, d / (0.4 + s)));
+}
 void main(){
   if (st < 0.5) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); vA = 0.0; vC = tint; return; }
   vC = st > 1.5 ? mix(tint, vec3(0.95, 1.0, 0.98), 0.75) : tint;
-  vec4 mv = modelViewMatrix * vec4(position, 1.0);
-  float d = -mv.z;
+  float ph = uTime * swim.x + swim.y, yaw = ph * 0.42;
+  vec3 p = position + vec3(cos(yaw) * swim.z, sin(ph * 1.7) * swim.w, sin(yaw) * swim.z);
+  vec4 mv = modelViewMatrix * vec4(p, 1.0);
+  float d = length(p - cameraPosition);
   gl_Position = projectionMatrix * mv;
   gl_PointSize = clamp(sz * uH / max(1.0, d), 1.0, 26.0) * uPx;
-  vA = smoothstep(uNear * 0.55, uNear * 1.6, d) * (1.0 - smoothstep(uFar * 0.55, uFar, d));
+  /* the lod is measured from the rest position, exactly as the CPU measures it */
+  float lod = meshLod(length(position - cameraPosition), sz);
+  /* with no meshes at all (cut 0) the near fade stops a dot filling the lens */
+  float near = uCut > 0.0 ? 1.0 : smoothstep(uNear * 0.55, uNear * 1.6, d);
+  vA = (1.0 - lod) * near * (1.0 - smoothstep(uFar * 0.55, uFar, d));
 }`;
 const PT_FS = `
 precision mediump float;
@@ -1052,7 +1080,7 @@ varying vec3 vC; varying float vA;
 void main(){
   vC = tint;
   vec4 mv = modelViewMatrix * vec4(position, 1.0);
-  float d = -mv.z;
+  float d = length(position - cameraPosition);
   gl_Position = projectionMatrix * mv;
   gl_PointSize = clamp(sz * uH / max(1.0, d), 2.0, 1400.0) * uPx;
   vA = amt * smoothstep(uFrom * 0.5, uFrom * 1.9, d) * (1.0 - smoothstep(2400.0, 3800.0, d));
@@ -1195,7 +1223,6 @@ const fishMat = new ShaderMaterial({
   vertexShader: FISH_VS, fragmentShader: FISH_FS,
   uniforms: {
     uWater: { value: water }, uFog: { value: TUNE.fogNear },
-    uFar: { value: TUNE.meshFar }, uFarBig: { value: TUNE.meshFarBig },
     uFogBig: { value: TUNE.fogBig }, uTime: { value: 0 },
   },
   side: DoubleSide,
@@ -1248,7 +1275,9 @@ const pointMat = new ShaderMaterial({
   vertexShader: PT_VS, fragmentShader: PT_FS, transparent: true, depthWrite: false,
   uniforms: {
     uH: { value: 800 }, uPx: { value: 1 },
-    uNear: { value: TUNE.pointNear }, uFar: { value: TUNE.pointFar },
+    uNear: { value: TUNE.pointNear }, uFar: { value: TUNE.pointFar }, uTime: { value: 0 },
+    uMeshFar: { value: TUNE.meshFar }, uMeshFarBig: { value: TUNE.meshFarBig },
+    uBigFrom: { value: TUNE.bigFrom }, uCut: { value: 0 }, uCutBig: { value: 0 },
   },
 });
 const hazeMat = new ShaderMaterial({
@@ -1687,9 +1716,13 @@ guide.root.position.set(0, phase === "dock" ? DOCK_Y : GUIDE_Y, 0);
 const ARCH_GEO = ARCH.map(archGeometry);
 /* Each archetype gets a buffer that could hold the entire budget, because a
    folder really can be one species -- ten thousand empty .gitkeep files are
-   ten thousand Ghost Minnows. Fifteen archetypes x 1400 x (16+3+2) floats is
-   about 1.8 MB of instance buffer, and only the used prefix is ever uploaded. */
-const CAP = TUNE.meshBudget;
+   ten thousand Ghost Minnows. The quarter on top is for the moment the budget
+   cut is still easing in after you swim into a crowd. Fifteen archetypes x
+   1750 x (16+3+2+1) floats is about 2.3 MB of instance buffer, and only the
+   used prefix is ever uploaded. */
+const CAP = Math.ceil(TUNE.meshBudget * 1.25);
+/* how far an animal of this size is drawn as geometry at all */
+const meshReach = s => TUNE.meshFar + Math.max(0, s - 1.5) * TUNE.meshFarBig;
 let world = null;
 
 function setWorldVisible(visible) {
@@ -1765,18 +1798,26 @@ function buildWorld(files, label) {
   /* --- points: every file, always --------------------------------------- */
   const n = files.length;
   const pos = new Float32Array(n * 3), tint = new Float32Array(n * 3);
-  const sz = new Float32Array(n), st = new Float32Array(n);
+  const sz = new Float32Array(n), st = new Float32Array(n), swim = new Float32Array(n * 4);
   files.forEach((f, i) => {
     f.index = i;
+    f.reach = meshReach(f.scale);
+    f.lod = 0;
     pos[i * 3] = f.x; pos[i * 3 + 1] = f.y; pos[i * 3 + 2] = f.z;
     tint[i * 3] = f.cr; tint[i * 3 + 1] = f.cg; tint[i * 3 + 2] = f.cb;
     sz[i] = f.scale; st[i] = 1;
+    /* the school clock, folded so the shader swims the dot on the same orbit */
+    swim[i * 4] = f.school.speed;
+    swim[i * 4 + 1] = f.school.phase + (f.phase - f.school.phase) * 0.15;
+    swim[i * 4 + 2] = f.scale * f.orbit;
+    swim[i * 4 + 3] = f.scale * f.bob;
   });
   const pg = new BufferGeometry();
   pg.setAttribute("position", new BufferAttribute(pos, 3));
   pg.setAttribute("tint", new BufferAttribute(tint, 3));
   pg.setAttribute("sz", new BufferAttribute(sz, 1));
   pg.setAttribute("st", new BufferAttribute(st, 1));
+  pg.setAttribute("swim", new BufferAttribute(swim, 4));
   const points = new Points(pg, pointMat);
   points.frustumCulled = false;
   scene.add(points);
@@ -1847,11 +1888,16 @@ function buildWorld(files, label) {
     const pi = new Float32Array(CAP * 2);
     const pattr = new InstancedBufferAttribute(pi, 2);
     pattr.setUsage(35048);
+    const li = new Float32Array(CAP);
+    const lattr = new InstancedBufferAttribute(li, 1);
+    lattr.setUsage(35048);
     mesh.geometry = ARCH_GEO[i].clone();
     mesh.geometry.setAttribute("tint", attr);
     mesh.geometry.setAttribute("pat", pattr);
+    mesh.geometry.setAttribute("lod", lattr);
     mesh.userData.tint = ti;
     mesh.userData.pat = pi;
+    mesh.userData.lod = li;
     mesh.userData.ids = new Int32Array(CAP);
     fishScene.add(mesh);
     return mesh;
@@ -1875,9 +1921,10 @@ function buildWorld(files, label) {
   const bigs = files.filter(f => f.scale >= TUNE.bigFrom);
   let maxScale = 0;
   for (const f of files) maxScale = Math.max(maxScale, f.scale);
-  const reach = TUNE.meshFar + Math.max(0, maxScale - 1.5) * TUNE.meshFarBig;
+  const reach = meshReach(maxScale);
 
   world = { files, places, points, haze, insts, grid, GRID, radius, bigs, reach,
+            cut: 0, cutBig: 0, cutT: 0, cutBigT: 0,
             bytes: files.reduce((a, f) => a + f.size, 0) };
   net.clear(); syncNet();
   buildGauge();
@@ -2344,16 +2391,38 @@ addEventListener("wheel", e => {
   wheelAt = performance.now();
 }, { passive: false });
 
-/* ============================================================ near set */
+/* ============================================================ near set
+   Level of detail is one rule, meshLod(), and the CPU, the fish shader (via
+   the per-instance lod) and the point shader all evaluate exactly it, so the
+   two tiers can only ever crossfade: whatever share of an animal the mesh
+   does not draw, its point does. Two things limit the mesh -- its own draw
+   distance, which grows with size, and the budget, which is a cut on
+   nearScore -- and both are smoothsteps rather than edges.
+
+   The cut is the score of the first fish the budget cannot afford. It is
+   continuous as you swim, but it is only resampled every few frames, so it
+   eases toward the new value (in log space, since it spans orders of
+   magnitude) instead of stepping. And the set is gathered meshSlack wider
+   than either limit and regathered before you can swim out of that margin,
+   so nothing the rule wants drawn is ever missing from it. */
 let nearSet = [], nearAt = 0;
+const nearFrom = new Vector3();
 /* big fish earn their geometry from further away, or you stand in node_modules
    and the whole budget goes to dotfiles while a 20 GB video is a dot behind you */
-const nearScore = c => c[0] / (0.4 + c[1].scale);
+const nearScore = (d, f) => d / (0.4 + f.scale);
+const meshLod = (d, f, cut) => cut <= 0 ? 0 :
+  (1 - smooth(f.reach * 0.74, f.reach, d)) * (1 - smooth(cut * 0.65, cut, nearScore(d, f)));
+/* the score of the first fish past the budget, or, when everything fits, a
+   cut past any score a fish in reach can have, so the budget fades nobody */
+const cutFor = (list, n) => list.length > n ? Math.max(0.05, list[n][0]) : world.reach / 0.4 / 0.65 + 1;
 function rebuildNear() {
   if (!world) return;
-  const R = TUNE.meshFar, G = world.GRID, cand = [];
-  const cx = Math.floor(cam.pos.x / G), cy = Math.floor(cam.pos.y / G), cz = Math.floor(cam.pos.z / G);
-  const span = Math.ceil(R / G);
+  const P = camera.position, M = TUNE.meshSlack, G = world.GRID, cand = [];
+  /* a teleport (arriving, surfacing) has nothing on screen to crossfade from */
+  const jumped = !world.cut || nearFrom.distanceTo(P) > M * 3;
+  nearFrom.copy(P);
+  const cx = Math.floor(P.x / G), cy = Math.floor(P.y / G), cz = Math.floor(P.z / G);
+  const span = Math.ceil((meshReach(TUNE.bigFrom) + M) / G);
   for (let i = -span; i <= span; i++)
     for (let j = -span; j <= span; j++)
       for (let k = -span; k <= span; k++) {
@@ -2361,8 +2430,8 @@ function rebuildNear() {
         if (!c) continue;
         for (const f of c) {
           if (f.dead || f.scale >= TUNE.bigFrom) continue;   // the big ones come from world.bigs
-          const d = Math.hypot(f.x - cam.pos.x, f.y - cam.pos.y, f.z - cam.pos.z);
-          if (d < R) cand.push([d, f]);
+          const d = Math.hypot(f.x - P.x, f.y - P.y, f.z - P.z);
+          if (d < f.reach + M) cand.push([nearScore(d, f), f, d]);
         }
       }
   /* leviathans get a reserved slice of the budget: a whale that vanishes
@@ -2370,14 +2439,34 @@ function rebuildNear() {
   const big = [];
   for (const f of world.bigs) {
     if (f.dead) continue;
-    const d = Math.hypot(f.x - cam.pos.x, f.y - cam.pos.y, f.z - cam.pos.z);
-    if (d < TUNE.meshFar + (f.scale - 1.5) * TUNE.meshFarBig) big.push([d, f]);
+    const d = Math.hypot(f.x - P.x, f.y - P.y, f.z - P.z);
+    if (d < f.reach + M) big.push([nearScore(d, f), f, d]);
   }
-  big.sort((a, b) => nearScore(a) - nearScore(b));
-  const keep = big.slice(0, Math.floor(TUNE.meshBudget * 0.45));
-  cand.sort((a, b) => nearScore(a) - nearScore(b));
-  nearSet = keep.concat(cand.slice(0, TUNE.meshBudget - keep.length)).map(c => c[1]);
+  big.sort((a, b) => a[0] - b[0]);
+  cand.sort((a, b) => a[0] - b[0]);
+  /* only what is inside its draw distance spends budget; the slack ring is
+     fetched, not paid for */
+  const bigIn = big.filter(c => c[2] < c[1].reach), candIn = cand.filter(c => c[2] < c[1].reach);
+  const nb = Math.min(bigIn.length, Math.floor(TUNE.meshBudget * 0.45));
+  world.cutBigT = cutFor(bigIn, nb);
+  world.cutT = cutFor(candIn, TUNE.meshBudget - nb);
+  if (jumped) { world.cut = world.cutT; world.cutBig = world.cutBigT; }
+  /* keep anything the rule could draw before the next gather: within its
+     reach, and under whichever cut is larger, once you have swum M closer */
+  const keep = (list, cut) => list.filter(c => c[2] - M < c[1].reach &&
+    nearScore(c[2] - M, c[1]) < cut);
+  for (const f of nearSet) f.lod = 0;
+  nearSet = keep(big, Math.max(world.cutBig, world.cutBigT))
+    .concat(keep(cand, Math.max(world.cut, world.cutT)))
+    .slice(0, CAP * 2).map(c => c[1]);
 }
+/* shrinking is quick, because arriving in a crowd must not run over budget
+   for long; growing is capped at about 2.5x a second, because leaving one
+   opens the cut onto a whole shell of fish at once and they should swim in,
+   not appear */
+const easeCut = (cur, want, dt) => !(cur > 0) ? want : want < cur
+  ? cur * Math.pow(want / cur, 1 - Math.exp(-dt * 9))
+  : Math.min(want, cur * Math.exp(dt * 0.9));
 
 /* ============================================================ the net */
 const net = new Set();
@@ -2767,7 +2856,7 @@ function pick() {
   const ox = camera.position.x, oy = camera.position.y, oz = camera.position.z;
   let best = null, bestScore = Infinity;
   for (const f of nearSet) {
-    if (f.dead) continue;
+    if (f.dead || f.lod < 0.35) continue;            // not until it is mostly there
     const dx = f.px - ox, dy = f.py - oy, dz = f.pz - oz;
     const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
     if (dist < 1e-3 || dist > world.reach) continue;
@@ -2983,8 +3072,6 @@ function frame(nowMs) {
   water.copy(waterAt(cam.pos.y));
   const fog = lerp(TUNE.fogNear, TUNE.fogDeep, clamp(-cam.pos.y / DEPTH, 0, 1));
   fishMat.uniforms.uFog.value = fog;
-  fishMat.uniforms.uFar.value = TUNE.meshFar;
-  fishMat.uniforms.uFarBig.value = TUNE.meshFarBig;
   fishMat.uniforms.uFogBig.value = TUNE.fogBig;
   fishMat.uniforms.uTime.value = lifeTime;
   if (vegetation) {
@@ -3073,13 +3160,23 @@ function frame(nowMs) {
   }
 
   if (world && phase === "ocean") {
-    if (nowMs - nearAt > 130) { nearAt = nowMs; rebuildNear(); }
+    if (nowMs - nearAt > 130 || camera.position.distanceTo(nearFrom) > TUNE.meshSlack * 0.5) {
+      nearAt = nowMs; rebuildNear();
+    }
+    world.cut = easeCut(world.cut, world.cutT, dt);
+    world.cutBig = easeCut(world.cutBig, world.cutBigT, dt);
+    pointMat.uniforms.uCut.value = world.cut;
+    pointMat.uniforms.uCutBig.value = world.cutBig;
     const counts = new Array(ARCH.length).fill(0);
     for (const m of world.insts) m.userData.ids.fill(-1);
+    const P = camera.position;
     for (const f of nearSet) {
+      const d = Math.hypot(f.x - P.x, f.y - P.y, f.z - P.z);
+      f.lod = meshLod(d, f, f.scale >= TUNE.bigFrom ? world.cutBig : world.cut);
+      if (f.lod <= 0) continue;
       const mesh = world.insts[f.arch];
       const i = counts[f.arch];
-      if (i >= CAP) continue;
+      if (i >= CAP) { f.lod = 0; continue; }
       /* behaviour follows size: the arc a creature turns on is its own body
          lengths across, and a leviathan's is very wide and very slow */
       /* A shared school clock keeps neighbours swimming together instead of
@@ -3112,6 +3209,7 @@ function frame(nowMs) {
       if (f.netted) { T[i * 3] = 0.92; T[i * 3 + 1] = 0.98; T[i * 3 + 2] = 0.95; }
       else { T[i * 3] = f.cr; T[i * 3 + 1] = f.cg; T[i * 3 + 2] = f.cb; }
       Q[i * 2] = f.netted ? 0 : f.pat; Q[i * 2 + 1] = f.patF;
+      mesh.userData.lod[i] = f.lod;
       mesh.userData.ids[i] = f.index;
       counts[f.arch] = i + 1;
     }
@@ -3125,8 +3223,12 @@ function frame(nowMs) {
       upload(m.instanceMatrix, n * 16);
       upload(m.geometry.attributes.tint, n * 3);
       upload(m.geometry.attributes.pat, n * 2);
+      upload(m.geometry.attributes.lod, n);
     });
+  } else {
+    pointMat.uniforms.uCut.value = pointMat.uniforms.uCutBig.value = 0;
   }
+  pointMat.uniforms.uTime.value = lifeTime;
 
   const depthPct = clamp(-cam.pos.y / DEPTH, 0, 1);
   elYou.style.top = (depthPct * 100).toFixed(2) + "%";
