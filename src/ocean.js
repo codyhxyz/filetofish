@@ -443,6 +443,25 @@ const sizeToY = lb =>
 const yToSize = y =>
   LB_LO + (LB_HI - LB_LO) * Math.pow(clamp(-y / DEPTH, 0, 1), 1 / TUNE.sizeCurve);
 
+/* The water's named zones are byte marks, so like 1 GB they sit at the same
+   size on every drive -- only their depth moves with the fit. A zone this
+   drive has no files for is left out rather than squashed to a hairline at
+   the surface or the floor: a Hadal you can reach but that holds nothing
+   bigger than 9 MB would be the gauge lying. `top` is metres below the
+   surface where the zone begins; the first one always begins at 0. */
+const ZONES = [
+  { name: "Sunlight", range: "under 1 KB", lb: -Infinity },
+  { name: "Twilight", range: "1 KB – 32 KB", lb: 10 },
+  { name: "Midnight", range: "32 KB – 1 MB", lb: 15 },
+  { name: "Abyss", range: "1 MB – 64 MB", lb: 20 },
+  { name: "Hadal", range: "over 64 MB", lb: 26 },
+];
+let zones = [];
+function fitZones() {
+  zones = ZONES.filter((z, i) => z.lb < LB_HI && !(i + 1 < ZONES.length && ZONES[i + 1].lb <= LB_LO))
+    .map(z => ({ name: z.name, range: z.range, top: z.lb <= LB_LO ? 0 : -sizeToY(z.lb) }));
+}
+
 /* AGE moved off the vertical, but it did not stop mattering -- it just stopped
    being a place and became a condition. A file you touched this morning keeps
    its family colour and swims like it means it; one you have not opened in
@@ -1931,6 +1950,7 @@ function buildWorld(files, label) {
   bed.floor = -(DEPTH + 60);
   bed.v++;
   seabedMat.uniforms.uDepth.value = DEPTH;
+  fitZones();
 
   /* --- points: every file, always --------------------------------------- */
   const n = files.length;
@@ -3466,7 +3486,7 @@ function frame(nowMs) {
   /* 3. dither + ink, upscaled nearest, over the top */
   if (anyFish) renderer.render(postScene, postCam);
   if (showGuide) renderer.render(guidePostScene, postCam);
-  options.onFrame?.({ camera, phase, depth: Math.max(0, -cam.pos.y), floor: DEPTH + 60, underwater, perspective, looking: looking() });
+  options.onFrame?.({ camera, phase, depth: Math.max(0, -cam.pos.y), floor: DEPTH + 60, zones, underwater, perspective, looking: looking() });
 }
 
 /* ============================================================ entry */

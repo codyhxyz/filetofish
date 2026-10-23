@@ -38,7 +38,7 @@ const shadow = { querySelector: $ };
 $("#intro").hidden = true;
 const host = { attachShadow: () => shadow };
 const sprints = [], moves = [], vertical = [], depths = [], cameras = [];
-let opts, blocked = false, dives = 0, returns = 0, views = 0, cleared = 0;
+let opts, blocked = false, dives = 0, returns = 0, views = 0, cleared = 0, now = 1000;
 const api = {
   beginJump: () => dives++, returnToDock: () => returns++, toggleView: () => views++,
   setMove: (x, z, fast) => { moves.push([x, z]); sprints.push(!!fast); },
@@ -50,7 +50,7 @@ const source = fs.readFileSync(new URL("../src/explore.js", import.meta.url), "u
 const ctx = vm.createContext({
   document: doc, addEventListener: win.addEventListener.bind(win),
   oceanTemplate: "<style>body{}</style>",
-  performance: { now: () => 1000 },
+  performance: { now: () => now },
   initOcean: (root, options) => { assert.equal(root, shadow); opts = options; return api; },
 });
 vm.runInContext(source, ctx);
@@ -131,6 +131,50 @@ $("#swim-down").emit("keydown", { code: "Space" });
 assert.equal(vertical.at(-1), -1);
 $("#swim-down").emit("keyup");
 assert.equal(vertical.at(-1), 0);
+
+/* zones: notches at each boundary, one name, and a title card per crossing */
+const zones = [
+  { name: "Sunlight", range: "under 1 KB", top: 0 },
+  { name: "Twilight", range: "1 KB – 32 KB", top: 20 },
+  { name: "Midnight", range: "32 KB – 1 MB", top: 120 },
+];
+const card = $("#zone-card"), cardName = card.querySelector("b");
+let shownCards = 0;
+const realToggle = card.classList.toggle;
+card.classList.toggle = (name, on) => { if (name === "on" && on) shownCards++; realToggle(name, on); };
+frame({ phase: "jump", underwater: true, depth: 3, floor: 400, zones });
+assert.equal(shownCards, 0, "mid-plunge is not a zone yet");
+assert.equal((gauge.innerHTML.match(/<em /g) || []).length, 2, "a notch where each zone below the surface begins");
+frame({ phase: "ocean", underwater: true, depth: 6.5, floor: 400, zones });
+assert.equal(shownCards, 1, "landing in the water names the first zone");
+assert.equal(cardName.textContent, "Sunlight");
+assert.equal(card.attrs["data-zone"], "sunlight");
+assert.equal(gauge.querySelector(".zone").textContent, "Sunlight");
+assert.equal(gauge.querySelector(".zone").hidden, false);
+assert.match(gauge.attrs["aria-valuetext"], /sunlight zone$/);
+for (const depth of [19, 21, 19.5, 21.5, 18.5]) frame({ phase: "ocean", underwater: true, depth, floor: 400, zones });
+assert.equal(shownCards, 1, "bobbing on a boundary is not a crossing");
+assert.equal(gauge.querySelector(".zone").textContent, "Sunlight");
+frame({ phase: "ocean", underwater: true, depth: 23, floor: 400, zones });
+assert.equal(shownCards, 2);
+assert.equal(cardName.textContent, "Twilight");
+assert.equal(card.querySelector("span").textContent, "1 KB – 32 KB");
+assert.equal(gauge.querySelector(".zone").textContent, "Twilight", "only the current zone is named");
+frame({ phase: "ocean", underwater: true, depth: 15, floor: 400, zones });
+assert.equal(gauge.querySelector(".zone").textContent, "Sunlight");
+assert.equal(shownCards, 2, "a zone just announced waits before it is announced again");
+now += 9000;
+frame({ phase: "ocean", underwater: true, depth: 25, floor: 400, zones });
+assert.equal(shownCards, 3, "after the cooldown a crossing is news again");
+frame({ phase: "ocean", underwater: true, depth: 200, floor: 400, zones });
+assert.equal(cardName.textContent, "Midnight");
+assert.equal(shownCards, 4);
+frame();
+assert.equal(card.classes.has("on"), false, "leaving the water clears the card");
+frame({ phase: "jump", underwater: true, depth: 3, floor: 400, zones });
+frame({ phase: "ocean", underwater: true, depth: 6.5, floor: 400, zones });
+assert.equal(shownCards, 5, "every dive names its first zone, cooldown or not");
+
 win.emit("blur");
 assert.equal(cleared, 1);
 doc.hidden = true;

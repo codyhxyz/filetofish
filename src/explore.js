@@ -26,6 +26,7 @@ export function mountExploration(host, { sea, isBlocked, onDepth }) {
   const $ = selector => document.querySelector(selector);
   const dive = $("#dive"), view = $("#view"), up = $("#swim-up"), down = $("#swim-down");
   const stick = $("#move-stick"), knob = $("#move-knob"), status = $("#explore-status");
+  const card = $("#zone-card");
   /* On a touch screen the keyboard hints are noise and the view follows the
      water: first person on the dock, third person once you are in. */
   const touch = !!globalThis.matchMedia?.("(pointer:coarse)").matches;
@@ -66,7 +67,7 @@ export function mountExploration(host, { sea, isBlocked, onDepth }) {
           ? `WASD swim · Shift sprint · ↑ ↓ depth · ${look}`
           : `WASD walk · Shift sprint · ${look}`;
       }
-      gauge(underwater && frame.depth, frame.floor);
+      gauge(underwater && frame.depth, frame.floor, frame.zones, phase === "ocean", blocked);
       if (blocked) { movePad.reset(); hint.hide(); }
       else hint.maybeShow(phase);
     },
@@ -74,15 +75,42 @@ export function mountExploration(host, { sea, isBlocked, onDepth }) {
   /* The depth reading is a graduated beaker: the surface at the lip, the
      trench floor at the rounded foot, and the water inside darkening the way
      the sea does on the way down. The scale is only redrawn when the sea's
-     depth changes; a frame just moves the marker. */
+     depth changes; a frame just moves the marker.
+
+     The named zones ride on it as quietly as they can: a notch on the outer
+     wall where each one begins, and only the zone you are in spelled out,
+     hanging down from its notch. Crossing into one says so across the middle
+     of the screen, once -- the zone only changes when you are HOLD metres
+     clear of the line, so the bob of a swim along a boundary is not a crossing,
+     and a zone that has just been announced waits AGAIN ms to be announced
+     again, so dithering between two is not a fanfare every few seconds. */
   const gauge = (() => {
-    let scale = 0, shown = -1, you = null, read = null;
-    return (depth, floor) => {
+    const HOLD = 2, AGAIN = 8000;
+    let scale = 0, zset = null, shown = -1, you = null, read = null, label = null;
+    let zone = -1, said = new Map();
+    const zoneAt = d => {
+      let k = 0;
+      for (let i = 1; i < zset.length; i++) if (d >= zset[i].top) k = i;
+      return k;
+    };
+    const place = () => {
+      const z = zset[zone];
+      label.hidden = !z;
+      if (!z) return;
+      label.textContent = z.name;
+      label.style.top = `min(${(z.top / scale * 100).toFixed(2)}%, calc(100% - 3.4rem))`;
+    };
+    return (depth, floor, zones = [], swimming = false, blocked = false) => {
       status.hidden = depth === false;
-      if (depth === false) return;
+      if (depth === false) {
+        zone = -1; said = new Map();
+        card.classList.toggle("on", false);
+        document.body.classList.toggle("zone-on", false);
+        return;
+      }
       floor = Math.max(floor || 0, depth, 1);
-      if (floor !== scale) {
-        scale = floor;
+      if (floor !== scale || zones !== zset) {
+        scale = floor; zset = zones;
         const major = [50, 100, 200, 250, 500, 1000].find(s => floor / s <= 7) || 1000, minor = major / 5;
         let ticks = "";
         for (let i = 1; i * minor < floor - minor / 2; i++) {
@@ -90,22 +118,56 @@ export function mountExploration(host, { sea, isBlocked, onDepth }) {
           ticks += `<i${big ? ' class="major"' : ""} style="top:${(m / floor * 100).toFixed(2)}%">`
             + (big && m < floor - major * 0.4 ? `<b>${m}</b>` : "") + "</i>";
         }
+        for (const z of zones) {
+          if (z.top > 0 && z.top < floor) ticks += `<em style="top:${(z.top / floor * 100).toFixed(2)}%"></em>`;
+        }
         status.innerHTML = `<span class="lip">surface</span><div class="glass">${ticks}`
-          + `<div class="you"><i></i></div></div>`
+          + `<span class="zone" hidden></span><div class="you"><i></i></div></div>`
           + `<span class="foot">trench floor<b>${Math.round(floor).toLocaleString("en")} m</b></span>`;
         status.setAttribute("aria-valuemax", String(Math.round(floor)));
         you = status.querySelector(".you"); read = you.querySelector("i"); shown = -1;
+        label = status.querySelector(".zone");
+        if (zone >= zset.length) zone = -1;
+        place();
       }
       you.style.top = `${(depth / scale * 100).toFixed(2)}%`;
+      if (swimming && zset.length) {
+        const above = zoneAt(Math.max(0, depth - HOLD)), below = zoneAt(depth + HOLD);
+        const next = zone < 0 ? zoneAt(depth) : above === below ? above : zone;
+        if (next !== zone) {
+          zone = next; place(); shown = -1;
+          const now = performance.now();
+          if (!blocked && !(now - said.get(next) < AGAIN)) {
+            said.set(next, now);
+            announce(zset[next]);
+          }
+        }
+      }
       const m = Math.round(depth);
       if (m !== shown) {
         shown = m;
         read.textContent = `${m} m`;
         status.setAttribute("aria-valuenow", String(m));
-        status.setAttribute("aria-valuetext", `${m} m deep`);
+        status.setAttribute("aria-valuetext", `${m} m deep` + (zset[zone] ? `, ${zset[zone].name.toLowerCase()} zone` : ""));
       }
     };
   })();
+  /* the title card: restarting the animation is a class off, a reflow, and
+     the class back on, so a second crossing replays it from the top */
+  function announce(z) {
+    card.setAttribute("data-zone", z.name.toLowerCase());
+    card.querySelector("b").textContent = z.name;
+    card.querySelector("span").textContent = z.range;
+    card.classList.toggle("on", false);
+    void card.offsetWidth;
+    card.classList.toggle("on", true);
+    document.body.classList.toggle("zone-on", true);
+  }
+  card.addEventListener("animationend", e => {
+    if (e.target !== card || e.pseudoElement) return;   // the rules finishing is not the card
+    card.classList.toggle("on", false);
+    document.body.classList.toggle("zone-on", false);
+  });
   const act = fn => () => { if (!isBlocked() && !talking()) fn(); };
   dive.addEventListener("click", act(() => api.beginJump()));
   view.addEventListener("click", act(() => api.toggleView()));

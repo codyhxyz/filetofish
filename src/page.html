@@ -115,6 +115,85 @@ body.has-catch #rig{opacity:.22;}
   content:"";position:absolute;right:100%;top:50%;margin-top:-4px;
   border:4px solid transparent;border-right-color:#FFC49A;border-left-width:0;
 }
+/* the zones: a notch on the outer wall where each begins, and the one you are
+   in written down the wall from its notch -- never more than one name */
+#explore-status .glass > em{
+  position:absolute;right:100%;width:.32rem;height:1px;margin-top:-.5px;
+  background:rgba(232,247,249,.85);
+}
+#explore-status .zone{
+  position:absolute;right:calc(100% + .42rem);margin-top:.3rem;
+  writing-mode:vertical-rl;white-space:nowrap;line-height:1;
+  font-size:.5rem;letter-spacing:.16em;text-transform:uppercase;color:rgba(242,250,251,.72);
+  transition:top .6s cubic-bezier(.16,1,.3,1);
+}
+#explore-status .zone[hidden]{display:none;}
+
+/* Crossing into a zone: the name across the middle of the screen, the way a
+   game names the area you just walked into. In, a beat and a half, out. */
+#zone-card{
+  --zc:#9BE2EC;
+  position:fixed;z-index:5;left:50%;top:50%;transform:translate(-50%,-50%);
+  width:max-content;max-width:calc(100vw - 13rem);
+  display:flex;flex-direction:column;align-items:center;text-align:center;
+  pointer-events:none;opacity:0;visibility:hidden;
+}
+#zone-card[data-zone="sunlight"]{--zc:#FFD9A8;}
+#zone-card[data-zone="twilight"]{--zc:#9BE2EC;}
+#zone-card[data-zone="midnight"]{--zc:#8FB4FF;}
+#zone-card[data-zone="abyss"]{--zc:#B9A6FF;}
+#zone-card[data-zone="hadal"]{--zc:#FF9F8A;}
+#zone-card small{
+  font-family:var(--f-mono);font-size:.68rem;letter-spacing:.46em;text-transform:uppercase;
+  color:var(--zc);text-shadow:0 1px 10px rgba(0,10,18,.95);margin-right:-.46em;
+}
+#zone-card b{
+  display:block;margin:.3rem 0 .55rem;font-weight:700;line-height:.95;
+  font-size:clamp(1.9rem,7.4vw,6.4rem);letter-spacing:.06em;white-space:nowrap;text-transform:uppercase;margin-right:-.06em;
+  color:#F6FCFD;
+  text-shadow:0 0 .4em color-mix(in srgb,var(--zc) 75%,transparent),0 .06em .5em rgba(0,10,18,.9);
+}
+#zone-card span{
+  display:flex;align-items:center;gap:.8rem;width:100%;
+  font-family:var(--f-mono);font-size:.72rem;letter-spacing:.16em;white-space:nowrap;
+  color:rgba(242,250,251,.86);text-shadow:0 1px 8px rgba(0,10,18,.95);
+}
+#zone-card span::before,#zone-card span::after{
+  content:"";flex:1;height:1px;min-width:1.2rem;
+  background:linear-gradient(to right,transparent,var(--zc));
+}
+#zone-card span::after{background:linear-gradient(to left,transparent,var(--zc));}
+#zone-card.on{visibility:visible;animation:zone-card 2.4s linear both;}
+#zone-card.on b{animation:zone-name 2.4s linear both;}
+#zone-card.on span::before,#zone-card.on span::after{animation:zone-rule 2.4s linear both;}
+@keyframes zone-card{
+  0%{opacity:0;transform:translate(-50%,-50%) translateY(1.4rem);animation-timing-function:cubic-bezier(.16,1,.3,1);}
+  16%{opacity:1;transform:translate(-50%,-50%);}
+  78%{opacity:1;transform:translate(-50%,-50%);animation-timing-function:ease-in;}
+  100%{opacity:0;transform:translate(-50%,-50%) translateY(-.6rem);}
+}
+@keyframes zone-name{
+  0%{letter-spacing:.26em;filter:blur(6px);animation-timing-function:cubic-bezier(.16,1,.3,1);}
+  20%,100%{letter-spacing:.06em;filter:none;}
+}
+@keyframes zone-rule{
+  0%,6%{transform:scaleX(0);}
+  30%,100%{transform:scaleX(1);}
+}
+#zone-card span::before{transform-origin:right;}
+#zone-card span::after{transform-origin:left;}
+/* the surface HUD's own lesson waits while a zone is being named */
+body.zone-on #look-hint{opacity:0;}
+@media(prefers-reduced-motion:reduce){
+  #zone-card.on{animation:zone-fade 2.4s linear both !important;}
+  #zone-card.on b,#zone-card.on span::before,#zone-card.on span::after{animation:none !important;}
+}
+@keyframes zone-fade{0%{opacity:0}12%,80%{opacity:1}100%{opacity:0}}
+@media(max-width:600px){
+  #zone-card{max-width:calc(100vw - 12rem);}
+  #zone-card small{font-size:.54rem;letter-spacing:.34em;margin-right:-.34em;}
+  #zone-card span{font-size:.62rem;letter-spacing:.1em;gap:.5rem;}
+}
 #move-help{bottom:5.3rem;font-size:.7rem;white-space:nowrap;}
 #move-stick{
   display:none;position:fixed;z-index:6;left:1.1rem;bottom:6rem;
@@ -752,6 +831,7 @@ body.hint-send #fish{opacity:.62; transform:translateX(14px);}
 </div>
 <div id="hit" title="pick a file"></div>
 <div id="explore-status" role="meter" aria-label="Depth" aria-valuemin="0" hidden></div>
+<div id="zone-card" role="status" aria-live="polite"><small>entering</small><b></b><span></span></div>
 <div id="move-help">WASD walk · Shift sprint · click to look</div>
 <div id="travel" role="group" aria-label="Explore the ocean">
   <button id="dive" type="button">Dive · Space</button>
