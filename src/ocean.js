@@ -1695,7 +1695,7 @@ function buildPlayer() {
   rig.add(rod);
   root.visible = false;
   guideScene.add(root);
-  return { root, rig, armR, armL, legR, legL, rod, vel: new Vector3() };
+  return { root, rig, armR, armL, legR, legL, rod, vel: new Vector3(), stroke: 0, kick: 0 };
 }
 const player = buildPlayer();
 const PLAYER_FEET = 0.83;                // fin tip below the transform
@@ -3038,25 +3038,51 @@ function frame(nowMs) {
       const step = Math.sin(t * 8.0) * moving;
       player.root.rotation.set(0, cam.yaw, 0);
       player.rig.position.y = PLAYER_FEET;
-      player.armR.rotation.x = step * 0.45;
-      player.armL.rotation.x = -step * 0.45;
+      player.rig.rotation.y = 0;
+      player.armR.rotation.set(step * 0.45, 0, 0);
+      player.armL.rotation.set(-step * 0.45, 0, 0);
       player.legR.rotation.x = -step * 0.38;
       player.legL.rotation.x = step * 0.38;
     } else if (phase === "jump") {
       const dive = clamp((DOCK_Y - cam.pos.y + 0.2) / 4.0, 0, 1);
       player.root.rotation.set(-Math.PI * 0.48 * dive, cam.yaw, 0);
       player.rig.position.y = PLAYER_FEET * (1 - dive);
-      player.armR.rotation.x = player.armL.rotation.x = -1.0 * dive;
-      player.legR.rotation.x = player.legL.rotation.x = 0.18;
+      player.rig.rotation.y = 0;
+      /* he enters the water in the crawl's glide pose, so the stroke picks up
+         from it without a pop */
+      player.stroke = player.kick = 0;
+      player.armR.rotation.set(Math.PI * dive, 0, 0);
+      player.armL.rotation.set(0, 0, 0);
+      player.legR.rotation.x = player.legL.rotation.x = 0.1;
     } else {
-      const moving = Math.max(clamp(cam.vel.length() / TUNE.swimSpeed, 0, 1), glide ? 0.55 : 0.08);
-      const stroke = Math.sin(t * (2.2 + moving * 4.8));
+      /* Front crawl. Each arm turns a full circle about the shoulder (rotation.x
+         = PI is overhead, PI/2 points at the seabed, 0 at the hip, -PI/2 up
+         over the back), the two arms half a cycle apart: one pulls under the
+         body while the other recovers, swung out wide over the back. The body
+         rolls toward whichever arm is pulling, and the legs flutter opposite
+         each other three times per arm cycle (the six-beat kick). Phases are
+         integrated, not t * rate, so a change of speed never jumps the pose.
+         Coming to rest, the stroke runs on to the glide pose -- one arm
+         reaching ahead, the other at the hip -- and holds there. */
+      const moving = Math.max(clamp(cam.vel.length() / TUNE.swimSpeed, 0, 1), glide ? 0.55 : 0);
+      const rate = 2.4 + moving * 2.6;
+      if (moving > 0.12) player.stroke += dt * rate;
+      else player.stroke = Math.min(player.stroke + dt * rate, Math.ceil(player.stroke / Math.PI - 1e-4) * Math.PI);
+      player.stroke %= Math.PI * 4;
+      player.kick += dt * (moving > 0.12 ? rate * 3 : 3.2);
+      player.kick %= Math.PI * 2;
+      const crawl = (arm, ph, side) => {
+        arm.rotation.x = Math.PI - (ph % (Math.PI * 2));
+        arm.rotation.z = side * (0.06 + 0.7 * Math.max(0, -Math.sin(ph)));
+      };
       player.root.rotation.set(-Math.PI / 2 + cam.pitch * 0.88, cam.yaw, 0);
       player.rig.position.y = 0;
-      player.armR.rotation.x = 0.18 + stroke * 0.72 * moving;
-      player.armL.rotation.x = 0.18 - stroke * 0.72 * moving;
-      player.legR.rotation.x = stroke * 0.26 * moving;
-      player.legL.rotation.x = -stroke * 0.26 * moving;
+      player.rig.rotation.y = Math.sin(player.stroke) * 0.55;
+      crawl(player.armR, player.stroke, 1);
+      crawl(player.armL, player.stroke + Math.PI, -1);
+      const flutter = Math.sin(player.kick) * (0.12 + 0.2 * moving);
+      player.legR.rotation.x = 0.1 + flutter;
+      player.legL.rotation.x = 0.1 - flutter;
     }
   }
 
