@@ -8,7 +8,7 @@ The separate `/ocean/` page remains the folder viewer.
 | Action | Desktop | Touch |
 | --- | --- | --- |
 | Walk / swim | WASD; Shift moves faster | Left thumbstick |
-| Look | Drag the scene | Drag the scene with the other finger |
+| Look | Click the scene, then move the mouse; Esc frees the cursor | Drag the scene with the other finger |
 | Dive | Space, or Dive | Dive |
 | Return to dock | Q, or Return | Return |
 | First / third person | V, or the view button | View button |

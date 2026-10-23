@@ -9,10 +9,12 @@ export function mountExploration(host, { sea, isBlocked, onDepth }) {
     .replace(/<title>[\s\S]*?<\/title>/, "")
     .replace("<!--APP_BUNDLE-->", "")
     .replace(/\bbody\b/g, ":host") + `<style>
-      :host{background:transparent;cursor:grab;}
+      :host{background:transparent;cursor:crosshair;}
       #gl{touch-action:none;}
-      #depth,#place,#legend,#stats,#keys,#cross,#card,#net,
+      #depth,#place,#legend,#stats,#keys,#card,#net,
       #talk-choice,#talk-mute{display:none!important;}
+      :host(:not(.looking)) #cross,:host(.jumping) #cross{display:none!important;}
+      :host(.looking) #cross{opacity:.7;}
       #action{bottom:29%;font-size:.7rem;}
       #intro,:host.chatting #intro{bottom:32%;}
       #tint{pointer-events:none;}
@@ -29,7 +31,7 @@ export function mountExploration(host, { sea, isBlocked, onDepth }) {
   const touch = !!globalThis.matchMedia?.("(pointer:coarse)").matches;
   const canvas = root.querySelector("#gl");
   canvas.tabIndex = 0;
-  canvas.setAttribute("aria-label", "Fishing world. WASD to move, drag to look, Space to dive, Ctrl to change view.");
+  canvas.setAttribute("aria-label", "Fishing world. WASD to move, click or drag to look, Space to dive, Ctrl to change view.");
   canvas.addEventListener("pointerdown", () => canvas.focus({ preventScroll: true }));
   let underwater = false, phase = "dock", lastLabel = "";
   const talking = () => !root.querySelector("#intro").hidden;
@@ -52,16 +54,17 @@ export function mountExploration(host, { sea, isBlocked, onDepth }) {
       for (const control of [dive, view, stick, up, down]) control.disabled = blocked;
       up.hidden = down.hidden = phase !== "ocean";
       dive.hidden = phase === "ocean";
-      const label = `${phase}/${frame.perspective}`;
+      const label = `${phase}/${frame.perspective}/${!!frame.looking}`;
       if (label !== lastLabel) {
         lastLabel = label;
         dive.textContent = phase === "jump" ? "Diving" : touch ? "Dive" : "Dive · Space";
         dive.setAttribute("aria-label", "Jump into the ocean (Space)");
         view.textContent = frame.perspective === "first" ? "1st person · Ctrl" : "3rd person · Ctrl";
         view.setAttribute("aria-label", `Switch to ${frame.perspective === "first" ? "third" : "first"} person (Ctrl)`);
+        const look = frame.looking ? "Esc frees the cursor" : "click to look";
         $("#move-help").textContent = phase === "ocean"
-          ? "WASD swim · Shift sprint · drag to look · ↑ ↓ depth"
-          : "WASD walk · Shift sprint · drag to look";
+          ? `WASD swim · Shift sprint · ↑ ↓ depth · ${look}`
+          : `WASD walk · Shift sprint · ${look}`;
       }
       status.textContent = underwater ? `${Math.round(frame.depth)} m deep` : "";
       if (blocked) { movePad.reset(); hint.hide(); }

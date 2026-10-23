@@ -69,6 +69,7 @@ const TUNE = {
   settle: 0.14,           // seconds of stillness after which the dial detents
   damp: 5.0,              // how fast the body catches up to the intent
   lookDamp: 26,           // ...and how fast the head does. Nearly instant.
+  mouseLook: 0.0025,      // radians of turn per pixel of mouse while the cursor is held
   flingDecay: 3.2,        // how fast a flicked view coasts to a stop, per second
   glideTime: 0.85,        // seconds to be carried to what you are looking at
   standoff: 3.4,          // ...and where it puts you down, in body lengths
@@ -2104,11 +2105,14 @@ function dockAction() {
   greetKelp();
 }
 const kelpRay = new Raycaster(), kelpPointer = new Vector2();
+/* no event means the crosshair: with the cursor held, the middle of the
+   screen is what you are pointing at */
 function hitKelp(e) {
   if (!guide.root.visible) return false;
   const rect = canvas.getBoundingClientRect();
-  kelpPointer.set((e.clientX - rect.left) / rect.width * 2 - 1,
-                  1 - (e.clientY - rect.top) / rect.height * 2);
+  if (e) kelpPointer.set((e.clientX - rect.left) / rect.width * 2 - 1,
+                         1 - (e.clientY - rect.top) / rect.height * 2);
+  else kelpPointer.set(0, 0);
   camera.updateWorldMatrix(true, false);
   guide.kelp.updateWorldMatrix(true, true);
   kelpRay.setFromCamera(kelpPointer, camera);
@@ -2249,12 +2253,54 @@ addEventListener("blur", () => { clearInput(); down.clear(); });
 document.addEventListener("visibilitychange", () => {
   if (document.hidden) { clearInput(); down.clear(); }
 });
+/* A mouse or trackpad does not drag the view. The first click on the water
+   takes the cursor and the view follows the hand from then on, as in any
+   WASD game; a click is the crosshair's, and Esc gives the cursor back.
+   Fingers keep drag-to-look, and so does a mouse whenever the browser
+   refuses the lock -- the drag starts anyway and the lock cancels it. */
+let lockPress = false;
+const looking = () => root.pointerLockElement === canvas;
+function clickAt(e) {
+  if (nearKelp() && hitKelp(e)) greetKelp(); // character clicks never jump
+  else if (!embedded && phase === "ocean") toggleNet();
+}
+function takeCursor() {
+  lockPress = true;
+  try { canvas.requestPointerLock()?.catch?.(() => { lockPress = false; }); }
+  catch (err) { lockPress = false; }
+}
 canvas.addEventListener("pointerdown", e => {
+  if (looking()) return;                    // held: mousedown has it
   if ((!e.isPrimary && !(embedded && e.pointerType === "touch")) || e.button !== 0 || dragPointer !== null || isBlocked()) return;
   dragPointer = e.pointerId; moved = 0; lastX = e.clientX; lastY = e.clientY;
   fling = dragVX = 0; lastMoveAt = e.timeStamp || 0;
   canvas.setPointerCapture(e.pointerId);
+  lockPress = false;
+  /* a click on Kelp greets rather than taking the cursor */
+  if (e.pointerType === "mouse" && canvas.requestPointerLock && !(nearKelp() && hitKelp(e))) takeCursor();
 });
+canvas.addEventListener("mousedown", e => {
+  if (!looking() || e.button !== 0 || isBlocked()) return;
+  clickAt(null);
+});
+canvas.addEventListener("mousemove", e => {
+  if (!looking()) return;
+  if (isBlocked()) { clearInput(); return; }
+  /* some platforms throw the odd absurd jump under lock; no hand moves that far
+     in one event */
+  const dx = clamp(e.movementX || 0, -150, 150), dy = clamp(e.movementY || 0, -150, 150);
+  if (dx || dy) glide = null;
+  cam.yawT -= dx * TUNE.mouseLook;
+  cam.pitchT = clamp(cam.pitchT - dy * TUNE.mouseLook, -1.22, 1.22);
+});
+document.addEventListener("pointerlockchange", () => {
+  const held = looking();
+  body.classList.toggle("looking", held);
+  if (!held || dragPointer === null) return;
+  try { canvas.releasePointerCapture(dragPointer); } catch (err) { }
+  dragPointer = null; fling = 0;
+});
+document.addEventListener("pointerlockerror", () => { lockPress = false; });
 canvas.addEventListener("pointerup", e => {
   if (e.pointerId !== dragPointer) return;
   dragPointer = null;
@@ -2264,8 +2310,8 @@ canvas.addEventListener("pointerup", e => {
   if (moved > 24 && (e.timeStamp || 0) - lastMoveAt < 90 && !isBlocked())
     fling = clamp(dragVX * 0.0042 * 1000, -7, 7);
   if ((!e.isPrimary && !(embedded && e.pointerType === "touch")) || e.button !== 0 || moved >= 5 || isBlocked()) return;
-  if (nearKelp() && hitKelp(e)) greetKelp(); // character clicks never jump
-  else if (!embedded && phase === "ocean") toggleNet();
+  if (lockPress) return;                    // that click was for the cursor
+  clickAt(e);
 });
 canvas.addEventListener("pointercancel", e => {
   if (e.pointerId !== dragPointer) return;
@@ -2763,6 +2809,7 @@ function frame(nowMs) {
   const dt = Math.min(0.05, elapsed / 1000); last = nowMs; t += dt;
   if (!reducedMotion && !document.hidden && phase === "ocean") lifeTime += dt;
   const blocked = isBlocked();
+  if (blocked && looking()) document.exitPointerLock();
   if (blocked) {
     clearInput();
     if (jump) jump.at += elapsed;
@@ -3137,7 +3184,7 @@ function frame(nowMs) {
   /* 3. dither + ink, upscaled nearest, over the top */
   if (anyFish) renderer.render(postScene, postCam);
   if (showGuide) renderer.render(guidePostScene, postCam);
-  options.onFrame?.({ camera, phase, depth: Math.max(0, -cam.pos.y), underwater, perspective });
+  options.onFrame?.({ camera, phase, depth: Math.max(0, -cam.pos.y), underwater, perspective, looking: looking() });
 }
 
 /* ============================================================ entry */

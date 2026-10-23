@@ -130,6 +130,7 @@ body.aimed #card{opacity:1;}
 body.dock #stats,body.dock #legend,body.dock #keys,body.dock #depth,
 body.dock #cross,body.dock #card,body.jumping #stats,body.jumping #legend,
 body.jumping #keys,body.jumping #depth,body.jumping #cross,body.jumping #card{opacity:0;}
+body.dock.looking:not(.jumping) #cross{opacity:.5;}
 body.dock #tint,body.jumping #tint{
   background:radial-gradient(ellipse at 50% 42%, rgba(8,45,57,0) 28%, rgba(5,26,34,.42) 100%);
 }
@@ -328,7 +329,7 @@ body.talking #depth,body.talking #cross,body.talking #card{opacity:0;}
 </div>
 
 <div class="hud" id="keys">
-  <div>look<kbd>drag</kbd></div>
+  <div>look<kbd>click</kbd></div>
   <div>swim<kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></div>
   <div class="lead">take me there<kbd>space</kbd></div>
   <div>size band<kbd>scroll</kbd></div>
