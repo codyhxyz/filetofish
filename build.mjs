@@ -92,6 +92,7 @@ const standalone = `<!doctype html>
 <meta property="og:title" content="filetofish">
 <meta property="og:description" content="${DESC}">
 <meta property="og:url" content="${ORIGIN}">
+<link rel="canonical" href="${ORIGIN}/">
 <meta property="og:image" content="${ORIGIN}/og.png">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="filetofish">
@@ -109,6 +110,12 @@ fs.writeFileSync("dist/_headers",
   "  Permissions-Policy: geolocation=(), microphone=(), camera=()\n" +
   "/sfx/*\n  X-Robots-Tag: noindex\n" +
   "/score/*\n  X-Robots-Tag: noindex\n/render-world/*\n  X-Robots-Tag: noindex\n");
+// Real files, so crawlers don't get the page back for these paths (Pages serves
+// index.html for any path that has no file).
+fs.writeFileSync("dist/robots.txt", `User-agent: *\nAllow: /\n\nSitemap: ${ORIGIN}/sitemap.xml\n`);
+fs.writeFileSync("dist/sitemap.xml",
+  `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
+  `  <url><loc>${ORIGIN}/</loc></url>\n</urlset>\n`);
 
 // 3) the sfx audition page -- shares src/sfx.js with the site, so it cannot drift
 const aud = await page("src/audition.js", "src/audition.html");
