@@ -1734,6 +1734,29 @@ function buildWorld(files, label) {
     // Ambient demo only: keep the existing animals within a short swim of the pier.
     for (const f of files) { f.x *= 0.18; f.z = f.z * 0.18 - 45; f.y *= 0.25; }
     DEPTH *= 0.25;
+    /* The squeeze packs the drive into a hundredth of its water, but a 30 GB
+       whale kept its full seventy units. A thousand of them welded into one
+       interpenetrating wall that read as broken scenery, not animals. So the
+       pier keeps a quarter of the ordinary fish, an eighth of the big ones and
+       a sixteenth of the leviathans; past 32 MB size grows at a third of the
+       rate; and the big ones are pushed apart until every body has its own
+       water. Fry are untouched: shoals are meant to touch. */
+    const keep = f => f.cls < 1 || (f.hash >>> 3) % [1, 4, 8, 16][f.cls] === 0;
+    files = files.filter(keep);
+    for (const p of places) p.files = p.files.filter(keep);
+    const bigs = files.filter(f => f.cls >= 2);
+    for (const f of bigs) f.scale = 3.2 + (f.scale - 3.2) * 0.33;
+    for (let pass = 0; pass < 24; pass++) for (let i = 0; i < bigs.length; i++) {
+      for (let j = i + 1; j < bigs.length; j++) {
+        const a = bigs[i], b = bigs[j];
+        const dx = b.x - a.x, dz = b.z - a.z, dy = b.y - a.y;
+        const want = (a.scale + b.scale) * 1.4, d = Math.hypot(dx, dy, dz);
+        if (d >= want) continue;
+        /* sideways only: depth is size, and that is the one axis we keep */
+        const h = Math.hypot(dx, dz) || 1e-3, push = (want - d) / 2 / h;
+        a.x -= dx * push; a.z -= dz * push; b.x += dx * push; b.z += dz * push;
+      }
+    }
   }
 
   /* --- points: every file, always --------------------------------------- */
