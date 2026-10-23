@@ -62,10 +62,13 @@ export function mountExploration(host, { sea, isBlocked, onDepth }) {
         dive.setAttribute("aria-label", "Jump into the ocean (Space)");
         view.textContent = frame.perspective === "first" ? "1st person · Ctrl" : "3rd person · Ctrl";
         view.setAttribute("aria-label", `Switch to ${frame.perspective === "first" ? "third" : "first"} person (Ctrl)`);
-        const look = frame.looking ? "Esc frees the cursor" : "click to look";
-        $("#move-help").textContent = phase === "ocean"
-          ? `WASD swim · Shift sprint · ↑ ↓ depth · ${look}`
-          : `WASD walk · Shift sprint · ${look}`;
+        /* keycaps, not a sentence: the eye finds the keys and the verb sits
+           under them. Depth and mouse-look go unsaid -- it is a 3D swim and
+           people know how those work. Esc stays while the cursor is held,
+           because a captured cursor with no way out is a trap. */
+        const keys = (caps, verb) => `<span class="cmd">${caps.map(k => `<kbd>${k}</kbd>`).join("")}<b>${verb}</b></span>`;
+        $("#move-help").innerHTML = keys(["W", "A", "S", "D"], phase === "ocean" ? "swim" : "walk") +
+          keys(["Shift"], "sprint") + (frame.looking ? keys(["Esc"], "free cursor") : "");
       }
       gauge(underwater && frame.depth, frame.floor, frame.zones, phase === "ocean", blocked);
       if (blocked) { movePad.reset(); hint.hide(); }

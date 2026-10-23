@@ -61,11 +61,12 @@ const mounted = ctx.mountExploration(host, {
 const frame = extra => opts.onFrame({ phase: "dock", perspective: "first", underwater: false, depth: 0, camera: {}, ...extra });
 frame();
 assert.equal(opts.embedded, true);
-assert.match($("#move-help").textContent, /click to look/);
+const help = () => $("#move-help").innerHTML.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+assert.equal(help(), "W A S D walk Shift sprint", "no mouse-look lesson on the dock");
 frame({ looking: true });
-assert.match($("#move-help").textContent, /Esc frees the cursor/);
+assert.equal(help(), "W A S D walk Shift sprint Esc free cursor", "a held cursor says how to let go");
 frame({ phase: "ocean", looking: true });
-assert.match($("#move-help").textContent, /^WASD swim.*Esc frees the cursor$/);
+assert.equal(help(), "W A S D swim Shift sprint Esc free cursor", "no depth keys: it is a 3D swim");
 frame();
 assert.equal(opts.autoPerspective, false, "desktop keeps the manual view switch");
 assert.equal($("#explore-status").hidden, true, "the dock needs no depth gauge");

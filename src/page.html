@@ -66,8 +66,19 @@ body.has-catch #rig{opacity:.22;}
 #travel button:disabled,#swim-depth button:disabled{opacity:.45;cursor:default;}
 #move-help{
   position:fixed;z-index:4;left:50%;transform:translateX(-50%);
-  font-family:var(--f-mono);text-align:center;pointer-events:none;
-  color:#F2FAFB;background:rgba(5,29,39,.8);border-radius:.35rem;padding:.3rem .5rem;
+  display:flex;align-items:center;gap:1.1rem;
+  font-family:var(--f-mono);pointer-events:none;
+  color:#F2FAFB;background:rgba(5,29,39,.8);border-radius:.45rem;padding:.4rem .7rem;
+}
+#move-help .cmd{display:flex;align-items:center;gap:.2rem;}
+#move-help kbd{
+  font:inherit;font-size:.66rem;line-height:1;min-width:1.45em;text-align:center;
+  padding:.2rem .3rem .16rem;border:1px solid rgba(232,247,249,.5);border-bottom-width:2px;
+  border-radius:.25rem;background:rgba(232,247,249,.08);
+}
+#move-help b{
+  font-weight:400;font-size:.6rem;letter-spacing:.14em;text-transform:uppercase;
+  color:rgba(242,250,251,.62);margin-left:.4rem;
 }
 /* the depth beaker: lip = surface, foot = trench floor, graduated in metres */
 #explore-status{
@@ -832,7 +843,7 @@ body.hint-send #fish{opacity:.62; transform:translateX(14px);}
 <div id="hit" title="pick a file"></div>
 <div id="explore-status" role="meter" aria-label="Depth" aria-valuemin="0" hidden></div>
 <div id="zone-card" role="status" aria-live="polite"><small>entering</small><b></b><span></span></div>
-<div id="move-help">WASD walk · Shift sprint · click to look</div>
+<div id="move-help"><span class="cmd"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd><b>walk</b></span><span class="cmd"><kbd>Shift</kbd><b>sprint</b></span></div>
 <div id="travel" role="group" aria-label="Explore the ocean">
   <button id="dive" type="button">Dive · Space</button>
   <button id="view" type="button">1st person · Ctrl</button>
