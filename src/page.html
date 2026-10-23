@@ -87,7 +87,8 @@ body.has-catch #rig{opacity:.22;}
 #move-stick{transition:border-color .15s,box-shadow .15s;}
 #move-stick.fast{border-color:#FFC49A;box-shadow:0 0 0 3px rgba(255,196,154,.35),0 0 22px rgba(255,196,154,.4);}
 #move-stick.fast #move-knob{background:#FFD9A8;}
-#swim-depth{position:fixed;z-index:6;right:1.1rem;bottom:18rem;display:flex;flex-direction:column;gap:.5rem;}
+/* a keyboard has ↑ ↓ for depth; the buttons are for thumbs only */
+#swim-depth{position:fixed;z-index:6;right:1.1rem;bottom:18rem;display:none;flex-direction:column;gap:.5rem;}
 #swim-depth button{touch-action:none;}
 #swim-depth button[hidden]{display:none;}
 body.exploration-blocked #move-stick,body.exploration-blocked #swim-depth,
@@ -99,7 +100,7 @@ body.diving #travel{visibility:visible;}
   #move-help{display:none;}
   #travel{bottom:calc(.8rem + env(safe-area-inset-bottom));}
   body.exploring #tools{bottom:6rem;}
-  #swim-depth{bottom:20rem;}
+  #swim-depth{display:flex;bottom:20rem;}
 }
 @media(max-width:600px){
   #travel{font-size:.7rem;}
@@ -342,32 +343,41 @@ body.hint-send #fish{opacity:.62; transform:translateX(14px);}
 .tool:hover .lb{opacity:1; color:#fff;}
 .tool:hover .ic{background:rgba(10,42,52,.8); border-color:rgba(255,255,255,.9); transform:translateY(-2px);}
 .tool:active .ic{transform:translateY(1px) scale(.94);}
-/* One quiet radio: track above, sound and music level below. */
+/* One slim pill: the song and the speaker. The level only slides out while
+   you are over it (or tabbed into it) -- nobody needs a fader on screen while
+   they fish. */
 .music-control{
-  width:13rem; padding:0 .35rem; border:1px solid rgba(226,242,244,.26); border-radius:.8rem;
-  background:rgba(6,26,33,.62); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+  display:flex; align-items:center; padding:0 .15rem 0 .75rem; border:1px solid rgba(226,242,244,.2);
+  border-radius:999px; background:rgba(6,26,33,.42); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+  transition:background .18s, border-color .18s;
 }
-#radio{width:100%; min-height:2.75rem; gap:.45rem; text-align:left;}
-#radio .ic,#snd .ic{width:2.75rem; height:2.75rem; border:0; background:none; backdrop-filter:none; -webkit-backdrop-filter:none;}
-#radio .lb{flex:1; min-width:0; opacity:1; font-size:.52rem; letter-spacing:.1em;}
-#radionm{display:block; margin-top:.2rem; overflow:hidden; text-overflow:ellipsis; font-size:.65rem; letter-spacing:0; text-transform:none;}
-.music-level{display:flex; align-items:center; border-top:1px solid rgba(226,242,244,.12);}
-.music-volume{display:flex; flex:1; min-width:0; align-items:center; gap:.55rem; padding-right:.45rem;}
-.music-volume output{min-width:2.3rem; color:#FFD9A8; font:.6rem var(--f-mono); font-variant-numeric:tabular-nums; text-align:right;}
+.music-control:hover,.music-control:focus-within{background:rgba(6,26,33,.7); border-color:rgba(226,242,244,.34);}
+#radio{min-height:2.1rem; gap:.1rem; text-align:left;}
+#radio .ic,#snd .ic{width:2.1rem; height:2.1rem; border:0; background:none; backdrop-filter:none; -webkit-backdrop-filter:none;}
+#radio:hover .ic,#snd:hover .ic{background:none; transform:none;}
+#radio .ic svg,#snd .ic svg{width:1rem; height:1rem;}
+#radio .lb{min-width:0; max-width:8.5rem; opacity:1; text-shadow:none;}
+#radiolb{font-size:0;}
+#radionm{display:block; overflow:hidden; text-overflow:ellipsis; font-size:.62rem; letter-spacing:.02em; text-transform:none;}
+.music-level{display:flex; align-items:center;}
+#snd{order:2;}
+.music-volume{display:flex; align-items:center; width:0; overflow:hidden; opacity:0; transition:width .22s ease, opacity .18s ease;}
+.music-control:hover .music-volume,.music-control:focus-within .music-volume{width:5.5rem; opacity:1; padding-left:.5rem;}
+.music-volume output{display:none;}
 #musicvol{
-  --volume:70%; width:100%; min-width:0; height:2.75rem; margin:0; appearance:none; -webkit-appearance:none;
+  --volume:70%; width:100%; min-width:0; height:2.1rem; margin:0; appearance:none; -webkit-appearance:none;
   border:0; cursor:pointer;
   background:linear-gradient(to right,#FFD9A8 var(--volume),rgba(226,242,244,.24) var(--volume)) center/100% 2px no-repeat;
 }
-#musicvol:focus-visible{outline:2px solid #FFD9A8; outline-offset:7px;}
+#musicvol:focus-visible{outline:2px solid #FFD9A8; outline-offset:2px;}
 #musicvol::-webkit-slider-thumb{
-  width:16px; height:16px; border:1px solid rgba(11,30,36,.72); border-radius:50%;
+  width:12px; height:12px; border:1px solid rgba(11,30,36,.72); border-radius:50%;
   appearance:none; -webkit-appearance:none; background:#FFD9A8;
   transition:transform .16s cubic-bezier(.2,.9,.3,1.4), box-shadow .16s;
 }
 #musicvol:hover::-webkit-slider-thumb,
 #musicvol:focus-visible::-webkit-slider-thumb{transform:scale(1.15); box-shadow:0 0 0 4px rgba(255,217,168,.2);}
-#musicvol::-moz-range-thumb{width:16px; height:16px; border:1px solid rgba(11,30,36,.72); border-radius:50%; background:#FFD9A8; transition:transform .16s cubic-bezier(.2,.9,.3,1.4), box-shadow .16s;}
+#musicvol::-moz-range-thumb{width:12px; height:12px; border:1px solid rgba(11,30,36,.72); border-radius:50%; background:#FFD9A8; transition:transform .16s cubic-bezier(.2,.9,.3,1.4), box-shadow .16s;}
 #musicvol:hover::-moz-range-thumb,
 #musicvol:focus-visible::-moz-range-thumb{transform:scale(1.15); box-shadow:0 0 0 4px rgba(255,217,168,.2);}
 .tool.primary .ic{
@@ -477,10 +487,7 @@ body.hint-send #fish{opacity:.62; transform:translateX(14px);}
   #tools{flex-direction:row; align-items:center; gap:.45rem; bottom:1rem; right:1rem;}
   #dexbtn .lb{display:none;}
   .tool .ic{width:2.75rem; height:2.75rem;}
-  .music-control{position:absolute; right:0; bottom:calc(100% + .65rem); width:min(22rem,calc(100vw - 2rem)); display:flex; align-items:center;}
-  #radio{flex:1; min-width:0; width:auto; padding-left:.4rem;}
-  #radio .ic,.music-volume output{display:none;}
-  .music-level{width:8rem; border-top:0; border-left:1px solid rgba(226,242,244,.12);}
+  .music-control{position:absolute; right:0; bottom:calc(100% + .65rem);}
   .tool.primary{gap:.35rem;}
   .tool.primary .ic{width:3rem; height:3rem;}
   #version,#src{padding-inline:.35rem; letter-spacing:.08em;}
@@ -492,10 +499,7 @@ body.hint-send #fish{opacity:.62; transform:translateX(14px);}
   #plate .acts .narrow{display:inline;}
   #plate .nm{font-size:clamp(1.7rem,7vw,2.4rem);}
   #plate .sub{font-size:.62rem;}
-  body.exploring .music-control{width:min(22rem,calc(100vw - 9rem));}
-  body.exploring #radio .lb{overflow:hidden;text-overflow:ellipsis;}
   body.exploring.exploration-blocked #tools{bottom:1rem;}
-  body.exploring.exploration-blocked .music-control{width:min(22rem,calc(100vw - 2rem));}
 }
 
 #drop{
