@@ -2468,7 +2468,7 @@ addEventListener("keydown", e => {
   down.add(k);
   if (e.key !== "Control") ctrlAlone = false;
   else if (!repeated) ctrlAlone = true;
-  if (!embedded && e.key === "Escape") { closeHaul(); return; }
+  if (!embedded && e.key === "Escape") { if (talkMode === "fish") closeTalk(); closeHaul(); return; }
   if (ownsKeys(e)) return;
   if (embedded) {
     if (options.isBlocked?.()) { clearInput(); return; }
@@ -2491,7 +2491,8 @@ addEventListener("keydown", e => {
   }
   if (!$("#haul").hidden || !$("#confirm").hidden) return;
   if (e.code === "Space" || /^Arrow/.test(e.code)) e.preventDefault();
-  if (talkMode && (e.code === "Space" || e.key === "Enter" || (phase === "dock" && k === "e"))) {
+  if (talkMode && (e.code === "Space" || e.key === "Enter" ||
+      (k === "e" && (phase === "dock" || talkMode === "fish")))) {
     if (!repeated) advance(); return;
   }
   if (isBlocked()) { clearInput(); return; }
@@ -2504,7 +2505,7 @@ addEventListener("keydown", e => {
     if (aimed && !aimed.dead) glideTo(aimed); else kick();
   }
   if (!repeated && k === "f") toKelp();
-  if (!repeated && k === "e") toggleNet();
+  if (!repeated && k === "e") talkToFish();
 });
 addEventListener("keyup", e => {
   const k = e.key.toLowerCase(); keys.delete(k); down.delete(k);
@@ -2889,6 +2890,7 @@ function say(msg) { elPlaceS.textContent = msg; sayUntil = performance.now() + 2
    the text and the animalese cannot drift apart over a long line. */
 const elIntro = $("#intro"), elTalkT = $("#talk-t"), elMore = $("#talk-more"),
   elChoice = $("#talk-choice"), elMute = $("#talk-mute");
+const elWho = $("#who"), elWhoN = elWho.querySelector("b"), elWhoS = elWho.querySelector("s");
 
 const LINES = [
   "oh! hello. i didn't hear you come along the dock.",
@@ -2913,6 +2915,7 @@ const TIPS = [
 let talkMode = null;                   // "intro" while he blocks, "chat" while he chats
 let line = "", cursor = 0, shown = -1, lineDone = true, voice = null, charge = 0;
 let lineIdx = 0, closeAt = 0, waveUntil = 0, lastChat = 0;
+let pages = [], voiceOpt = undefined;    // a fish's lines, and its own voice
 
 /* the intro holds the camera still: drifting away from someone mid-sentence
    is the one thing a conversation cannot survive */
@@ -2927,7 +2930,7 @@ function renderLine() {
 function startLine(txt) {
   line = txt; cursor = 0; shown = -1; lineDone = false; closeAt = 0; charge = 0;
   if (voice) voice.stop();
-  voice = speak(txt);
+  voice = speak(txt, voiceOpt);
   elMore.hidden = true;
   elChoice.hidden = true;
   renderLine();
@@ -2936,7 +2939,10 @@ function endLine(cut) {
   cursor = line.length; lineDone = true; renderLine();
   if (cut && voice) { voice.stop(); voice = null; }
   if (talkMode === "chat") closeAt = performance.now() + 3200;
-  else if (lineIdx >= LINES.length - 1) {
+  else if (talkMode === "fish") {
+    if (lineIdx < pages.length - 1) elMore.hidden = false;
+    else closeAt = performance.now() + 4500;
+  } else if (lineIdx >= LINES.length - 1) {
     elChoice.hidden = false;
     waveUntil = performance.now() + 1100;
   } else elMore.hidden = false;
@@ -2949,20 +2955,29 @@ function advance() {
        middle of -- otherwise the one thing it costs you is hearing him. */
     if (c && c.state === "running" && !(voice && voice.on)) {
       if (voice) voice.stop();
-      voice = speak(line.slice(Math.floor(cursor)));
+      voice = speak(line.slice(Math.floor(cursor)), voiceOpt);
       if (voice.on) return;
     }
     endLine(true);
     return;
   }
   if (talkMode === "chat") { closeTalk(); return; }
+  if (talkMode === "fish") {
+    if (lineIdx < pages.length - 1) startLine(pages[++lineIdx]); else closeTalk();
+    return;
+  }
   if (lineIdx < LINES.length - 1) { lineIdx++; startLine(LINES[lineIdx]); }
 }
 function closeTalk() {
   talkMode = null;
   elIntro.hidden = true;
-  body.classList.remove("talking", "chatting");
+  body.classList.remove("talking", "chatting", "fishtalk");
   if (voice) { voice.stop(); voice = null; }
+  if (voiceOpt) {                      // hand the nameplate back to kelp
+    voiceOpt = undefined;
+    elWhoN.textContent = "kelp"; elWhoS.textContent = "harbour otter";
+    elWho.style.background = "";
+  }
   lineDone = true; closeAt = 0;
   lastChat = performance.now();
 }
@@ -3026,6 +3041,61 @@ function chat(txt) {
   startLine(txt);
 }
 
+/* ============================================================ fish talk
+   E on the fish in your sights and it says who it is. Facts only, worked out
+   here from the scan -- its name, weight, school, age, and whether it has a
+   twin -- so nothing about it leaves the machine, which is Kelp's promise.
+   It borrows his box, under its own nameplate and its own voice: the heavier
+   the file, the lower it speaks. */
+const KIND = { image: "an image", video: "a video", audio: "a sound", code: "a code file",
+  doc: "a document", archive: "an archive", other: "a file" };
+const plate = {};
+for (const F of FAMILIES) plate[F.key] = `hsl(${F.hue} ${F.sat}% 74%)`;
+/* folders whose contents a tool writes back for you */
+const REBUILT = [
+  ["node_modules", "npm install puts me back"], [".next", "the next build puts me back"],
+  ["__pycache__", "python writes me again"], ["DerivedData", "xcode builds me again"],
+  [".gradle", "gradle fetches me again"], ["Pods", "pod install puts me back"],
+  [".venv", "a fresh venv puts me back"],
+];
+const ord = n => n + (n % 100 > 10 && n % 100 < 14 ? "th" : ["th", "st", "nd", "rd"][n % 10] || "th");
+function fishLines(f) {
+  const school = world.files.filter(g => !g.dead && g.path === f.path);
+  const heavier = school.filter(g => g.size > f.size).length;
+  const twins = world.files.filter(g => g !== f && !g.dead && g.name === f.name && g.size === f.size).length;
+  const share = world.bytes ? f.size / world.bytes : 0;
+  const where = f.path ? f.path + "/" : "the root";
+  const out = [`i'm ${f.name}, ${KIND[f.fam]}. i weigh ${fmtBytes(f.size)}.` +
+    (share >= 0.01 ? ` that's ${Math.round(share * 100)}% of all the water here.` : "")];
+  if (school.length < 2) out.push(`i swim alone in ${where}.`);
+  else {
+    const n = school.length - 1;
+    out.push(`i swim in ${where} with ${n} other${n === 1 ? "" : "s"}. ` + (heavier === 0
+      ? "i'm the heaviest of us." : heavier === n ? "i'm the lightest of us."
+      : `i'm the ${ord(heavier + 1)} heaviest.`));
+  }
+  let last = `i was last changed ${relAge(f.ageDays)}.`;
+  if (twins) last += ` there ${twins === 1 ? "is one more of me" : `are ${twins} more of me`} down here, same name, same size.`;
+  const seg = f.path.split("/");
+  const re = REBUILT.find(([dir]) => seg.includes(dir));
+  if (re) last += ` i live in ${re[0]}, so ${re[1]}.`;
+  out.push(last);
+  return out;
+}
+function talkToFish() {
+  if (embedded || talkMode || !world || !aimed || aimed.dead) return;
+  const f = aimed;
+  pages = fishLines(f); lineIdx = 0;
+  voiceOpt = { pitch: clamp(Math.pow(2, (20 - Math.log2(f.size + 1)) / 12), 0.55, 1.7) };
+  elWhoN.textContent = f.name;
+  elWhoS.textContent = fishName(f).toLowerCase();
+  elWho.style.background = plate[f.fam];
+  talkMode = "fish";
+  body.classList.add("chatting", "fishtalk");
+  elIntro.hidden = false;
+  startLine(pages[0]);
+}
+
 const syncMute = () => elMute.classList.toggle("off", !isOn());
 elMute.addEventListener("click", e => {
   e.stopPropagation();
@@ -3033,7 +3103,7 @@ elMute.addEventListener("click", e => {
   syncMute();
   if (!isOn()) { if (voice) { voice.stop(); voice = null; } return; }
   audio();
-  if (!lineDone) { if (voice) voice.stop(); voice = speak(line.slice(Math.floor(cursor))); }
+  if (!lineDone) { if (voice) voice.stop(); voice = speak(line.slice(Math.floor(cursor)), voiceOpt); }
 });
 syncMute();
 
@@ -3094,7 +3164,8 @@ function updateCard() {
   elCardF.textContent = aimed.name + "  ·  " + fmtBytes(aimed.size);
   elCardP.textContent = (aimed.path || "the root") + "  ·  " + relAge(aimed.ageDays);
   const inNet = net.has(aimed);
-  elCardA.textContent = inNet ? "in the net · click to let it go" : "click to net it";
+  elCardA.innerHTML = '<span class="talk"><kbd>E</kbd>talk to it  ·  </span>' +
+    (inNet ? "in the net · click to let it go" : "click to net it");
   $("#card").classList.toggle("netted", inNet);
 }
 
@@ -3402,7 +3473,7 @@ function frame(nowMs) {
     renderLine();
     if (cursor >= line.length) endLine(false);
   }
-  if (talkMode === "chat" && lineDone && closeAt && nowMs > closeAt) closeTalk();
+  if ((talkMode === "chat" || talkMode === "fish") && lineDone && closeAt && nowMs > closeAt) closeTalk();
   /* come back up to the raft and he has something to say, the way a villager
      does when you stand next to one */
   if (!embedded && phase === "ocean" && world && !talkMode && guide.root.visible && nowMs - lastChat > 20000 &&

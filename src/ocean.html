@@ -111,6 +111,9 @@ body.aimed #card{opacity:1;}
   color:rgba(255,196,154,.85);
 }
 #card.netted .act{color:#8FE0C0;}
+#card .act kbd{font:inherit; border:1px solid rgba(255,196,154,.5); padding:.05rem .3rem; margin-right:.45rem;}
+#card .act .talk{color:rgba(255,196,154,.85); white-space:pre;}
+@media (hover:none){ #card .act .talk{display:none;} }
 
 /* one contextual verb carries the dock: talk first, then jump. A real button
    keeps the prompt clickable and focusable as well as being an E-key hint. */
@@ -255,7 +258,8 @@ body.chatting #intro{bottom:calc(clamp(1rem,3.2vh,2.2rem) + 4.2rem);}
 body.chatting #talk-t{min-height:1.8em;}
 /* the gameplay HUD is noise while someone is talking to you */
 body.talking #stats,body.talking #legend,body.talking #keys,
-body.talking #depth,body.talking #cross,body.talking #card{opacity:0;}
+body.talking #depth,body.talking #cross,body.talking #card,
+body.fishtalk #cross,body.fishtalk #card{opacity:0;}
 #stats,#legend,#keys,#depth{transition:opacity .35s ease;}
 
 #who{
@@ -335,7 +339,8 @@ body.talking #depth,body.talking #cross,body.talking #card{opacity:0;}
   <div>size band<kbd>scroll</kbd></div>
   <div>straight up / down<kbd>&#8593;</kbd><kbd>&#8595;</kbd></div>
   <div>faster<kbd>shift</kbd></div>
-  <div>net a fish<kbd>E</kbd></div>
+  <div>talk to a fish<kbd>E</kbd></div>
+  <div>net a fish<kbd>click</kbd></div>
   <div>back to kelp<kbd>F</kbd></div>
 </div>
 

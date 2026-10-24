@@ -146,6 +146,19 @@ assert.equal(calls.net, 1, "cancelled underwater tap does not net");
 send("pointerdown"); send("pointermove", { clientX: target.clientX + 20 });
 assert(ctx.cam.yawT < 0, "drag still turns the camera");
 send("pointerup"); assert.equal(calls.net, 1, "underwater drag does not net");
+let talks = 0;
+ctx.talkToFish = () => talks++;
+windowHandlers.keyup({ key: "e", code: "KeyE" });
+windowHandlers.keydown({ key: "e", code: "KeyE" });
+windowHandlers.keyup({ key: "e", code: "KeyE" });
+assert.equal(talks, 1, "underwater E talks to the fish");
+assert.equal(calls.net, 1, "underwater E no longer nets");
+ctx.talkMode = "fish";
+windowHandlers.keydown({ key: "e", code: "KeyE" });
+windowHandlers.keyup({ key: "e", code: "KeyE" });
+assert.equal(calls.advance, 1, "E pages a fish's lines");
+assert.equal(talks, 1);
+ctx.talkMode = null;
 
 // A mouse takes the cursor instead of dragging; the crosshair clicks from then on.
 const lock = held => { lockRoot.pointerLockElement = held ? canvas : null; docHandlers.pointerlockchange(); };
