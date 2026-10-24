@@ -8,11 +8,19 @@
 }
 *{box-sizing:border-box;}
 html,body{height:100%;}
+/* This is a game, not a document. A held thumb on a phone otherwise starts a
+   text selection, the loupe or the copy callout, a quick second tap zooms the
+   page, and a drag that lands on anything but the canvas rubber-bands it. */
+html{
+  -webkit-user-select:none; user-select:none; -webkit-touch-callout:none;
+  touch-action:manipulation; overscroll-behavior:none; -webkit-text-size-adjust:100%;
+}
 body{
   margin:0; overflow:hidden; background:#7EC8E3; color:var(--ink);
   font-family:var(--f-display); -webkit-font-smoothing:antialiased;
-  -webkit-tap-highlight-color:transparent;
+  -webkit-tap-highlight-color:transparent; overscroll-behavior:none;
 }
+svg,img{-webkit-user-drag:none;}
 canvas{display:block;}
 button{font:inherit; color:inherit; background:none; border:0; cursor:pointer; padding:0;}
 :focus-visible{outline:2px solid #FFD9A8; outline-offset:4px;}
@@ -49,7 +57,7 @@ body.rar-flash #flash{animation:rarflash .8s ease-out;}
 #rig{transition:opacity .5s ease;}
 body.has-catch #rig{opacity:.22;}
 
-#hit{position:fixed; inset:0; z-index:3; cursor:pointer;}
+#hit{position:fixed; inset:0; z-index:3; cursor:pointer; touch-action:none;}
 #hit.fish-hover{cursor:grab;}
 #hit.fish-drag{cursor:grabbing;}
 
@@ -279,8 +287,11 @@ body.has-catch #plate{opacity:1; transform:translate(-50%,0);}
    because a trade you cannot see is not a trade. */
 #plate .acts{
   display:flex; gap:clamp(.35rem,2.4vw,1.1rem); justify-content:center; align-items:flex-start;
-  margin-top:1.05rem; pointer-events:auto;
+  margin-top:1.05rem; pointer-events:none;
 }
+/* only while there is a catch: invisible, they sat across the middle of the
+   screen and ate the look drag and the dock's action button */
+body.has-catch #plate .acts{pointer-events:auto;}
 #plate .acts .act{
   display:flex; flex-direction:column; align-items:center; gap:.55rem;
   width:clamp(5.4rem,28vw,9.2rem); text-align:center;

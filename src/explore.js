@@ -10,7 +10,6 @@ export function mountExploration(host, { sea, isBlocked, onDepth }) {
     .replace("<!--APP_BUNDLE-->", "")
     .replace(/\bbody\b/g, ":host") + `<style>
       :host{background:transparent;cursor:crosshair;}
-      #gl{touch-action:none;}
       #depth,#place,#legend,#stats,#keys,#card,#net,
       #talk-choice,#talk-mute{display:none!important;}
       :host(:not(.looking)) #cross,:host(.jumping) #cross{display:none!important;}
@@ -259,6 +258,15 @@ export function mountExploration(host, { sea, isBlocked, onDepth }) {
     button.addEventListener("keyup", release);
     button.addEventListener("blur", release);
   }
+  /* Things a thumb rests on. iOS runs its own long-press and double-tap
+     gestures beside pointer events -- select, loupe, callout, zoom -- and only
+     a cancelled touchstart stops them; none of these needs the click it costs. */
+  for (const el of [canvas, stick, up, down]) {
+    el.addEventListener("touchstart", e => { if (e.cancelable) e.preventDefault(); }, { passive: false });
+    el.addEventListener("contextmenu", e => e.preventDefault());
+  }
+  /* a pinch anywhere would scale the HUD out from under both thumbs */
+  document.addEventListener("gesturestart", e => e.preventDefault());
   const clear = () => { movePad.reset(); api.clearInput(); };
   addEventListener("blur", clear);
   document.addEventListener("visibilitychange", () => { if (document.hidden) clear(); });
