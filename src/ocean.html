@@ -111,9 +111,6 @@ body.aimed #card{opacity:1;}
   color:rgba(255,196,154,.85);
 }
 #card.netted .act{color:#8FE0C0;}
-#card .act kbd{font:inherit; border:1px solid rgba(255,196,154,.5); padding:.05rem .3rem; margin-right:.45rem;}
-#card .act .talk{color:rgba(255,196,154,.85); white-space:pre;}
-@media (hover:none){ #card .act .talk{display:none;} }
 
 /* one contextual verb carries the dock: talk first, then jump. A real button
    keeps the prompt clickable and focusable as well as being an E-key hint. */
@@ -125,6 +122,8 @@ body.aimed #card{opacity:1;}
   animation:actionPulse 2.2s ease-in-out infinite;
 }
 #action[hidden]{display:none;}
+/* underwater it names the fish in your sights, and stands clear of the net bar */
+body:not(.dock) #action{bottom:calc(clamp(1rem,3vh,2rem) + 4.2rem);}
 #action kbd{font:inherit; margin-right:.55rem; padding:.08rem .32rem; border:1px solid rgba(18,34,42,.45);}
 @keyframes actionPulse{
   0%,100%{opacity:.68; transform:translateX(-50%) translateY(0);}

@@ -159,6 +159,8 @@ windowHandlers.keyup({ key: "e", code: "KeyE" });
 assert.equal(calls.advance, 1, "E pages a fish's lines");
 assert.equal(talks, 1);
 ctx.talkMode = null;
+actionHandlers.click();
+assert.equal(talks, 2, "the action button talks to the fish too");
 
 // A mouse takes the cursor instead of dragging; the crosshair clicks from then on.
 const lock = held => { lockRoot.pointerLockElement = held ? canvas : null; docHandlers.pointerlockchange(); };

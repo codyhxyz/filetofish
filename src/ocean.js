@@ -2347,6 +2347,8 @@ function syncAction() {
   if (phase === "dock" && !talkMode) {
     if (!embedded && atDockEdge()) label = "jump in";
     else if (nearKelp()) label = introSeen ? "talk to kelp" : "say hello to kelp";
+  } else if (phase === "ocean" && !talkMode && aimed && !aimed.dead) {
+    label = "talk to " + fishName(aimed).toLowerCase();   // the same verb kelp gets
   }
   if (label === actionLabel) return;
   actionLabel = label;
@@ -2364,6 +2366,7 @@ function greetKelp() {
 }
 function dockAction() {
   if (isBlocked()) return;
+  if (phase === "ocean") { talkToFish(); return; }
   if (!embedded && atDockEdge()) { beginJump(); return; }
   greetKelp();
 }
@@ -3164,8 +3167,7 @@ function updateCard() {
   elCardF.textContent = aimed.name + "  ·  " + fmtBytes(aimed.size);
   elCardP.textContent = (aimed.path || "the root") + "  ·  " + relAge(aimed.ageDays);
   const inNet = net.has(aimed);
-  elCardA.innerHTML = '<span class="talk"><kbd>E</kbd>talk to it  ·  </span>' +
-    (inNet ? "in the net · click to let it go" : "click to net it");
+  elCardA.textContent = inNet ? "in the net · click to let it go" : "click to net it";
   $("#card").classList.toggle("netted", inNet);
 }
 
