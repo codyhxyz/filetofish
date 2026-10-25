@@ -290,7 +290,9 @@ body.fishtalk #cross,body.fishtalk #card{opacity:0;}
 #talk-more[hidden]{display:none;}
 @keyframes nudge{0%,100%{transform:translateY(0); opacity:.45;} 50%{transform:translateY(3px); opacity:1;}}
 
-#talk-choice[hidden]{display:none;}
+#talk-choice[hidden],#talk-catch[hidden]{display:none;}
+/* a fish you are talking to can be taken home, or left where it is */
+#talk-catch.row{margin-top:.9rem;}
 #talk-choice .row{margin-top:1.15rem;}
 #talk-choice .fine{margin-top:.9rem; text-align:center;}
 
@@ -390,6 +392,10 @@ body.fishtalk #cross,body.fishtalk #card{opacity:0;}
         <button class="ghost" id="open-demo">demo</button>
       </div>
       <div class="fine">nothing is uploaded</div>
+    </div>
+    <div id="talk-catch" class="row" hidden>
+      <button class="go" id="catch-it" type="button">catch it</button>
+      <button class="ghost" id="let-be" type="button">let it swim</button>
     </div>
   </div>
 </div>

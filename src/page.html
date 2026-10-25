@@ -224,14 +224,20 @@ body.zone-on #look-hint{opacity:0;}
   background:#E1EEF0;pointer-events:none;
 }
 #move-stick{transition:border-color .15s,box-shadow .15s;}
-#move-stick.fast{border-color:#FFC49A;box-shadow:0 0 0 3px rgba(255,196,154,.35),0 0 22px rgba(255,196,154,.4);}
-#move-stick.fast #move-knob{background:#FFD9A8;}
+#move-stick.fast,#move-stick.locked{border-color:#FFC49A;box-shadow:0 0 0 3px rgba(255,196,154,.35),0 0 22px rgba(255,196,154,.4);}
+#move-stick.fast #move-knob,#move-stick.locked #move-knob{background:#FFD9A8;}
+/* Shift is the keyboard's; the switch is for thumbs, in the rod's corner,
+   because nobody fishes from underwater */
+#swim-fast{display:none;}
+body.underwater #cast{display:none;}
 /* a keyboard has ↑ ↓ for depth; the buttons are for thumbs only */
 #swim-depth{position:fixed;z-index:6;right:1.1rem;bottom:18rem;display:none;flex-direction:column;gap:.5rem;}
 #swim-depth button{touch-action:none;}
 #swim-depth button[hidden]{display:none;}
-body.exploration-blocked #move-stick,body.exploration-blocked #swim-depth,
+body.exploration-blocked #move-stick,body.exploration-blocked #swim-depth,body.exploration-blocked #swim-fast,
 body.exploration-blocked #move-help{visibility:hidden;}
+/* a fish talking, or one in your hands, gets the screen the gauge sits on */
+body.exploration-blocked #explore-status{visibility:hidden;}
 body.exploration-blocked #travel{visibility:hidden;}
 body.diving #travel{visibility:visible;}
 @media(pointer:coarse){
@@ -767,6 +773,19 @@ body.hint-send #fish{opacity:.62; transform:translateX(14px);}
   #tools{display:contents;}
   .music-control{display:none;}
   #cast{position:fixed; z-index:9; right:var(--edge); bottom:var(--floor);}
+  #swim-fast{
+    display:block; position:fixed; z-index:9; right:var(--edge); bottom:var(--floor);
+    width:var(--rod); height:var(--rod); border-radius:50%;
+    border:1px solid rgba(232,247,249,.45); background:rgba(5,29,39,.86); color:#F2FAFB;
+    font-family:var(--f-mono); font-size:.72rem; letter-spacing:.08em;
+    transition:background .15s,border-color .15s,color .15s,box-shadow .15s;
+  }
+  #swim-fast[aria-pressed="true"]{
+    background:#FFC49A; border-color:#FFC49A; color:#0B1E24;
+    box-shadow:0 0 0 3px rgba(255,196,154,.35),0 0 22px rgba(255,196,154,.4);
+  }
+  #swim-fast[hidden]{display:none;}
+  #swim-fast:disabled{opacity:.45;}
   #cast .lb{display:none;}
   #cast.tool.primary .ic{width:var(--rod); height:var(--rod);}
   #cast.tool.primary svg{width:2.1rem; height:2.1rem;}
@@ -865,6 +884,7 @@ body.hint-send #fish{opacity:.62; transform:translateX(14px);}
   <button id="swim-up" type="button" hidden aria-label="Swim up">Up</button>
   <button id="swim-down" type="button" hidden aria-label="Swim down">Down</button>
 </div>
+<button id="swim-fast" type="button" hidden aria-pressed="false" aria-label="Swim fast">Fast</button>
 
 <div class="mark">file<i>to</i>fish</div>
 

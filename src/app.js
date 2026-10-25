@@ -1432,7 +1432,7 @@ for (const type of ["pointerdown", "pointerup", "touchend", "click", "keydown"])
   addEventListener(type, unlock, { capture: true, passive: true });
 }
 $("#cast").addEventListener("click", e => {
-  if (catchPending() || readingFiles || exploration?.busy()) return;
+  if (catchPending() || readingFiles || exploration?.busy() || exploration?.getUnderwater()) return;
   e.stopPropagation(); unlock();
   const btn = e.currentTarget;
   btn.classList.remove("casting"); void btn.offsetWidth; btn.classList.add("casting");
@@ -1756,6 +1756,13 @@ exploration = mountExploration($("#exploration"), {
   sea,
   isBlocked: movementBlocked,
   onDepth: setUnderwaterDepth,
+  /* a fish caught by hand gets the same reveal as one off the line; its file
+     is not here to read, so where it lives and how big it is stand in */
+  onCatch(f) {
+    if (catchPending() || readingFiles) return;
+    unlock();
+    accept({ name: f.name, size: f.size, bytes: strBytes(`${f.path}/${f.name}|${f.size}`) });
+  },
 });
 document.body.classList.add("exploring");
 $("#hit").removeAttribute("title");

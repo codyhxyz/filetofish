@@ -2486,7 +2486,7 @@ addEventListener("keydown", e => {
     if (!repeated) {
       if (e.code === "Space") beginJump();
       if (k === "q" && phase === "ocean") returnToDock();
-      if (k === "e") greetKelp();
+      if (k === "e") { if (phase === "ocean") talkToFish(); else greetKelp(); }
     }
     if (!repeated && !isBlocked()) keys.add(k);
     if (SWIM_KEYS.includes(k)) letGo();
@@ -2529,7 +2529,10 @@ let lockPress = false;
 const looking = () => root.pointerLockElement === canvas;
 function clickAt(e) {
   if (nearKelp() && hitKelp(e)) greetKelp(); // character clicks never jump
-  else if (!embedded && phase === "ocean") toggleNet();
+  else if (phase !== "ocean") return;
+  /* the game has no net: a fish you touch says who it is, and offers itself */
+  else if (embedded) talkToFish(e ? tapFish(e) : aimed);
+  else toggleNet();
 }
 function takeCursor() {
   lockPress = true;
@@ -2576,7 +2579,9 @@ canvas.addEventListener("pointerup", e => {
   /* only a finger still moving when it lifts throws the view */
   if (moved > 24 && (e.timeStamp || 0) - lastMoveAt < 90 && !isBlocked())
     fling = clamp(dragVX * 0.0042 * 1000, -7, 7);
-  if ((!e.isPrimary && !(embedded && e.pointerType === "touch")) || e.button !== 0 || moved >= 5 || isBlocked()) return;
+  /* a fingertip wanders further than a mouse while it taps */
+  const still = e.pointerType === "touch" ? 14 : 5;
+  if ((!e.isPrimary && !(embedded && e.pointerType === "touch")) || e.button !== 0 || moved >= still || isBlocked()) return;
   if (lockPress) return;                    // that click was for the cursor
   clickAt(e);
 });
@@ -2919,6 +2924,8 @@ let talkMode = null;                   // "intro" while he blocks, "chat" while 
 let line = "", cursor = 0, shown = -1, lineDone = true, voice = null, charge = 0;
 let lineIdx = 0, closeAt = 0, waveUntil = 0, lastChat = 0;
 let pages = [], voiceOpt = undefined;    // a fish's lines, and its own voice
+let talkFish = null;                      // who is talking, aimed or tapped
+const elCatch = $("#talk-catch");
 
 /* the intro holds the camera still: drifting away from someone mid-sentence
    is the one thing a conversation cannot survive */
@@ -2972,8 +2979,8 @@ function advance() {
   if (lineIdx < LINES.length - 1) { lineIdx++; startLine(LINES[lineIdx]); }
 }
 function closeTalk() {
-  talkMode = null;
-  elIntro.hidden = true;
+  talkMode = null; talkFish = null;
+  elIntro.hidden = true; elCatch.hidden = true;
   body.classList.remove("talking", "chatting", "fishtalk");
   if (voice) { voice.stop(); voice = null; }
   if (voiceOpt) {                      // hand the nameplate back to kelp
@@ -3085,9 +3092,10 @@ function fishLines(f) {
   out.push(last);
   return out;
 }
-function talkToFish() {
-  if (embedded || talkMode || !world || !aimed || aimed.dead) return;
-  const f = aimed;
+function talkToFish(f = aimed) {
+  if (talkMode || !world || !f || f.dead) return;
+  talkFish = f;
+  elCatch.hidden = !options.onCatch;
   pages = fishLines(f); lineIdx = 0;
   voiceOpt = { pitch: clamp(Math.pow(2, (20 - Math.log2(f.size + 1)) / 12), 0.55, 1.7) };
   elWhoN.textContent = f.name;
@@ -3098,6 +3106,14 @@ function talkToFish() {
   elIntro.hidden = false;
   startLine(pages[0]);
 }
+
+$("#catch-it").addEventListener("click", e => {
+  e.stopPropagation();
+  const f = talkFish;
+  closeTalk();
+  if (f && !f.dead) options.onCatch?.({ name: f.name, size: f.size, path: f.path });
+});
+$("#let-be").addEventListener("click", e => { e.stopPropagation(); closeTalk(); });
 
 const syncMute = () => elMute.classList.toggle("off", !isOn());
 elMute.addEventListener("click", e => {
@@ -3137,9 +3153,9 @@ const fwd = new Vector3();
 const AIM_GRACE = 0.016;     // radians of slack past the silhouette, ~1 degree
 const AIM_STICK = 0.70;      // what the fish you are already on is scored at
 
-function pick() {
+function pick(dir = null, grace = AIM_GRACE) {
   if (!world) return null;
-  fwd.set(0, 0, -1).applyQuaternion(camera.quaternion);
+  if (dir) fwd.copy(dir); else fwd.set(0, 0, -1).applyQuaternion(camera.quaternion);
   const ox = camera.position.x, oy = camera.position.y, oz = camera.position.z;
   let best = null, bestScore = Infinity;
   for (const f of nearSet) {
@@ -3152,13 +3168,24 @@ function pick() {
     /* how far the crosshair sits from the animal, in world units, against how
        big the animal is: aiming stays honest at every size class */
     const perp = dist * Math.sqrt(Math.max(0, 1 - along * along));
-    const reach = f.scale * 1.30 + dist * AIM_GRACE;
+    const reach = f.scale * 1.30 + dist * grace;
     if (perp > reach) continue;
     let score = dist * (0.35 + perp / reach);          // nearest and most centred
     if (f === aimed) score *= AIM_STICK;
     if (score < bestScore) { bestScore = score; best = f; }
   }
   return best;
+}
+/* a tap aims down the ray under the finger, with a fingertip's worth of slack
+   (~3 degrees, about 30 px on a phone) instead of a cursor's */
+const TAP_GRACE = 0.05;
+function tapFish(e) {
+  const rect = canvas.getBoundingClientRect();
+  kelpPointer.set((e.clientX - rect.left) / rect.width * 2 - 1,
+                  1 - (e.clientY - rect.top) / rect.height * 2);
+  camera.updateWorldMatrix(true, false);
+  kelpRay.setFromCamera(kelpPointer, camera);
+  return pick(kelpRay.ray.direction, TAP_GRACE);
 }
 function updateCard() {
   body.classList.toggle("aimed", !!aimed);
@@ -3585,9 +3612,11 @@ function frame(nowMs) {
     }
   }
 
-  if (!embedded && phase === "ocean" && nowMs - aimAt > 45) {
+  /* embedded, only a held cursor has a crosshair to aim with; fingers tap */
+  const aiming = phase === "ocean" && (!embedded || looking());
+  if (aiming && nowMs - aimAt > 45) {
     aimAt = nowMs; aimed = pick(); updateCard();
-  } else if (phase !== "ocean" && aimed) {
+  } else if (!aiming && aimed) {
     aimed = null; updateCard();
   }
 

@@ -3,7 +3,7 @@ import { initOcean } from "./ocean.js";
 
 /* Reuse the actual ocean, with its file-viewer UI isolated from the catch UI.
    Embedded mode never opens folders or nets/deletes files. */
-export function mountExploration(host, { sea, isBlocked, onDepth }) {
+export function mountExploration(host, { sea, isBlocked, onDepth, onCatch }) {
   const root = host.attachShadow({ mode: "open" });
   root.innerHTML = oceanTemplate
     .replace(/<title>[\s\S]*?<\/title>/, "")
@@ -25,6 +25,7 @@ export function mountExploration(host, { sea, isBlocked, onDepth }) {
   const $ = selector => document.querySelector(selector);
   const dive = $("#dive"), view = $("#view"), up = $("#swim-up"), down = $("#swim-down");
   const stick = $("#move-stick"), knob = $("#move-knob"), status = $("#explore-status");
+  const fast = $("#swim-fast");
   const card = $("#zone-card");
   /* On a touch screen the keyboard hints are noise and the view follows the
      water: first person on the dock, third person once you are in. */
@@ -39,6 +40,7 @@ export function mountExploration(host, { sea, isBlocked, onDepth }) {
     embedded: true,
     autoPerspective: touch,
     isBlocked,
+    onCatch,
     onFrame(frame) {
       phase = frame.phase;
       underwater = frame.underwater;
@@ -51,8 +53,9 @@ export function mountExploration(host, { sea, isBlocked, onDepth }) {
       document.body.classList.toggle("diving", phase === "jump");
       const blocked = isBlocked() || talking() || phase === "jump";
       document.body.classList.toggle("exploration-blocked", blocked);
-      for (const control of [dive, view, stick, up, down]) control.disabled = blocked;
-      up.hidden = down.hidden = phase !== "ocean";
+      for (const control of [dive, view, stick, up, down, fast]) control.disabled = blocked;
+      up.hidden = down.hidden = fast.hidden = phase !== "ocean";
+      if (phase !== "ocean" && fastLock) setFast(false);   // the dock is walked
       dive.hidden = phase === "ocean";
       const label = `${phase}/${frame.perspective}/${!!frame.looking}`;
       if (label !== lastLabel) {
@@ -213,7 +216,18 @@ export function mountExploration(host, { sea, isBlocked, onDepth }) {
     return { reset: () => { if (pointer !== null) reset(); } };
   }
   const SPRINT_REACH = 1.45;
-  const movePad = thumbStick(stick, knob, (x, z, fast) => api.setMove(x, z, fast));
+  /* Fast is the rim push made into a switch: the right thumb flips it and goes
+     back to looking, and the left one only has to steer */
+  let fastLock = false, pad = [0, 0, false];
+  const steer = () => api.setMove(pad[0], pad[1], pad[2] || fastLock);
+  const movePad = thumbStick(stick, knob, (x, z, rim) => { pad = [x, z, rim]; steer(); });
+  function setFast(on) {
+    fastLock = on;
+    fast.setAttribute("aria-pressed", String(on));
+    stick.classList.toggle("locked", on);
+    if (pad[0] || pad[1]) steer();
+  }
+  fast.addEventListener("click", act(() => setFast(!fastLock)));
 
   /* Looking around is the whole screen: drag anywhere, flick to spin. Nothing
      on screen says so, so a phone gets shown once -- a ghost finger sweeping
