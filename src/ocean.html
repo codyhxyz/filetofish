@@ -129,6 +129,9 @@ body:not(.dock) #action{bottom:calc(clamp(1rem,3vh,2rem) + 4.2rem);}
 #action kbd{font:inherit; margin-right:.55rem; padding:.08rem .32rem; border:1px solid rgba(18,34,42,.45);}
 /* a file path is case-sensitive and long: its own case, tight, free to wrap */
 #action i{font-style:normal; text-transform:none; letter-spacing:.02em; overflow-wrap:anywhere;}
+/* the left button, while a click would do what E does */
+#action kbd.mouse{margin-right:.3rem; padding:.08rem .22rem;}
+#action kbd.mouse svg{display:inline-block; width:.68em; height:.9em; vertical-align:-.12em;}
 @keyframes actionPulse{
   0%,100%{opacity:.68; transform:translateX(-50%) translateY(0);}
   50%{opacity:1; transform:translateX(-50%) translateY(-3px);}
@@ -356,7 +359,7 @@ body.fishtalk #cross,body.fishtalk #card{opacity:0;}
   <div class="act" id="c-act"></div>
 </div>
 
-<button id="action" type="button" aria-live="polite" hidden><kbd>E</kbd><span></span><i></i></button>
+<button id="action" type="button" aria-live="polite" hidden><kbd class="mouse" hidden><svg viewBox="0 0 12 16" aria-hidden="true"><rect x="1" y="1" width="10" height="14" rx="5" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M6 1v6M1 7h10" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M6 1.2A4.8 4.8 0 0 0 1.2 6v1H6z" fill="currentColor"/></svg></kbd><kbd>E</kbd><span></span><i></i></button>
 
 <div id="net">
   <div class="n"><b id="net-n">0</b> in the net<s id="net-b"></s></div>

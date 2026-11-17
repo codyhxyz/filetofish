@@ -61,32 +61,41 @@ body.has-catch #rig{opacity:.22;}
 #hit.fish-hover{cursor:grab;}
 #hit.fish-drag{cursor:grabbing;}
 
+/* The keyboard's legend: one strip in one grammar, the key and then its verb.
+   Dive is an entry like the rest, and presses like a button while the cursor
+   is free. It keeps to the bottom-left so it never meets the rod's
+   corner, and wraps before it would. A phone takes the strip apart: see the
+   touch HUD. */
 #travel{
-  position:fixed;z-index:5;left:50%;bottom:clamp(1rem,3vh,2rem);transform:translateX(-50%);
-  display:flex;gap:.45rem;align-items:center;white-space:nowrap;
-  font-family:var(--f-mono);font-size:.75rem;
+  position:fixed;z-index:5;left:clamp(1rem,3vw,2rem);bottom:clamp(1rem,3vh,2rem);
+  max-width:calc(100vw - 13.5rem);
+  display:flex;flex-wrap:wrap;align-items:center;gap:.4rem 1.1rem;white-space:nowrap;
+  font-family:var(--f-mono);font-size:.7rem;
+  color:#F2FAFB;background:rgba(5,29,39,.8);border-radius:.45rem;padding:.45rem .7rem;
 }
-#travel button,#swim-depth button{
+#travel [hidden]{display:none !important;}
+#move-help{display:contents;}
+#travel .cmd,#travel button{display:flex;align-items:center;gap:.2rem;}
+#travel button{border-radius:.3rem;padding:.2rem .35rem;margin:-.2rem -.35rem;color:inherit;transition:background .15s;}
+#travel button:hover:not(:disabled){background:rgba(232,247,249,.16);}
+#travel button:hover:not(:disabled) b{color:#fff;}
+#travel button:disabled{opacity:.45;cursor:default;}
+#swim-depth button{
   min-height:44px;padding:.65rem .9rem;border:1px solid rgba(232,247,249,.45);
   border-radius:24px;background:rgba(5,29,39,.86);color:#F2FAFB;
 }
-#travel button:hover:not(:disabled),#swim-depth button:hover:not(:disabled){background:#244B59;}
-#travel button:disabled,#swim-depth button:disabled{opacity:.45;cursor:default;}
-#move-help{
-  position:fixed;z-index:4;left:50%;transform:translateX(-50%);
-  display:flex;align-items:center;gap:1.1rem;
-  font-family:var(--f-mono);pointer-events:none;
-  color:#F2FAFB;background:rgba(5,29,39,.8);border-radius:.45rem;padding:.4rem .7rem;
-}
-#move-help .cmd{display:flex;align-items:center;gap:.2rem;}
-#move-help kbd{
+#swim-depth button:hover:not(:disabled){background:#244B59;}
+#swim-depth button:disabled{opacity:.45;cursor:default;}
+/* one keycap, wherever a key is named: the legend and the rod's label */
+#travel kbd,#cast kbd{
   font:inherit;font-size:.66rem;line-height:1;min-width:1.45em;text-align:center;
+  letter-spacing:0;text-transform:none;color:#F2FAFB;
   padding:.2rem .3rem .16rem;border:1px solid rgba(232,247,249,.5);border-bottom-width:2px;
   border-radius:.25rem;background:rgba(232,247,249,.08);
 }
-#move-help b{
+#travel b{
   font-weight:400;font-size:.6rem;letter-spacing:.14em;text-transform:uppercase;
-  color:rgba(242,250,251,.62);margin-left:.4rem;
+  color:rgba(242,250,251,.62);margin-left:.4rem;transition:color .15s;
 }
 /* the depth beaker: lip = surface, foot = trench floor, graduated in metres */
 #explore-status{
@@ -234,7 +243,6 @@ body.zone-on #look-hint{opacity:0;}
   #zone-card small{font-size:.54rem;letter-spacing:.34em;margin-right:-.34em;}
   #zone-card span{font-size:.62rem;letter-spacing:.1em;gap:.5rem;}
 }
-#move-help{bottom:5.3rem;font-size:.7rem;white-space:nowrap;}
 #move-stick{
   display:none;position:fixed;z-index:6;left:1.1rem;bottom:6rem;
   width:100px;height:100px;border-radius:50%;border:1px solid rgba(232,247,249,.65);
@@ -256,8 +264,8 @@ body.underwater #cast{display:none;}
 #swim-depth button{touch-action:none;}
 #swim-depth button[hidden]{display:none;}
 /* a fish talking, or one in your hands, gets the screen the gauge sits on */
-body.exploration-blocked #move-stick,body.exploration-blocked #swim-depth,body.exploration-blocked #swim-fast,
-body.exploration-blocked #explore-status,body.exploration-blocked #move-help{visibility:hidden;}
+body.exploration-blocked #move-stick,body.exploration-blocked #swim-depth,
+body.exploration-blocked #explore-status,body.exploration-blocked #swim-fast{visibility:hidden;}
 body.exploration-blocked #travel{visibility:hidden;}
 body.diving #travel{visibility:visible;}
 @media(pointer:coarse){
@@ -268,9 +276,8 @@ body.diving #travel{visibility:visible;}
   #swim-depth{display:flex;bottom:20rem;}
   :root{--beaker:min(46vh,21rem);}
 }
-@media(max-width:600px){
-  #travel{font-size:.7rem;}
-  #travel button{padding:.55rem .7rem;}
+@media(pointer:coarse) and (max-width:600px){
+  #travel #dive{padding:.55rem .7rem;}
 }
 @media(max-height:500px){
   #swim-depth{bottom:6rem;right:5rem;flex-direction:row;}
@@ -556,6 +563,15 @@ body.hint-send #fish{opacity:.62; transform:translateX(14px);}
   color:#FFD9A8;
 }
 .tool.primary .lb{color:rgba(255,217,168,.8); opacity:.85;}
+/* The rod's keys ride on its label: a click while the cursor is held, or F.
+   The label gets a backing because the rod itself is drawn through this corner. */
+#cast .lb{
+  display:flex; align-items:center; gap:.25rem; opacity:1; text-shadow:none;
+  padding:.3rem .5rem; border-radius:.45rem; background:rgba(5,29,39,.8);
+}
+#cast kbd:last-of-type{margin-right:.3rem;}
+#cast kbd.mouse{padding:.14rem .26rem .1rem;}
+#cast kbd.mouse svg{width:.56rem; height:.75rem;}
 .tool.primary:hover .ic{background:#FFC49A; border-color:#FFC49A; color:#0B1E24;}
 .tool.primary svg{width:1.5rem; height:1.5rem;}
 .tool.primary.casting .ic{animation:rodkick .5s ease;}
@@ -671,6 +687,8 @@ body.hint-send #fish{opacity:.62; transform:translateX(14px);}
   #plate .nm{font-size:clamp(1.7rem,7vw,2.4rem);}
   #plate .sub{font-size:.62rem;}
   body.exploring.exploration-blocked #tools{bottom:1rem;}
+  /* a narrow desktop window: the legend steps up over the row of tools */
+  #travel{bottom:4.6rem; max-width:calc(100vw - 10.5rem);}
 }
 
 #drop{
@@ -780,6 +798,12 @@ body.hint-send #fish{opacity:.62; transform:translateX(14px);}
 
   /* Dive joins the rod's column */
   #travel{display:contents;}
+  #look-help{display:none;}
+  #travel #dive{
+    display:block; margin:0; min-height:44px; padding:.65rem .9rem; border:1px solid rgba(232,247,249,.45);
+    border-radius:24px; background:rgba(5,29,39,.86); color:#F2FAFB;
+  }
+  #travel #dive:hover:not(:disabled){background:#244B59;}
   #dive{
     position:fixed; z-index:9; right:var(--edge); width:var(--rod); min-height:2.75rem; padding:.5rem .3rem;
     font-family:var(--f-mono); font-size:.68rem; letter-spacing:.06em;
@@ -892,9 +916,10 @@ body.hint-send #fish{opacity:.62; transform:translateX(14px);}
 <div id="explore-status" role="meter" aria-label="Depth" aria-valuemin="0" hidden></div>
 <div id="zone-card" role="status" aria-live="polite"><small>entering</small><b></b><span></span></div>
 <div id="fish-note" role="status" aria-live="polite"><b>every fish is a file</b><span>the bigger the file, the deeper it swims</span></div>
-<div id="move-help"><span class="cmd"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd><b>walk</b></span><span class="cmd"><kbd>Shift</kbd><b>sprint</b></span></div>
-<div id="travel" role="group" aria-label="Explore the ocean">
-  <button id="dive" type="button">Dive · Space</button>
+<div id="travel" role="group" aria-label="Controls">
+  <span id="move-help"><span class="cmd"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd><b>walk</b></span><span class="cmd"><kbd>Shift</kbd><b>sprint</b></span></span>
+  <button id="dive" type="button" aria-label="Jump into the ocean (Space)"><kbd>Space</kbd><b>dive</b></button>
+  <span id="look-help" class="cmd" hidden><kbd>Esc</kbd><b>free cursor</b></span>
 </div>
 <button id="move-stick" type="button" aria-label="Movement joystick. Drag to walk or swim. Keyboard: W A S D."><span id="move-knob"></span></button>
 <div id="look-hint" aria-hidden="true"><i></i><span>drag to look around</span></div>
@@ -1021,8 +1046,8 @@ body.hint-send #fish{opacity:.62; transform:translateX(14px);}
     </label>
   </div>
   </div>
-  <button class="tool primary" id="cast" aria-label="Fish">
-    <span class="lb">Fish</span>
+  <button class="tool primary" id="cast" aria-label="Fish (F, or click while looking around)">
+    <span class="lb"><kbd class="mouse"><svg viewBox="0 0 12 16" aria-hidden="true"><rect x="1" y="1" width="10" height="14" rx="5" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M6 1v6M1 7h10" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M6 1.2A4.8 4.8 0 0 0 1.2 6v1H6z" fill="currentColor"/></svg></kbd><kbd>F</kbd>Fish</span>
     <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
       stroke-linejoin="round" stroke-linecap="round" aria-hidden="true">
       <path d="M2.8 21.2 16.8 3.4"/>

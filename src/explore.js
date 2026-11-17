@@ -3,7 +3,7 @@ import { initOcean } from "./ocean.js";
 
 /* Reuse the actual ocean, with its file-viewer UI isolated from the catch UI.
    Embedded mode never opens folders or nets/deletes files. */
-export function mountExploration(host, { sea, isBlocked, onDepth, onCatch }) {
+export function mountExploration(host, { sea, isBlocked, onDepth, onCatch, onCast }) {
   const root = host.attachShadow({ mode: "open" });
   root.innerHTML = oceanTemplate
     .replace(/<title>[\s\S]*?<\/title>/, "")
@@ -16,6 +16,7 @@ export function mountExploration(host, { sea, isBlocked, onDepth, onCatch }) {
       :host(:not(.looking)) #cross,:host(.jumping) #cross{display:none!important;}
       :host(.looking) #cross{opacity:.7;}
       #action{bottom:29%;font-size:.7rem;}
+      #action kbd{border-radius:.25rem;border-bottom-width:2px;padding:.12rem .34rem .08rem;}
       #intro,:host.chatting #intro{bottom:32%;}
       #tint{pointer-events:none;}
       @media(pointer:coarse){#action kbd{display:none;}}
@@ -26,13 +27,14 @@ export function mountExploration(host, { sea, isBlocked, onDepth, onCatch }) {
   const $ = selector => document.querySelector(selector);
   const dive = $("#dive"), up = $("#swim-up"), down = $("#swim-down");
   const stick = $("#move-stick"), knob = $("#move-knob"), status = $("#explore-status");
-  const fast = $("#swim-fast");
+  const fast = $("#swim-fast"), lookHelp = $("#look-help");
   const card = $("#zone-card"), note = $("#fish-note");
   /* On a touch screen the keyboard hints are noise. */
   const touch = !!globalThis.matchMedia?.("(pointer:coarse)").matches;
   const canvas = root.querySelector("#gl");
   canvas.tabIndex = 0;
-  canvas.setAttribute("aria-label", "Fishing world. WASD to move, click or drag to look, Space to dive.");
+  canvas.setAttribute("aria-label", "Fishing world. WASD to move, click to look around, then click or F to fish, E to talk, Space to dive.");
+  if (touch) dive.textContent = "Dive";       // a thumb button, not a keycap
   canvas.addEventListener("pointerdown", () => canvas.focus({ preventScroll: true }));
   let underwater = false, phase = "dock", lastLabel = "";
   const talking = () => !root.querySelector("#intro").hidden;
@@ -40,6 +42,7 @@ export function mountExploration(host, { sea, isBlocked, onDepth, onCatch }) {
     embedded: true,
     isBlocked,
     onCatch,
+    onCast,
     onFrame(frame) {
       phase = frame.phase;
       underwater = frame.underwater;
@@ -59,15 +62,20 @@ export function mountExploration(host, { sea, isBlocked, onDepth, onCatch }) {
       const label = `${phase}/${frame.perspective}/${!!frame.looking}`;
       if (label !== lastLabel) {
         lastLabel = label;
-        dive.textContent = phase === "jump" ? "Diving" : touch ? "Dive" : "Dive · Space";
-        dive.setAttribute("aria-label", "Jump into the ocean (Space)");
         /* keycaps, not a sentence: the eye finds the keys and the verb sits
-           under them. Depth and mouse-look go unsaid -- it is a 3D swim and
-           people know how those work. Esc stays while the cursor is held,
-           because a captured cursor with no way out is a trap. */
-        const keys = (caps, verb) => `<span class="cmd">${caps.map(k => `<kbd>${k}</kbd>`).join("")}<b>${verb}</b></span>`;
-        $("#move-help").innerHTML = keys(["W", "A", "S", "D"], phase === "ocean" ? "swim" : "walk") +
-          keys(["Shift"], "sprint") + (frame.looking ? keys(["Esc"], "free cursor") : "");
+           beside them. Every entry in the strip is written the same way,
+           the one that is a button included. Depth and mouse-look go unsaid
+           -- it is a 3D swim and people know how those work. Q is the only
+           way back up, so the water names it. Esc stays while the cursor is
+           held, because a captured cursor with no way out is a trap. */
+        const caps = (keys, verb) => keys.map(k => `<kbd>${k}</kbd>`).join("") + `<b>${verb}</b>`;
+        const cmd = (keys, verb) => `<span class="cmd">${caps(keys, verb)}</span>`;
+        const jumping = phase === "jump";
+        if (touch) dive.textContent = jumping ? "Diving" : "Dive";
+        else dive.innerHTML = jumping ? "<b>diving</b>" : caps(["Space"], "dive");
+        $("#move-help").innerHTML = cmd(["W", "A", "S", "D"], phase === "ocean" ? "swim" : "walk") +
+          cmd(["Shift"], "sprint") + (phase === "ocean" ? cmd(["Q"], "dock") : "");
+        lookHelp.hidden = !frame.looking;
       }
       gauge(underwater && frame.depth, frame.floor, frame.zones, phase === "ocean", blocked);
       if (blocked) { movePad.reset(); hint.hide(); }

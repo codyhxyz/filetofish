@@ -6,7 +6,11 @@ const app = fs.readFileSync(new URL("../src/app.js", import.meta.url), "utf8");
 const html = fs.readFileSync(new URL("../src/page.html", import.meta.url), "utf8");
 assert(!/drop a file|one swipe = one day|cast a sample/i.test(html));
 assert.match(html, /id="foot" role="status"><b id="status"><\/b>/);
-assert.match(html, /id="cast" aria-label="Fish">\s*<span class="lb">Fish<\/span>/);
+assert.match(html, /id="cast" aria-label="Fish[^"]*">\s*<span class="lb"><kbd class="mouse">.*?<\/kbd><kbd>F<\/kbd>Fish<\/span>/);
+// one legend: the move keys, dive and the way out of a held cursor share a strip
+const strip = html.slice(html.indexOf('<div id="travel"'), html.indexOf('<button id="move-stick"'));
+for (const id of ["move-help", "dive", "look-help"]) assert(strip.includes(`id="${id}"`), `${id} is in the legend`);
+assert(!/Dive · Space|person · Ctrl/.test(html), "no second way of writing a key");
 const depthRules = [...html.matchAll(/#explore-status\s*\{([^}]+)\}/g)];
 assert.equal(depthRules.length, 1, "mobile must not override depth placement");
 assert.match(depthRules[0][1], /left:clamp\(1rem,3vw,2rem\);top:50%;transform:translateY\(-50%\)/);

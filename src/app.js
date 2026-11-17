@@ -1431,14 +1431,28 @@ const unlock = () => {
 for (const type of ["pointerdown", "pointerup", "touchend", "click", "keydown"]) {
   addEventListener(type, unlock, { capture: true, passive: true });
 }
-$("#cast").addEventListener("click", e => {
-  if (catchPending() || readingFiles || exploration?.busy() || exploration?.getUnderwater()) return;
-  e.stopPropagation(); unlock();
-  const btn = e.currentTarget;
+/* One cast, however it was asked for: the rod button, F, or a click with the
+   cursor held. The button kicks either way, so the key and the click show
+   where the rod lives. */
+function cast() {
+  if (catchPending() || readingFiles || exploration?.busy() || exploration?.getUnderwater()) return false;
+  unlock();
+  const btn = $("#cast");
   btn.classList.remove("casting"); void btn.offsetWidth; btn.classList.add("casting");
   const s = SAMPLES[sampleIdx++ % SAMPLES.length];
   accept({ ...s, bytes: strBytes(s.name + s.size) });
-});
+  return true;
+}
+$("#cast").addEventListener("click", e => { if (cast()) e.stopPropagation(); });
+/* A mouse click parks Chrome's keyboard focus on the button it pressed, and a
+   focused button owns the keys: after "keep it" the next F, Space or W went
+   to a button that was no longer on screen. Give the keys back -- on the way
+   down, since most of these buttons stop the click going any further, and so
+   a handler that wants focus somewhere (the dex, the send field) still gets
+   it. A press from the keyboard (detail 0) keeps its focus, as it should. */
+addEventListener("click", e => {
+  if (e.detail > 0) e.composedPath()[0]?.closest?.("button")?.blur();
+}, true);
 const hit = $("#hit");
 let pickAt = null, pickOnFish = false;
 const setHitCursor = (e, dragging = false) => {
@@ -1756,6 +1770,7 @@ exploration = mountExploration($("#exploration"), {
   sea,
   isBlocked: movementBlocked,
   onDepth: setUnderwaterDepth,
+  onCast: cast,
   /* a fish caught by hand gets the same reveal as one off the line; its file
      is not here to read, so where it lives and how big it is stand in */
   onCatch(f) {

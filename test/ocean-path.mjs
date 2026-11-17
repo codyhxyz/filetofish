@@ -30,7 +30,7 @@ const sync = js.slice(js.indexOf("function syncAction"), js.indexOf("function gr
 assert.match(sync, /what = tailPath\(shownPath\(aimed\), \d+\)/);
 assert.match(sync, /querySelector\("i"\)\.textContent = what/);
 assert(!/fishName/.test(sync), "the species is not what the button names");
-assert.match(html, /<button id="action"[^>]*><kbd>E<\/kbd><span><\/span><i><\/i><\/button>/);
+assert.match(html, /<button id="action"[^>]*><kbd class="mouse" hidden>.*?<\/kbd><kbd>E<\/kbd><span><\/span><i><\/i><\/button>/);
 assert.match(html, /#action i\{[^}]*text-transform:none/);
 assert.match(html, /<div class="nm"><span id="c-dir"><\/span><b id="c-nm"><\/b><\/div>/);
 const card = js.slice(js.indexOf("function updateCard"), js.indexOf("/* ============================================================ loop"));

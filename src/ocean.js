@@ -2289,8 +2289,10 @@ function updateChaseCamera(dt, snap) {
 
 /* ============================================================ player flow */
 const DOCK_X = 0.78, DOCK_NEAR = -0.58, DOCK_FAR = 2.84;
-const elAction = $("#action");
+const elAction = $("#action"), elActionMouse = elAction.querySelector(".mouse");
 let actionLabel = "", introSeen = false;
+/* is Kelp under a held cursor's crosshair: his click, or the rod's */
+let kelpAimed = false, kelpAimAt = 0;
 
 function moorDock(z) {
   const oldX = guide.root.position.x, oldZ = guide.root.position.z;
@@ -2353,11 +2355,17 @@ function syncAction() {
        says where the fish is from, not what kind of fish it drew */
     label = "talk to "; what = tailPath(shownPath(aimed), 44);
   }
-  const key = label + what;
+  /* the mouse sits beside E only while a held click would do the same thing:
+     a fish in the crosshair, or Kelp in it. Near him but aimed past him, the
+     click belongs to the rod. */
+  const click = !!label && looking() &&
+    (phase === "ocean" ? embedded : kelpAimed && label !== "jump in");
+  const key = label + what + (click ? "+" : "");
   if (key === actionLabel) return;
   actionLabel = key;
-  elAction.hidden = !key;
-  elAction.setAttribute("aria-label", key ? "Press E to " + key : "");
+  elAction.hidden = !label;
+  elActionMouse.hidden = !click;
+  elAction.setAttribute("aria-label", label ? `Press E${click ? " or click" : ""} to ${label}${what}` : "");
   elAction.querySelector("span").textContent = label;
   elAction.querySelector("i").textContent = what;     // a path keeps its own case
 }
@@ -2487,6 +2495,7 @@ addEventListener("keydown", e => {
       if (e.code === "Space") beginJump();
       if (k === "q" && phase === "ocean") returnToDock();
       if (k === "e") { if (phase === "ocean") talkToFish(); else greetKelp(); }
+      if (k === "f" && phase === "dock") options.onCast?.();
     }
     if (!repeated && !isBlocked()) keys.add(k);
     if (SWIM_KEYS.includes(k)) letGo();
@@ -2519,14 +2528,17 @@ document.addEventListener("visibilitychange", () => {
 });
 /* A mouse or trackpad does not drag the view. The first click on the water
    takes the cursor and the view follows the hand from then on, as in any
-   WASD game; a click is the crosshair's, and Esc gives the cursor back.
+   WASD game; a click is the crosshair's -- talk to who is in it, or cast the
+   rod at nobody -- and Esc gives the cursor back.
    Fingers keep drag-to-look, and so does a mouse whenever the browser
    refuses the lock -- the drag starts anyway and the lock cancels it. */
 let lockPress = false;
 const looking = () => root.pointerLockElement === canvas;
 function clickAt(e) {
   if (nearKelp() && hitKelp(e)) greetKelp(); // character clicks never jump
-  else if (phase !== "ocean") return;
+  /* on the dock a held cursor's click is the rod. A free cursor's click is
+     not: it is either asking for the cursor or pressing a button. */
+  else if (phase !== "ocean") { if (!e && phase === "dock") options.onCast?.(); }
   /* the game has no net: a fish you touch says who it is, and offers itself */
   else if (embedded) talkToFish(e ? tapFish(e) : aimed);
   else toggleNet();
@@ -3630,6 +3642,9 @@ function frame(nowMs) {
     }
   }
 
+  if (phase === "dock" && looking() && nearKelp()) {
+    if (nowMs - kelpAimAt > 45) { kelpAimAt = nowMs; kelpAimed = hitKelp(null); }
+  } else kelpAimed = false;
   /* embedded, only a held cursor has a crosshair to aim with; fingers tap */
   const aiming = phase === "ocean" && (!embedded || looking());
   if (aiming && nowMs - aimAt > 45) {

@@ -9,12 +9,12 @@ The separate `/ocean/` page remains the folder viewer.
 | --- | --- | --- |
 | Walk / swim | WASD; Shift moves faster | Left thumbstick |
 | Look | Click the scene, then move the mouse; Esc frees the cursor | Drag the scene with the other finger |
+| Fish (from the dock) | F, a click while the cursor is held, or the Fish button | Fish |
 | Dive | Space, or Dive | Dive |
-| Return to dock | Q, or Return | Return |
-| First / third person | V, or the view button | View button |
-| Talk to Kelp | E, or click Kelp | Tap Kelp |
+| Return to dock | Q | — |
+| First / third person | Automatic: first on the dock, third in the water | Automatic |
+| Talk to Kelp, or a fish underwater | E, or click with them in the crosshair | Tap them |
 | Swim up / down | Up / Down arrows | Up / Down buttons |
-| Create a sample catch | Fish | Fish |
 | Import a file | File, or drop files | File |
 
 Walking cannot take the player off the dock. Only an explicit dive enters the water.
