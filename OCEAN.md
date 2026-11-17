@@ -268,7 +268,9 @@ inputs to approach one object, with a quarter-second of damping on all of them.
 The rule is now one sentence: **you swim where you look, and the water carries
 you the rest of the way.** The camera is now a damped third-person chase camera
 following a visible procedural diver; the diver's transform, not the camera, is
-the controller authority used by movement, picking and glides. The body is built
+the controller authority used by movement, picking and glides. The camera rides
+a boom fixed to your gaze, centred behind and above him, so he holds one place
+on screen however fast you turn; only his travel is damped. The body is built
 from the same `box`, `ball` and `tube` kit as Kelp and shares his finer dither/ink
 pass.
 

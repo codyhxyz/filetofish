@@ -79,10 +79,9 @@ const TUNE = {
   flingDecay: 3.2,        // how fast a flicked view coasts to a stop, per second
   glideTime: 0.85,        // seconds to be carried to what you are looking at
   standoff: 3.4,          // ...and where it puts you down, in body lengths
-  chaseBack: 8.0,         // third-person camera: distance behind the diver
-  chaseRise: 2.1,         // ...height above the diver
-  chaseSide: 1.35,        // ...shoulder offset, so the crosshair stays clear
-  chaseDamp: 8.0,         // ...how quickly the camera catches the body
+  chaseBack: 5.5,         // swim camera: how far behind the diver it rides
+  chaseRise: 1.5,         // ...and how far above him, both along your gaze
+  chaseDamp: 8.0,         // ...how quickly it catches the body up as he travels
 };
 
 const MAX_FILES = 250000;      // past this the layout stops being comprehensible
@@ -2262,7 +2261,15 @@ const forwardOf = (yaw, pitch) => {
   const cp = Math.cos(pitch);
   return new Vector3(-Math.sin(yaw) * cp, Math.sin(pitch), -Math.cos(yaw) * cp);
 };
-const chaseWant = new Vector3(), chaseForward = new Vector3(), chaseRight = new Vector3();
+/* The swim camera is a boom fixed to your gaze: so far right, up and back in
+   the camera's own frame, hung from a point that trails the body. Turning your
+   head swings the whole boom at once, so the swimmer keeps his place on screen
+   however fast you look around. Only travel is damped, which lets him pull
+   ahead as he sets off and settle back as he stops. The eye used to ease
+   toward a spot behind him in world space instead, so every quick turn left
+   it where "behind" had been and slid him out of the frame. */
+const chaseArm = new Vector3(0, TUNE.chaseRise, TUNE.chaseBack), chaseArmWant = new Vector3();
+const chaseAnchor = cam.pos.clone();
 /* dock size on the dock, water size in the water, grown across the jump */
 function diverSize() {
   if (phase === "ocean") return TUNE.diverScale;
@@ -2270,23 +2277,31 @@ function diverSize() {
   return lerp(1, TUNE.diverScale, clamp((DOCK_Y - cam.pos.y) / (DOCK_Y + 6.5), 0, 1));
 }
 function updateChaseCamera(dt, snap) {
+  const sy = Math.sin(cam.yaw), cy = Math.cos(cam.yaw);
+  const sp = Math.sin(cam.pitch), cp = Math.cos(cam.pitch);
   if (perspective === "first") {
     cam.eye.copy(cam.pos); cam.eye.y += 1.1;
+    /* the same eye written as a boom, so the dive draws out of this head */
+    chaseAnchor.copy(cam.pos); chaseArm.set(0, 1.1 * cp, -1.1 * sp);
     return;
   }
-  const cp = Math.cos(cam.pitch);
-  chaseForward.set(-Math.sin(cam.yaw) * cp, Math.sin(cam.pitch), -Math.cos(cam.yaw) * cp);
-  chaseRight.set(Math.cos(cam.yaw), 0, -Math.sin(cam.yaw));
   const k = diverSize();
-  chaseWant.copy(cam.pos)
-    .addScaledVector(chaseForward, phase === "dock" ? -3.6 : -TUNE.chaseBack * k)
-    .addScaledVector(chaseRight, phase === "dock" ? 0.45 : TUNE.chaseSide * k);
-  chaseWant.y += phase === "dock" ? 1.7 : TUNE.chaseRise * k;
-  if (embedded && phase === "dock") chaseWant.y = Math.max(chaseWant.y, DOCK_Y + 0.3);
-  if (embedded && phase === "ocean") chaseWant.y = Math.min(chaseWant.y, -0.6);
-  if (phase === "ocean") chaseWant.y = Math.max(chaseWant.y, groundAt(chaseWant.x, chaseWant.z) + 1.5);
-  if (snap) cam.eye.copy(chaseWant);
-  else cam.eye.lerp(chaseWant, 1 - Math.exp(-dt * TUNE.chaseDamp));
+  if (phase === "dock") chaseArmWant.set(0.45, 1.7, 3.6);
+  else chaseArmWant.set(0, TUNE.chaseRise * k, TUNE.chaseBack * k);
+  const ease = snap ? 1 : 1 - Math.exp(-dt * TUNE.chaseDamp);
+  chaseArm.lerp(chaseArmWant, ease);
+  chaseAnchor.lerp(cam.pos, ease);
+  /* he may pull ahead by half the boom and no more, whatever his speed */
+  const lag = chaseAnchor.distanceTo(cam.pos), slack = Math.max(0, chaseArm.z) * 0.5;
+  if (lag > slack) chaseAnchor.lerp(cam.pos, 1 - slack / lag);
+  /* anchor + right * x + up * y - forward * z, in the camera's frame */
+  const { x, y, z } = chaseArm;
+  cam.eye.set(
+    chaseAnchor.x + cy * x + sy * sp * y + sy * cp * z,
+    chaseAnchor.y + cp * y - sp * z,
+    chaseAnchor.z - sy * x + cy * sp * y + cy * cp * z);
+  if (embedded && phase === "ocean") cam.eye.y = Math.min(cam.eye.y, -0.6);
+  if (phase === "ocean") cam.eye.y = Math.max(cam.eye.y, groundAt(cam.eye.x, cam.eye.z) + 1.5);
 }
 
 /* ============================================================ player flow */
@@ -3038,6 +3053,7 @@ function frameGuide() {
   cam.yaw = cam.yawT = 0;
   cam.pitch = cam.pitchT = 0.11;
   cam.eye.copy(cam.pos);                         // intro keeps its exact close framing
+  chaseAnchor.copy(cam.pos); chaseArm.set(0, 0, 0);     // ...and the chase draws out from it
   player.root.visible = false;
 }
 /* `f` is the way home. It used to snap your depth to -18 and leave you

@@ -247,6 +247,36 @@ doc.hidden = false;
   assert(moved > 300, "the sweep crosses several re-centrings of every fine level");
   assert(worst < 0.5, `distant ground never pops (worst ${worst.toFixed(3)} per unit)`);
 }
+// The swim camera is a boom on your gaze: however fast you look around, the
+// swimmer keeps his place on screen. Only travel is damped, and only so far.
+{
+  const onScreen = () => ocean.cam.pos.clone().applyMatrix4(ocean.camera.matrixWorldInverse);
+  const heading = ocean.cam.yaw;
+  ocean.clearInput();
+  ocean.cam.pos.set(0, -30, -60); ocean.cam.depthT = -30;
+  ocean.cam.pitch = ocean.cam.pitchT = 0; tick(40);
+  const rest = onScreen(), boom = -rest.z;
+  assert(Math.abs(rest.x) < 1e-6, "he swims on the centre line, under the crosshair");
+  assert(rest.y < -2 && boom > 8 && boom < 16, `low in the frame, a few body lengths ahead of the eye (${rest.toArray()})`);
+  ocean.cam.yawT += 2.4; ocean.cam.pitchT = -0.9;
+  for (let i = 0; i < 12; i++) {
+    tick();
+    assert(onScreen().distanceTo(rest) < 1e-3, "a fast turn never slides the swimmer across the frame");
+  }
+  assert(Math.abs(ocean.cam.pitch + 0.9) < 0.01, "and the turn really happened");
+  ocean.cam.pitch = ocean.cam.pitchT = 0;
+  ocean.setMove(0, 1); tick(30);
+  const ahead = onScreen();
+  assert(ahead.z < rest.z - 0.5 && Math.abs(ahead.x) < 1e-3, `setting off, he pulls ahead of the eye (${ahead.z.toFixed(2)})`);
+  ocean.clearInput();
+  for (let i = 0; i < 6; i++) {
+    ocean.cam.pos.z -= 20; tick();
+    assert(onScreen().distanceTo(rest) <= boom * 0.5 + 1e-6, "but never by more than half the boom, at any speed");
+  }
+  tick(40);
+  assert(onScreen().distanceTo(rest) < 1e-3, "and the eye settles back behind him when he stops");
+  ocean.cam.yaw = ocean.cam.yawT = heading;
+}
 assert.equal(ocean.guide.root.position.y, 1, "dock and Kelp stay on surface");
 assert.equal(ocean.guide.root.visible, true);
 assert.equal(ocean.guide.root.rotation.z, 0);
