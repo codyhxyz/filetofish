@@ -39,9 +39,9 @@ $("#intro").hidden = true;
 const host = new Element();
 host.attachShadow = () => shadow;
 const sprints = [], moves = [], vertical = [], depths = [], cameras = [];
-let opts, blocked = false, dives = 0, returns = 0, views = 0, cleared = 0, now = 1000;
+let opts, blocked = false, dives = 0, returns = 0, cleared = 0, now = 1000;
 const api = {
-  beginJump: () => dives++, returnToDock: () => returns++, toggleView: () => views++,
+  beginJump: () => dives++, returnToDock: () => returns++,
   setMove: (x, z, fast) => { moves.push([x, z]); sprints.push(!!fast); },
   setVertical: y => vertical.push(y),
   clearInput: () => cleared++,
@@ -69,15 +69,12 @@ assert.equal(help(), "W A S D walk Shift sprint Esc free cursor", "a held cursor
 frame({ phase: "ocean", looking: true });
 assert.equal(help(), "W A S D swim Shift sprint Esc free cursor", "no depth keys: it is a 3D swim");
 frame();
-assert.equal(opts.autoPerspective, false, "desktop keeps the manual view switch");
 assert.equal($("#explore-status").hidden, true, "the dock needs no depth gauge");
 assert(!$("#look-hint").classes.has("on"), "a mouse never gets the drag lesson");
 assert.equal($("#dive").textContent, "Dive · Space");
 assert.equal($("#swim-up").hidden, true);
 $("#dive").emit("click");
 assert.equal(dives, 1);
-$("#view").emit("click");
-assert.equal(views, 1);
 const stick = $("#move-stick");
 stick.emit("pointerdown", { clientX: 82, clientY: 18 });
 assert(Math.abs(Math.hypot(...moves.at(-1)) - 1) < 1e-10, "diagonal stick is normalized");

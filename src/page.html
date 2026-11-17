@@ -778,10 +778,8 @@ body.hint-send #fish{opacity:.62; transform:translateX(14px);}
   }
   #move-stick{display:block; width:var(--stick); height:var(--stick); bottom:var(--floor); left:max(1rem,env(safe-area-inset-left));}
 
-  /* the keyboard chips come apart: Ctrl has no business on a phone, Dive
-     joins the rod's column */
+  /* Dive joins the rod's column */
   #travel{display:contents;}
-  #view{display:none;}
   #dive{
     position:fixed; z-index:9; right:var(--edge); width:var(--rod); min-height:2.75rem; padding:.5rem .3rem;
     font-family:var(--f-mono); font-size:.68rem; letter-spacing:.06em;
@@ -897,7 +895,6 @@ body.hint-send #fish{opacity:.62; transform:translateX(14px);}
 <div id="move-help"><span class="cmd"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd><b>walk</b></span><span class="cmd"><kbd>Shift</kbd><b>sprint</b></span></div>
 <div id="travel" role="group" aria-label="Explore the ocean">
   <button id="dive" type="button">Dive · Space</button>
-  <button id="view" type="button">1st person · Ctrl</button>
 </div>
 <button id="move-stick" type="button" aria-label="Movement joystick. Drag to walk or swim. Keyboard: W A S D."><span id="move-knob"></span></button>
 <div id="look-hint" aria-hidden="true"><i></i><span>drag to look around</span></div>

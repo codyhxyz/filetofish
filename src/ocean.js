@@ -2307,13 +2307,6 @@ function enterOceanAt(back, eye) {
   guide.root.position.set(0, GUIDE_Y, back - 34);
   updateChaseCamera(0, true);
 }
-function toggleView() {
-  if (phase === "jump" || isBlocked() || options.autoPerspective) { clearInput(); return false; }
-  perspective = perspective === "first" ? "third" : "first";
-  player.root.visible = perspective === "third";
-  updateChaseCamera(0, true);
-  return true;
-}
 function returnToDock() {
   if (phase === "jump" || isBlocked()) { clearInput(); return false; }
   clearInput(); jump = null;
@@ -2322,7 +2315,9 @@ function returnToDock() {
 }
 function stageDock() {
   phase = "dock";
-  if (options.autoPerspective) perspective = "first";
+  /* The view is not a choice: you stand on the dock as yourself and become
+     the swimmer you can see once you are in the water. */
+  if (embedded) perspective = "first";
   body.classList.add("dock");
   body.classList.remove("jumping", "splash");
   guide.root.position.set(0, DOCK_Y, 0);
@@ -2462,15 +2457,10 @@ function kick() {
              cam.yawT, cam.pitchT);
 }
 
-/* Ctrl on its own flips the view, on release, so Ctrl+anything (a browser
-   shortcut, a Mac right-click, a pinch-zoom) never does */
-let ctrlAlone = false;
 addEventListener("keydown", e => {
   const k = e.key.toLowerCase();
   const repeated = e.repeat || down.has(k);
   down.add(k);
-  if (e.key !== "Control") ctrlAlone = false;
-  else if (!repeated) ctrlAlone = true;
   if (!embedded && e.key === "Escape") { if (talkMode === "fish") closeTalk(); closeHaul(); return; }
   if (ownsKeys(e)) return;
   if (embedded) {
@@ -2512,10 +2502,7 @@ addEventListener("keydown", e => {
 });
 addEventListener("keyup", e => {
   const k = e.key.toLowerCase(); keys.delete(k); down.delete(k);
-  if (e.key === "Control" && ctrlAlone && !ownsKeys(e)) toggleView();
-  if (e.key === "Control") ctrlAlone = false;
 });
-for (const type of ["pointerdown", "wheel"]) addEventListener(type, () => { ctrlAlone = false; }, true);
 addEventListener("blur", () => { clearInput(); down.clear(); });
 document.addEventListener("visibilitychange", () => {
   if (document.hidden) { clearInput(); down.clear(); }
@@ -3733,7 +3720,7 @@ requestAnimationFrame(frame);
 return {
   cam, camera, player, guide,
   get phase() { return phase; }, get perspective() { return perspective; },
-  beginJump, returnToDock, toggleView, clearInput, setMove, setVertical, greetKelp,
+  beginJump, returnToDock, clearInput, setMove, setVertical, greetKelp,
   get sprinting() { return sprint || keys.has("shift"); },
 };
 }

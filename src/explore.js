@@ -24,22 +24,20 @@ export function mountExploration(host, { sea, isBlocked, onDepth, onCatch }) {
       }
     </style>`;
   const $ = selector => document.querySelector(selector);
-  const dive = $("#dive"), view = $("#view"), up = $("#swim-up"), down = $("#swim-down");
+  const dive = $("#dive"), up = $("#swim-up"), down = $("#swim-down");
   const stick = $("#move-stick"), knob = $("#move-knob"), status = $("#explore-status");
   const fast = $("#swim-fast");
   const card = $("#zone-card"), note = $("#fish-note");
-  /* On a touch screen the keyboard hints are noise and the view follows the
-     water: first person on the dock, third person once you are in. */
+  /* On a touch screen the keyboard hints are noise. */
   const touch = !!globalThis.matchMedia?.("(pointer:coarse)").matches;
   const canvas = root.querySelector("#gl");
   canvas.tabIndex = 0;
-  canvas.setAttribute("aria-label", "Fishing world. WASD to move, click or drag to look, Space to dive, Ctrl to change view.");
+  canvas.setAttribute("aria-label", "Fishing world. WASD to move, click or drag to look, Space to dive.");
   canvas.addEventListener("pointerdown", () => canvas.focus({ preventScroll: true }));
   let underwater = false, phase = "dock", lastLabel = "";
   const talking = () => !root.querySelector("#intro").hidden;
   const api = initOcean(root, {
     embedded: true,
-    autoPerspective: touch,
     isBlocked,
     onCatch,
     onFrame(frame) {
@@ -54,7 +52,7 @@ export function mountExploration(host, { sea, isBlocked, onDepth, onCatch }) {
       document.body.classList.toggle("diving", phase === "jump");
       const blocked = isBlocked() || talking() || phase === "jump";
       document.body.classList.toggle("exploration-blocked", blocked);
-      for (const control of [dive, view, stick, up, down, fast]) control.disabled = blocked;
+      for (const control of [dive, stick, up, down, fast]) control.disabled = blocked;
       up.hidden = down.hidden = fast.hidden = phase !== "ocean";
       if (phase !== "ocean" && fastLock) setFast(false);   // the dock is walked
       dive.hidden = phase === "ocean";
@@ -63,8 +61,6 @@ export function mountExploration(host, { sea, isBlocked, onDepth, onCatch }) {
         lastLabel = label;
         dive.textContent = phase === "jump" ? "Diving" : touch ? "Dive" : "Dive · Space";
         dive.setAttribute("aria-label", "Jump into the ocean (Space)");
-        view.textContent = frame.perspective === "first" ? "1st person · Ctrl" : "3rd person · Ctrl";
-        view.setAttribute("aria-label", `Switch to ${frame.perspective === "first" ? "third" : "first"} person (Ctrl)`);
         /* keycaps, not a sentence: the eye finds the keys and the verb sits
            under them. Depth and mouse-look go unsaid -- it is a 3D swim and
            people know how those work. Esc stays while the cursor is held,
@@ -215,7 +211,6 @@ export function mountExploration(host, { sea, isBlocked, onDepth, onCatch }) {
   })();
   const act = fn => () => { if (!isBlocked() && !talking()) fn(); };
   dive.addEventListener("click", act(() => api.beginJump()));
-  view.addEventListener("click", act(() => api.toggleView()));
 
   /* One thumb stick: drag inside it for a direction, let go to centre. Only the
      finger that started on it may steer it. */
