@@ -36,7 +36,8 @@ doc.querySelector = $;
 doc.body = body;
 const shadow = { querySelector: $ };
 $("#intro").hidden = true;
-const host = { attachShadow: () => shadow };
+const host = new Element();
+host.attachShadow = () => shadow;
 const sprints = [], moves = [], vertical = [], depths = [], cameras = [];
 let opts, blocked = false, dives = 0, returns = 0, views = 0, cleared = 0, now = 1000;
 const api = {
@@ -175,6 +176,37 @@ assert.equal(card.classes.has("on"), false, "leaving the water clears the card")
 frame({ phase: "jump", underwater: true, depth: 3, floor: 400, zones });
 frame({ phase: "ocean", underwater: true, depth: 6.5, floor: 400, zones });
 assert.equal(shownCards, 5, "every dive names its first zone, cooldown or not");
+
+/* the fish note: after the first zone card clears, never on top of it, once */
+const note = $("#fish-note");
+assert(!note.classes.has("on"), "the note waits while the zone card is up");
+assert(host.classes.has("carding"), "the talk button keeps clear of a card");
+card.emit("animationend", { target: card });
+frame({ phase: "ocean", underwater: true, depth: 6.5, floor: 400, zones });
+assert(!note.classes.has("on"), "a beat of clear water between cards");
+now += 1000;
+frame({ phase: "ocean", underwater: true, depth: 6.5, floor: 400, zones });
+assert(note.classes.has("on"), "then the water says what the fish are");
+assert(body.classes.has("zone-on") && host.classes.has("carding"));
+now += 9000;
+frame({ phase: "ocean", underwater: true, depth: 23, floor: 400, zones });
+assert.equal(shownCards, 5, "a crossing during the note waits for it");
+assert.equal(gauge.querySelector(".zone").textContent, "Twilight", "the gauge does not wait");
+note.emit("animationend", { target: note });
+assert(!note.classes.has("on"));
+now += 1000;
+frame({ phase: "ocean", underwater: true, depth: 23, floor: 400, zones });
+assert.equal(shownCards, 6, "then the held zone is named");
+assert.equal(cardName.textContent, "Twilight");
+card.emit("animationend", { target: card });
+assert(!host.classes.has("carding"), "the middle of the screen is free again");
+frame();
+frame({ phase: "jump", underwater: true, depth: 3, floor: 400, zones });
+frame({ phase: "ocean", underwater: true, depth: 6.5, floor: 400, zones });
+card.emit("animationend", { target: card });
+now += 1000;
+frame({ phase: "ocean", underwater: true, depth: 6.5, floor: 400, zones });
+assert(!note.classes.has("on"), "the note is said once");
 
 win.emit("blur");
 assert.equal(cleared, 1);

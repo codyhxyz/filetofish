@@ -201,15 +201,36 @@ body.has-catch #rig{opacity:.22;}
 }
 #zone-card span::before{transform-origin:right;}
 #zone-card span::after{transform-origin:left;}
+/* The one thing the water has to say before anything else: what the fish
+   are. It waits for the first zone's name to clear, then takes the same spot
+   in a quieter voice -- lowercase, no rules -- and stays long enough to read. */
+#fish-note{
+  position:fixed;z-index:5;left:50%;top:50%;transform:translate(-50%,-50%);
+  width:max-content;max-width:calc(100vw - 13rem);
+  display:flex;flex-direction:column;align-items:center;gap:.5rem;text-align:center;
+  pointer-events:none;opacity:0;visibility:hidden;
+}
+#fish-note b{
+  font-family:var(--f-display);font-weight:600;line-height:1.05;
+  font-size:clamp(1.4rem,4.4vw,3.4rem);letter-spacing:.02em;color:#F6FCFD;
+  text-shadow:0 0 .5em rgba(155,226,236,.45),0 .06em .5em rgba(0,10,18,.9);
+}
+#fish-note span{
+  font-family:var(--f-mono);font-size:.72rem;letter-spacing:.12em;
+  color:rgba(242,250,251,.86);text-shadow:0 1px 8px rgba(0,10,18,.95);
+}
+#fish-note.on{visibility:visible;animation:zone-card 4.2s linear both;}
 /* the surface HUD's own lesson waits while a zone is being named */
 body.zone-on #look-hint{opacity:0;}
 @media(prefers-reduced-motion:reduce){
+  #fish-note.on{animation:zone-fade 4.2s linear both !important;}
   #zone-card.on{animation:zone-fade 2.4s linear both !important;}
   #zone-card.on b,#zone-card.on span::before,#zone-card.on span::after{animation:none !important;}
 }
 @keyframes zone-fade{0%{opacity:0}12%,80%{opacity:1}100%{opacity:0}}
 @media(max-width:600px){
-  #zone-card{max-width:calc(100vw - 12rem);}
+  #zone-card,#fish-note{max-width:calc(100vw - 12rem);}
+  #fish-note span{font-size:.62rem;letter-spacing:.08em;}
   #zone-card small{font-size:.54rem;letter-spacing:.34em;margin-right:-.34em;}
   #zone-card span{font-size:.62rem;letter-spacing:.1em;gap:.5rem;}
 }
@@ -872,6 +893,7 @@ body.hint-send #fish{opacity:.62; transform:translateX(14px);}
 <div id="hit" title="pick a file"></div>
 <div id="explore-status" role="meter" aria-label="Depth" aria-valuemin="0" hidden></div>
 <div id="zone-card" role="status" aria-live="polite"><small>entering</small><b></b><span></span></div>
+<div id="fish-note" role="status" aria-live="polite"><b>every fish is a file</b><span>the bigger the file, the deeper it swims</span></div>
 <div id="move-help"><span class="cmd"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd><b>walk</b></span><span class="cmd"><kbd>Shift</kbd><b>sprint</b></span></div>
 <div id="travel" role="group" aria-label="Explore the ocean">
   <button id="dive" type="button">Dive · Space</button>

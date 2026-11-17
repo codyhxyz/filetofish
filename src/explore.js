@@ -12,6 +12,7 @@ export function mountExploration(host, { sea, isBlocked, onDepth, onCatch }) {
       :host{background:transparent;cursor:crosshair;}
       #depth,#place,#legend,#stats,#keys,#card,#net,
       #talk-choice,#talk-mute{display:none!important;}
+      :host(.carding) #action{visibility:hidden;}
       :host(:not(.looking)) #cross,:host(.jumping) #cross{display:none!important;}
       :host(.looking) #cross{opacity:.7;}
       #action{bottom:29%;font-size:.7rem;}
@@ -26,7 +27,7 @@ export function mountExploration(host, { sea, isBlocked, onDepth, onCatch }) {
   const dive = $("#dive"), view = $("#view"), up = $("#swim-up"), down = $("#swim-down");
   const stick = $("#move-stick"), knob = $("#move-knob"), status = $("#explore-status");
   const fast = $("#swim-fast");
-  const card = $("#zone-card");
+  const card = $("#zone-card"), note = $("#fish-note");
   /* On a touch screen the keyboard hints are noise and the view follows the
      water: first person on the dock, third person once you are in. */
   const touch = !!globalThis.matchMedia?.("(pointer:coarse)").matches;
@@ -88,11 +89,16 @@ export function mountExploration(host, { sea, isBlocked, onDepth, onCatch }) {
      of the screen, once -- the zone only changes when you are HOLD metres
      clear of the line, so the bob of a swim along a boundary is not a crossing,
      and a zone that has just been announced waits AGAIN ms to be announced
-     again, so dithering between two is not a fanfare every few seconds. */
+     again, so dithering between two is not a fanfare every few seconds.
+
+     The first time in, once that first zone's name has cleared, the water says
+     what the fish are. The cards take turns: nothing new lands while one is
+     up, a crossing made during the fish note waits for it, and the talk
+     button keeps out of the way until the middle of the screen is free. */
   const gauge = (() => {
     const HOLD = 2, AGAIN = 8000;
     let scale = 0, zset = null, shown = -1, you = null, read = null, label = null;
-    let zone = -1, said = new Map();
+    let zone = -1, said = new Map(), pending = false;
     const zoneAt = d => {
       let k = 0;
       for (let i = 1; i < zset.length; i++) if (d >= zset[i].top) k = i;
@@ -108,9 +114,8 @@ export function mountExploration(host, { sea, isBlocked, onDepth, onCatch }) {
     return (depth, floor, zones = [], swimming = false, blocked = false) => {
       status.hidden = depth === false;
       if (depth === false) {
-        zone = -1; said = new Map();
-        card.classList.toggle("on", false);
-        document.body.classList.toggle("zone-on", false);
+        zone = -1; said = new Map(); pending = false;
+        cards.clear();
         return;
       }
       floor = Math.max(floor || 0, depth, 1);
@@ -142,10 +147,15 @@ export function mountExploration(host, { sea, isBlocked, onDepth, onCatch }) {
         if (next !== zone) {
           zone = next; place(); shown = -1;
           const now = performance.now();
+          pending = false;
           if (!blocked && !(now - said.get(next) < AGAIN)) {
-            said.set(next, now);
-            announce(zset[next]);
+            if (cards.noteOn) pending = true;
+            else { said.set(next, now); cards.zone(zset[next]); }
           }
+        }
+        if (!blocked && cards.free()) {
+          if (pending) { pending = false; said.set(zone, performance.now()); cards.zone(zset[zone]); }
+          else cards.maybeNote();
         }
       }
       const m = Math.round(depth);
@@ -157,22 +167,52 @@ export function mountExploration(host, { sea, isBlocked, onDepth, onCatch }) {
       }
     };
   })();
-  /* the title card: restarting the animation is a class off, a reflow, and
-     the class back on, so a second crossing replays it from the top */
-  function announce(z) {
-    card.setAttribute("data-zone", z.name.toLowerCase());
-    card.querySelector("b").textContent = z.name;
-    card.querySelector("span").textContent = z.range;
-    card.classList.toggle("on", false);
-    void card.offsetWidth;
-    card.classList.toggle("on", true);
-    document.body.classList.toggle("zone-on", true);
-  }
-  card.addEventListener("animationend", e => {
-    if (e.target !== card || e.pseudoElement) return;   // the rules finishing is not the card
-    card.classList.toggle("on", false);
-    document.body.classList.toggle("zone-on", false);
-  });
+  /* the middle of the screen holds one card at a time. A title card restarts
+     with a class off, a reflow, and the class back on, so a second crossing
+     replays it from the top; after either card goes, a GAP of clear water
+     before the next one may land. */
+  const cards = (() => {
+    const GAP = 700;
+    let cardOn = false, noteOn = false, noteDue = true, freeAt = 0;
+    const sync = () => {
+      const on = cardOn || noteOn;
+      document.body.classList.toggle("zone-on", on);
+      host.classList.toggle("carding", on);
+    };
+    const end = (el, done) => e => {
+      if (e.target !== el || e.pseudoElement) return;   // the rules finishing is not the card
+      el.classList.toggle("on", false);
+      done();
+      freeAt = performance.now() + GAP;
+      sync();
+    };
+    card.addEventListener("animationend", end(card, () => { cardOn = false; }));
+    note.addEventListener("animationend", end(note, () => { noteOn = false; noteDue = false; }));
+    return {
+      get noteOn() { return noteOn; },
+      free: () => !cardOn && !noteOn && performance.now() >= freeAt,
+      zone(z) {
+        card.setAttribute("data-zone", z.name.toLowerCase());
+        card.querySelector("b").textContent = z.name;
+        card.querySelector("span").textContent = z.range;
+        card.classList.toggle("on", false);
+        void card.offsetWidth;
+        card.classList.toggle("on", true);
+        cardOn = true; sync();
+      },
+      maybeNote() {
+        if (!noteDue) return;
+        note.classList.toggle("on", true);
+        noteOn = true; sync();
+      },
+      /* surfacing mid-note means it was not read: it plays on the next dive */
+      clear() {
+        card.classList.toggle("on", false);
+        note.classList.toggle("on", false);
+        cardOn = noteOn = false; freeAt = 0; sync();
+      },
+    };
+  })();
   const act = fn => () => { if (!isBlocked() && !talking()) fn(); };
   dive.addEventListener("click", act(() => api.beginJump()));
   view.addEventListener("click", act(() => api.toggleView()));
