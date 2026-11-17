@@ -1947,7 +1947,7 @@ function disposeWorld() {
   world = null;
 }
 
-function buildWorld(files, label) {
+function buildWorld(files, label, prefix = "") {
   disposeWorld();
 
   /* Fit the water column to the drive's own weight range, and the bleach to
@@ -2137,7 +2137,7 @@ function buildWorld(files, label) {
   const reach = meshReach(maxScale);
 
   world = { files, places, points, haze, insts, grid, GRID, radius, bigs, reach,
-            cut: 0, cutBig: 0, cutT: 0, cutBigT: 0,
+            cut: 0, cutBig: 0, cutT: 0, cutBigT: 0, prefix,
             bytes: files.reduce((a, f) => a + f.size, 0) };
   net.clear(); syncNet();
   buildGauge();
@@ -2338,18 +2338,23 @@ const nearKelp = () => phase === "dock" &&
 const atDockEdge = () => phase === "dock" && world &&
   cam.pos.z - guide.root.position.z < -0.32;
 function syncAction() {
-  let label = "";
+  let label = "", what = "";
   if (phase === "dock" && !talkMode) {
     if (!embedded && atDockEdge()) label = "jump in";
     else if (nearKelp()) label = introSeen ? "talk to kelp" : "say hello to kelp";
   } else if (phase === "ocean" && !talkMode && aimed && !aimed.dead) {
-    label = "talk to " + fishName(aimed).toLowerCase();   // the same verb kelp gets
+    /* the same verb kelp gets, and then the file itself. Embedded, this button
+       is the only thing on screen that says what you are looking at, so it
+       says where the fish is from, not what kind of fish it drew */
+    label = "talk to "; what = tailPath(shownPath(aimed), 44);
   }
-  if (label === actionLabel) return;
-  actionLabel = label;
-  elAction.hidden = !label;
-  elAction.setAttribute("aria-label", label ? "Press E to " + label : "");
+  const key = label + what;
+  if (key === actionLabel) return;
+  actionLabel = key;
+  elAction.hidden = !key;
+  elAction.setAttribute("aria-label", key ? "Press E to " + key : "");
   elAction.querySelector("span").textContent = label;
+  elAction.querySelector("i").textContent = what;     // a path keeps its own case
 }
 function greetKelp() {
   if (!nearKelp() || isBlocked()) return;
@@ -2717,6 +2722,18 @@ if (!embedded) $("#net-clear").addEventListener("click", () => {
    demoted to where it belongs -- a button inside the tally. */
 const esc = s => s.replace(/[<&]/g, c => (c === "<" ? "&lt;" : "&amp;"));
 const fullPath = f => (f.path ? f.path + "/" : "") + f.name;
+/* where a fish is from, spelled from the folder you opened. A picked directory
+   scans to paths below itself, so its own name goes back on the front */
+const shownPath = f => world.prefix + fullPath(f);
+/* a path that has to stay short loses its front, a whole folder at a time:
+   the file's own name is at the end, and the end is the part you need */
+function tailPath(p, max) {
+  if (p.length <= max) return p;
+  const seg = p.split("/");
+  let out = seg.pop();
+  while (seg.length && out.length + seg[seg.length - 1].length + 3 <= max) out = seg.pop() + "/" + out;
+  return seg.length ? "\u2026/" + out : out;
+}
 
 function openHaul() {
   if (embedded) return;
@@ -2822,7 +2839,7 @@ if (!embedded) $("#conf-yes").addEventListener("click", async e => {
 /* ============================================================ HUD */
 const elYou = $("#you"), elYouT = elYou.querySelector("i"), elYouS = elYou.querySelector("s");
 const elPlaceN = $("#place-n"), elPlaceS = $("#place-s");
-const elCardN = $("#c-nm"), elCardF = $("#c-fn"), elCardP = $("#c-pa"), elCardA = $("#c-act");
+const elCardD = $("#c-dir"), elCardN = $("#c-nm"), elCardF = $("#c-fn"), elCardA = $("#c-act");
 
 /* The gauge is a ruler, drawn vertically, in bytes.
 
@@ -3061,7 +3078,7 @@ function fishLines(f) {
   const heavier = school.filter(g => g.size > f.size).length;
   const twins = world.files.filter(g => g !== f && !g.dead && g.name === f.name && g.size === f.size).length;
   const share = world.bytes ? f.size / world.bytes : 0;
-  const where = f.path ? f.path + "/" : "the root";
+  const where = world.prefix + (f.path ? f.path + "/" : "") || "the root";
   const out = [`i'm ${f.name}, ${KIND[f.fam]}. i weigh ${fmtBytes(f.size)}.` +
     (share >= 0.01 ? ` that's ${Math.round(share * 100)}% of all the water here.` : "")];
   if (school.length < 2) out.push(`i swim alone in ${where}.`);
@@ -3177,9 +3194,12 @@ function tapFish(e) {
 function updateCard() {
   body.classList.toggle("aimed", !!aimed);
   if (!aimed) return;
-  elCardN.textContent = fishName(aimed);
-  elCardF.textContent = aimed.name + "  ·  " + fmtBytes(aimed.size);
-  elCardP.textContent = (aimed.path || "the root") + "  ·  " + relAge(aimed.ageDays);
+  /* the file first, whole: its folders, then its name. The species is what
+     the file drew, so it goes underneath with the rest of the facts */
+  const dir = world.prefix + (aimed.path ? aimed.path + "/" : "");
+  elCardD.textContent = dir;
+  elCardN.textContent = aimed.name;
+  elCardF.textContent = fishName(aimed) + "  ·  " + fmtBytes(aimed.size) + "  ·  " + relAge(aimed.ageDays);
   const inNet = net.has(aimed);
   elCardA.textContent = inNet ? "in the net · click to let it go" : "click to net it";
   $("#card").classList.toggle("netted", inNet);
@@ -3663,7 +3683,7 @@ async function openReal() {
     const files = await scanHandle(root, progress);
     elScan.hidden = true;
     if (!files.length) { openIntro(false); return; }
-    buildWorld(files, root.name);
+    buildWorld(files, root.name, root.name + "/");
     say(phase === "dock" ? "the water is ready · walk to the edge"
       : (canDelete ? "net a fish, then let it go for good" : "read only · nothing can be deleted"));
   } else {

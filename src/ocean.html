@@ -96,18 +96,16 @@ body.aimed #cross{opacity:.9;}
 
 #card{
   left:50%; top:calc(50% + 2.2rem); transform:translateX(-50%);
-  min-width:16rem; max-width:min(90vw,30rem); text-align:center;
+  min-width:16rem; max-width:min(92vw,40rem); text-align:center;
   opacity:0; transition:opacity .14s ease;
 }
 body.aimed #card{opacity:1;}
-#card .nm{font-family:var(--f-display); font-size:1.15rem; letter-spacing:-.01em; color:#fff; line-height:1.2;}
+/* the path is the headline: whole, in its own case, wrapped rather than cut */
+#card .nm{font-size:.86rem; letter-spacing:.01em; line-height:1.45; color:rgba(226,242,248,.72); overflow-wrap:anywhere;}
+#card .nm b{font-weight:400; color:#fff;}
 #card .fn{
-  font-size:.62rem; letter-spacing:.08em; margin-top:.34rem; color:rgba(226,242,248,.85);
+  font-size:.58rem; letter-spacing:.08em; margin-top:.34rem; color:rgba(214,238,244,.6);
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
-}
-#card .pa{
-  font-size:.52rem; letter-spacing:.14em; margin-top:.22rem; color:rgba(214,238,244,.42);
-  text-transform:uppercase; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
 }
 #card .act{
   margin-top:.5rem; font-size:.5rem; letter-spacing:.2em; text-transform:uppercase;
@@ -120,6 +118,7 @@ body.aimed #card{opacity:1;}
 #action{
   position:fixed; z-index:4; left:50%; bottom:clamp(2.2rem,8vh,5rem);
   transform:translateX(-50%); padding:.65rem 1rem;
+  width:max-content; max-width:92vw;
   font-family:var(--f-mono); font-size:.62rem; letter-spacing:.16em; text-transform:uppercase;
   color:#12222A; background:#FFC49A; border:1px solid rgba(255,255,255,.55);
   animation:actionPulse 2.2s ease-in-out infinite;
@@ -128,6 +127,8 @@ body.aimed #card{opacity:1;}
 /* underwater it names the fish in your sights, and stands clear of the net bar */
 body:not(.dock) #action{bottom:calc(clamp(1rem,3vh,2rem) + 4.2rem);}
 #action kbd{font:inherit; margin-right:.55rem; padding:.08rem .32rem; border:1px solid rgba(18,34,42,.45);}
+/* a file path is case-sensitive and long: its own case, tight, free to wrap */
+#action i{font-style:normal; text-transform:none; letter-spacing:.02em; overflow-wrap:anywhere;}
 @keyframes actionPulse{
   0%,100%{opacity:.68; transform:translateX(-50%) translateY(0);}
   50%{opacity:1; transform:translateX(-50%) translateY(-3px);}
@@ -350,13 +351,12 @@ body.fishtalk #cross,body.fishtalk #card{opacity:0;}
 
 <div class="hud" id="cross"></div>
 <div class="hud" id="card">
-  <div class="nm" id="c-nm"></div>
+  <div class="nm"><span id="c-dir"></span><b id="c-nm"></b></div>
   <div class="fn" id="c-fn"></div>
-  <div class="pa" id="c-pa"></div>
   <div class="act" id="c-act"></div>
 </div>
 
-<button id="action" type="button" aria-live="polite" hidden><kbd>E</kbd><span></span></button>
+<button id="action" type="button" aria-live="polite" hidden><kbd>E</kbd><span></span><i></i></button>
 
 <div id="net">
   <div class="n"><b id="net-n">0</b> in the net<s id="net-b"></s></div>
