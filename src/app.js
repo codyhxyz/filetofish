@@ -1392,6 +1392,7 @@ async function haul(files) {
   if (catchPending() || readingFiles || exploration?.phase === "jump") {
     say("finish this catch before opening another file"); return;
   }
+  if (exploration?.choosing()) return;           // the which-water question is up
   readingFiles = true;
   exploration?.clearInput();
   try {
@@ -1771,12 +1772,21 @@ exploration = mountExploration($("#exploration"), {
   isBlocked: movementBlocked,
   onDepth: setUnderwaterDepth,
   onCast: cast,
-  /* a fish caught by hand gets the same reveal as one off the line; its file
-     is not here to read, so where it lives and how big it is stand in */
-  onCatch(f) {
+  /* a fish caught by hand gets the same reveal as one off the line. One from
+     your own folder is read like any dropped file, so it is the fish that file
+     always is; a demo fish has no file, so where it lives and how big it is
+     stand in */
+  async onCatch(f) {
     if (catchPending() || readingFiles) return;
     unlock();
-    accept({ name: f.name, size: f.size, bytes: strBytes(`${f.path}/${f.name}|${f.size}`) });
+    if (!f.read) {
+      accept({ name: f.name, size: f.size, bytes: strBytes(`${f.path}/${f.name}|${f.size}`) });
+      return;
+    }
+    readingFiles = true;
+    try { accept(await readMeta(await f.read())); }
+    catch (e) { say("that file is not there any more"); throw e; }
+    finally { readingFiles = false; }
   },
 });
 document.body.classList.add("exploring");

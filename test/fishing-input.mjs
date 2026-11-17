@@ -8,7 +8,7 @@ const slice = (start, end) => source.slice(source.indexOf(start), source.indexOf
 let clear = 0, accepted = 0, resolveRead;
 const ctx = vm.createContext({
   catchPending: () => true, readingFiles: false,
-  exploration: { phase: "dock", clearInput: () => clear++ },
+  exploration: { phase: "dock", clearInput: () => clear++, choosing: () => false },
   say() {}, HAUL_CAP: 400,
   readMeta: () => new Promise(resolve => { resolveRead = resolve; }),
   accept: () => accepted++,
@@ -21,6 +21,10 @@ ctx.exploration.phase = "jump";
 await ctx.haul([{}]);
 assert.equal(clear, 0, "drop cannot start a catch during the dive");
 ctx.exploration.phase = "dock";
+ctx.exploration.choosing = () => true;
+await ctx.haul([{}]);
+assert.equal(clear, 0, "drop cannot start a catch under the which-water question");
+ctx.exploration.choosing = () => false;
 const first = ctx.haul([{}]);
 assert.equal(ctx.readingFiles, true, "file reads lock movement synchronously");
 await ctx.haul([{}]);

@@ -51,7 +51,7 @@ const source = fs.readFileSync(new URL("../src/explore.js", import.meta.url), "u
 const ctx = vm.createContext({
   document: doc, addEventListener: win.addEventListener.bind(win),
   oceanTemplate: "<style>body{}</style>",
-  performance: { now: () => now },
+  performance: { now: () => now }, setTimeout: fn => fn(),
   initOcean: (root, options) => { assert.equal(root, shadow); opts = options; return api; },
 });
 vm.runInContext(source, ctx);
@@ -220,4 +220,74 @@ frame();
 assert.equal(depths.at(-1), 0);
 assert.equal(mounted.getUnderwater(), false);
 assert(cameras.length > 0, "world camera drives sea projection");
-console.log("exploration shell: dive/return, panel ownership, two-finger axes, cancellation, depth and view");
+
+/* which water: Dive and Space only ask. An answer is what loads and jumps,
+   and a folder already down there is offered back without a second scan. */
+{
+  const el = $("#waters"), mine = $("#water-mine"), demo = $("#water-demo");
+  const cost = $("#water-mine-cost"), wnote = $("#waters-note");
+  const settle = () => new Promise(resolve => setImmediate(resolve));
+  let jumps = 0, demos = 0, scans = 0, folder;
+  Object.assign(api, {
+    drive: null,
+    loadDemo: () => { demos++; api.drive = { kind: "demo", label: "demo drive", count: 53304 }; },
+    loadFolder: async onScan => {
+      scans++;
+      if (!folder) return null;
+      onScan(12, "proj/src");
+      if (folder.count) api.drive = folder;
+      return folder;
+    },
+    dive: () => jumps++,
+  });
+  doc.hidden = false;
+  opts.onDive();
+  assert.equal(el.hidden, false, "diving asks which water");
+  assert.equal(mounted.choosing(), true);
+  assert.equal(opts.isBlocked(), true, "the question holds movement like any panel");
+  assert.equal(mounted.busy(), true);
+  assert.equal(cost.innerHTML, "pick a folder<br>nothing is uploaded");
+  assert.equal($("#water-other").hidden, true);
+  win.emit("keydown", { key: "Escape" });
+  assert.equal(el.hidden, true, "Esc stays on the dock");
+  assert.equal(opts.isBlocked(), false);
+  assert.equal(jumps + demos + scans, 0, "and nothing was loaded");
+
+  opts.onDive();
+  win.emit("keydown", { key: "2", repeat: true });
+  assert.equal(demos, 0, "a held key is not an answer");
+  win.emit("keydown", { key: "2" });
+  assert.deepEqual([demos, jumps, el.hidden], [1, 1, true], "2 loads the demo and jumps");
+  assert(demo.classes.has("chosen") && mine.classes.has("spent"), "the choice lands like a catch's");
+  win.emit("keydown", { key: "1" });
+  assert.equal(scans, 0, "the keys are dead once the question is answered");
+
+  opts.onDive();
+  assert(!demo.classes.has("chosen") && !mine.classes.has("spent"), "asking again starts clean");
+  mine.emit("click"); await settle();
+  assert.deepEqual([scans, jumps, el.hidden], [1, 1, false], "a cancelled picker is not an answer");
+  folder = { kind: "folder", label: "empty", count: 0 };
+  win.emit("keydown", { key: "1" }); await settle();
+  assert.deepEqual([scans, jumps, el.hidden], [2, 1, false]);
+  assert.match(wnote.textContent, /nothing in there but water/);
+  assert.equal($("#waters-n").textContent, "12", "the scan pane counts files");
+  assert.equal($("#waters-pick").hidden, false, "and hands back to the choice");
+  folder = { kind: "folder", label: "proj", count: 1234 };
+  mine.emit("click"); await settle();
+  assert.deepEqual([scans, jumps, el.hidden], [3, 2, true], "a real folder loads and jumps");
+
+  opts.onDive();
+  assert.equal(cost.querySelector("i").textContent, "proj", "the folder is offered back by name");
+  assert.match(cost.innerHTML, /1,234 files/);
+  assert.equal($("#water-other").hidden, false);
+  mine.emit("click");
+  assert.deepEqual([scans, jumps, el.hidden], [3, 3, true], "going back in does not rescan");
+  opts.onDive();
+  folder = { kind: "folder", label: "other", count: 7 };
+  $("#water-other").emit("click"); await settle();
+  assert.deepEqual([scans, jumps], [4, 4], "a different folder is one press away");
+  opts.onDive();
+  $("#water-stay").emit("click");
+  assert.deepEqual([jumps, el.hidden, mounted.choosing()], [4, true, false]);
+}
+console.log("exploration shell: dive/return, which water, panel ownership, two-finger axes, cancellation, depth and view");

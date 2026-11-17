@@ -31,7 +31,7 @@ root.host = host;
 doc.hidden = false;
 doc.body = new Element();
 doc.createElement = () => new Element();
-let renderers = 0, renderer, clock = 0, nextFrame, frameData, blocked = false;
+let renderers = 0, renderer, clock = 0, nextFrame, frameData, blocked = false, asks = 0, caught;
 class Renderer {
   constructor(options) { this.options = options; renderer = this; renderers++; }
   setClearColor(color, alpha) { this.alpha = alpha; }
@@ -54,6 +54,7 @@ const context = vm.createContext({ ...THREE, WebGLRenderer: Renderer,
 vm.runInContext(source, context);
 const ocean = context.initOcean(root, {
   embedded: true, isBlocked: () => blocked, onFrame: data => { frameData = data; },
+  onDive: () => asks++, onCatch: f => { caught = f; },
 });
 const tick = (count = 1) => {
   for (let i = 0; i < count; i++) { clock += 50; renderer.scenes = []; nextFrame(clock); }
@@ -69,7 +70,9 @@ const release = name => key(name, {}, "keyup");
 const snapshot = () => [...ocean.cam.pos.toArray(), ocean.cam.yaw, ocean.cam.pitch];
 
 tick();
-assert.equal(ocean.phase, "dock", "embedded demo loads without auto-diving even with ?demo");
+assert.equal(ocean.phase, "dock", "embedded never auto-dives, even with ?demo");
+assert.equal(ocean.drive, null, "the sea is empty until the player says what goes in it");
+assert.equal(ocean.dive(), false, "and there is no water to jump into yet");
 assert.equal(ocean.perspective, "first");
 assert.equal(ocean.player.root.visible, false);
 assert.equal(ocean.camera.position.y, ocean.cam.pos.y + 1.1);
@@ -103,6 +106,7 @@ assert.equal(ocean.cam.vel.length(), 0);
 before = snapshot(); tick(10);
 assert.deepEqual(snapshot(), before, "blocked state has no residual drift");
 assert.equal(ocean.beginJump(), false);
+assert.equal(asks, 0, "a blocked dive does not even ask");
 assert.equal(ocean.returnToDock(), false);
 ocean.setMove(1, 1); ocean.setVertical(1);
 blocked = false; key("w", { repeat: true }); tick(5);
@@ -128,8 +132,16 @@ assert.equal(ocean.phase, "dock");
 key(" ", { repeat: true });
 assert.equal(ocean.phase, "dock", "held dialogue Space cannot dive");
 release(" ");
-key(" ");
-assert.equal(ocean.phase, "jump", "Space dives from the back of the dock");
+assert.equal(asks, 0, "none of that asked which water");
+key(" "); release(" ");
+assert.equal(ocean.phase, "dock", "Space asks which water; it does not dive");
+assert.equal(asks, 1);
+assert.equal(ocean.loadDemo().kind, "demo");
+const demoWorld = ocean.loadDemo();
+assert.equal(ocean.drive, demoWorld, "the demo drive is built once and kept");
+assert(demoWorld.count > 50000);
+assert.equal(ocean.dive(), true, "the answer is what jumps");
+assert.equal(ocean.phase, "jump", "from the back of the dock");
 assert.equal(ocean.perspective, "third");
 assert.equal(ocean.returnToDock(), false, "return cannot interrupt dive");
 tick(4);
@@ -255,6 +267,9 @@ assert.equal(plants.visible, false, "plants are hidden above water");
 key(" ", { repeat: true });
 assert.equal(ocean.phase, "dock", "held jump key does not re-dive after return");
 release(" ");
+key(" "); release(" ");
+assert.equal(asks, 2, "a second dive asks again, with the demo still down there");
+assert.equal(ocean.phase, "dock");
 key("d"); tick(2); fire(win, "blur"); before = snapshot(); tick(5);
 assert.deepEqual(snapshot(), before);
 ocean.setMove(-1, 1); tick(2); doc.hidden = true;
@@ -275,7 +290,8 @@ doc.hidden = false;
 win.matchMedia = () => ({ matches: true });
 const reducedRoot = new Element(); reducedRoot.host = new Element();
 const quick = context.initOcean(reducedRoot, { embedded: true });
-quick.beginJump(); tick();
+assert.equal(quick.beginJump(), false, "no shell to ask, nothing chosen: no dive");
+quick.loadDemo(); quick.dive(); tick();
 assert.equal(quick.phase, "ocean", "reduced motion skips long jump animation");
 assert.equal(quick.guide.root.position.y, 1);
 const quietScene = renderer.scenes.find(scene => scene.getObjectByName("kelp-beds"));
@@ -409,3 +425,45 @@ doc.querySelector("#haul").hidden = false;
 key("Escape", { composedPath: () => [{ tagName: "BUTTON" }, doc] });
 assert.equal(doc.querySelector("#haul").hidden, true, "Escape closes standalone haul from focused controls");
 console.log("ocean integration: dock bounds, input ownership, blocking, Space edges, view, surface and renderer invariants passed");
+
+// The player's own folder: opened read-only, scanned, and the fish keep the
+// file behind them so a catch can read it. An empty folder leaves the water
+// alone, and a cancelled picker is not an answer.
+{
+  context.setTimeout = fn => fn();
+  const file = (name, size) => ({ kind: "file", name, getFile: async () => ({ name, size, lastModified: 0 }) });
+  const folder = (name, kids) => ({
+    kind: "directory", name, async *values() { yield* kids; },
+    getFileHandle: async wanted => kids.find(k => k.name === wanted),
+  });
+  let picked, asked;
+  win.showDirectoryPicker = () => {};
+  context.showDirectoryPicker = async options => {
+    asked = options;
+    if (!picked) throw Object.assign(new Error("cancelled"), { name: "AbortError" });
+    return picked;
+  };
+  const mineRoot = new Element(); mineRoot.host = new Element();
+  let mineCatch;
+  const mine = context.initOcean(mineRoot, { embedded: true, onCatch: f => { mineCatch = f; } });
+  assert.equal(await mine.loadFolder(() => {}), null, "cancelling the picker loads nothing");
+  assert.equal(mine.drive, null);
+  picked = folder("empty", []);
+  assert.equal((await mine.loadFolder(() => {})).count, 0);
+  assert.equal(mine.drive, null, "an empty folder is not a sea");
+  picked = folder("proj", [file("a.txt", 10), file("b.png", 4096),
+    folder("src", [file("main.js", 900), file("big.mov", 5e9)])]);
+  const progress = [];
+  const drive = await mine.loadFolder((n, path) => progress.push([n, path]));
+  assert.equal(asked.mode, "read", "the game never asks for the right to delete");
+  assert.deepEqual({ ...drive }, { kind: "folder", label: "proj", count: 4 });
+  assert.equal(mine.drive, drive);
+  assert.deepEqual(progress[0], [0, "proj"], "the scan reports before the first file");
+  assert.equal(progress.at(-1)[0], 4);
+  assert.equal(mine.loadDemo().kind, "demo", "the demo can replace a folder");
+  picked = folder("proj", [file("a.txt", 10)]);
+  assert.equal((await mine.loadFolder(() => {})).count, 1, "and a folder the demo");
+  assert.equal(mine.dive(), true);
+  delete win.showDirectoryPicker; delete context.showDirectoryPicker;
+  console.log("which water: empty until chosen, demo built once, folders read-only, cancel and empty load nothing");
+}

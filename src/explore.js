@@ -2,8 +2,11 @@ import oceanTemplate from "./ocean.html";
 import { initOcean } from "./ocean.js";
 
 /* Reuse the actual ocean, with its file-viewer UI isolated from the catch UI.
-   Embedded mode never opens folders or nets/deletes files. */
-export function mountExploration(host, { sea, isBlocked, onDepth, onCatch, onCast }) {
+   Embedded mode opens a folder read-only, and never nets or deletes files. */
+export function mountExploration(host, { sea, isBlocked: shellBlocked, onDepth, onCatch, onCast }) {
+  /* the which-water question holds everything the way any open panel does */
+  let choosing = false;
+  const isBlocked = () => shellBlocked() || choosing;
   const root = host.attachShadow({ mode: "open" });
   root.innerHTML = oceanTemplate
     .replace(/<title>[\s\S]*?<\/title>/, "")
@@ -43,6 +46,7 @@ export function mountExploration(host, { sea, isBlocked, onDepth, onCatch, onCas
     isBlocked,
     onCatch,
     onCast,
+    onDive: () => waters.ask(),
     onFrame(frame) {
       phase = frame.phase;
       underwater = frame.underwater;
@@ -220,6 +224,97 @@ export function mountExploration(host, { sea, isBlocked, onDepth, onCatch, onCas
   const act = fn => () => { if (!isBlocked() && !talking()) fn(); };
   dive.addEventListener("click", act(() => api.beginJump()));
 
+  /* Which water. The sea is empty until the player says what goes in it, so
+     Space and Dive only ask; an answer is what jumps. It asks on every dive,
+     and a folder that is already down there is offered back by name -- going
+     in again is one press, not another scan.
+
+     Focus goes to the panel, never a coin: the Space that opened this is still
+     held, and its keyup on a focused button would press it. 1 and 2 answer
+     from the keyboard instead, which is where the hands already are. */
+  const waters = (() => {
+    const el = $("#waters"), pick = $("#waters-pick"), scan = $("#waters-scan");
+    const mine = $("#water-mine"), demo = $("#water-demo"), other = $("#water-other");
+    const mineCost = $("#water-mine-cost"), note = $("#waters-note");
+    const PICK = "pick a folder<br>nothing is uploaded";
+    const count = n => n.toLocaleString("en");
+    let busy = false;                    // the browser's picker, a scan, or a choice landing
+    const show = pane => { pick.hidden = pane !== pick; scan.hidden = pane !== scan; };
+    const setBusy = on => { busy = on; el.classList.toggle("busy", on); };
+    const mark = (taken, left) => {
+      mine.classList.toggle("chosen", taken === mine); demo.classList.toggle("chosen", taken === demo);
+      mine.classList.toggle("spent", left === mine); demo.classList.toggle("spent", left === demo);
+    };
+    const kept = () => api.drive?.kind === "folder";
+    function offer() {
+      const d = api.drive;
+      if (kept()) {
+        mineCost.innerHTML = `<i></i>${count(d.count)} files`;
+        mineCost.querySelector("i").textContent = d.label;
+      } else mineCost.innerHTML = PICK;
+      other.hidden = !kept();
+      mark(null, null); show(pick);
+    }
+    function ask() {
+      if (choosing) return;
+      choosing = true;
+      /* a scan still running keeps its own pane: asking again watches it finish */
+      if (!busy) { note.textContent = ""; offer(); }
+      el.hidden = false;
+      document.exitPointerLock?.();
+      el.focus({ preventScroll: true });
+    }
+    function close() {
+      if (!choosing) return;
+      choosing = false; el.hidden = true;
+      canvas.focus({ preventScroll: true });
+    }
+    function go() { close(); api.dive(); }
+    async function folder() {
+      if (busy) return;
+      setBusy(true); note.textContent = "";
+      let d;
+      try {
+        d = await api.loadFolder((n, path) => {
+          show(scan);
+          $("#waters-n").textContent = count(n);
+          $("#waters-now").textContent = path;
+          $("#waters-fill").style.width = Math.min(100, n / 40000 * 100).toFixed(1) + "%";
+        });
+      } catch (e) {
+        note.textContent = "that folder would not open";
+        throw e;
+      } finally { setBusy(false); offer(); }
+      if (!d) return;                                   // the picker was cancelled
+      if (!d.count) { note.textContent = "nothing in there but water · try another"; return; }
+      if (choosing) go();           // closed mid-scan: it waits, and is offered by name
+    }
+    function chooseMine() {
+      if (busy) return;
+      if (kept()) go(); else folder();
+    }
+    function chooseDemo() {
+      if (busy) return;
+      /* building the drive holds the page for a moment: let the coin flare first */
+      setBusy(true); mark(demo, mine);
+      setTimeout(() => { api.loadDemo(); setBusy(false); go(); }, 60);
+    }
+    mine.addEventListener("click", chooseMine);
+    demo.addEventListener("click", chooseDemo);
+    other.addEventListener("click", folder);
+    $("#water-stay").addEventListener("click", close);
+    el.addEventListener("click", e => { if (e.target === el) close(); });
+    addEventListener("keydown", e => {
+      if (!choosing || e.repeat) return;
+      if (e.key === "Escape") { e.preventDefault(); close(); }
+      else if (e.key === "1") chooseMine();
+      else if (e.key === "2") chooseDemo();
+      else if (e.key === "ArrowLeft") mine.focus();
+      else if (e.key === "ArrowRight") demo.focus();
+    });
+    return { ask };
+  })();
+
   /* One thumb stick: drag inside it for a direction, let go to centre. Only the
      finger that started on it may steer it. */
   function thumbStick(el, knobEl, onMove) {
@@ -330,5 +425,6 @@ export function mountExploration(host, { sea, isBlocked, onDepth, onCatch, onCas
   return Object.assign(api, {
     getUnderwater: () => underwater,
     busy: () => isBlocked() || talking() || phase === "jump",
+    choosing: () => choosing,
   });
 }

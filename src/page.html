@@ -776,6 +776,155 @@ body.hint-send #fish{opacity:.62; transform:translateX(14px);}
   .slots{grid-template-columns:repeat(auto-fill,minmax(58px,1fr));}
   #dex-panel header{gap:.8rem;}
 }
+/* ---------------------------------------------------------------- which water
+   Diving asks first, every time: your own folder, or the demo drive. Nothing
+   is in the sea until you say. It speaks in the page's own voice -- a title
+   card's name over a mono rule, then the catch plate's glass coins: the same
+   size, different in character, each saying its own price out loud. */
+#waters{
+  position:fixed; inset:0; z-index:15; display:grid; place-items:center;
+  padding:clamp(1rem,4vh,2.4rem); overflow:hidden;
+  background:radial-gradient(ellipse at 50% 46%, rgba(5,26,33,.46) 0%, rgba(4,20,26,.82) 70%);
+  backdrop-filter:blur(5px); -webkit-backdrop-filter:blur(5px);
+  animation:dexin .28s ease;
+}
+/* hidden has to beat the display the panes and buttons set for themselves */
+#waters[hidden],#waters [hidden]{display:none !important;}
+#waters:focus{outline:none;}
+#waters .pane{
+  width:min(100%,36rem); display:flex; flex-direction:column; align-items:center; text-align:center;
+}
+#waters small{
+  font-family:var(--f-mono); font-size:.68rem; letter-spacing:.46em; text-transform:uppercase;
+  color:#FFD9A8; text-shadow:0 1px 10px rgba(0,10,18,.95); margin-right:-.46em;
+}
+#waters h2{
+  margin:.55rem 0 .8rem; font-weight:600; line-height:1; text-wrap:balance;
+  font-size:clamp(1.9rem,6.6vw,4.2rem); letter-spacing:-.02em; color:#F6FCFD;
+  text-shadow:0 0 .5em rgba(155,226,236,.45),0 .06em .5em rgba(0,10,18,.9);
+  animation:waters-name .8s cubic-bezier(.16,1,.3,1);
+}
+#waters h2 b{font-weight:600; font-variant-numeric:tabular-nums; color:#FFD9A8;}
+@keyframes waters-name{from{letter-spacing:.14em; filter:blur(6px); opacity:0}}
+#waters .rule{
+  display:flex; align-items:center; gap:.8rem; width:min(100%,26rem);
+  font-family:var(--f-mono); font-size:.72rem; letter-spacing:.16em; white-space:nowrap;
+  color:rgba(242,250,251,.86); text-shadow:0 1px 8px rgba(0,10,18,.95);
+}
+#waters .rule::before,#waters .rule::after{
+  content:""; flex:1; height:1px; min-width:1.2rem;
+  background:linear-gradient(to right,transparent,#FFD9A8);
+  animation:waters-rule .9s cubic-bezier(.16,1,.3,1); transform-origin:right;
+}
+#waters .rule::after{background:linear-gradient(to left,transparent,#FFD9A8); transform-origin:left;}
+@keyframes waters-rule{from{transform:scaleX(0)}}
+
+#waters .acts{
+  display:flex; gap:clamp(.8rem,6vw,3.4rem); justify-content:center; align-items:flex-start;
+  margin-top:clamp(1.4rem,4.5vh,2.4rem);
+}
+#waters .act{
+  display:flex; flex-direction:column; align-items:center; gap:.65rem;
+  width:clamp(7.6rem,38vw,11.5rem); text-align:center;
+  animation:waters-in .5s cubic-bezier(.16,1,.3,1) backwards;
+  transition:opacity .22s ease, transform .22s ease;
+}
+/* they arrive one after the other, so the question gets a beat before the answers */
+#waters .act:nth-child(1){animation-delay:.12s;}
+#waters .act:nth-child(2){animation-delay:.22s;}
+@keyframes waters-in{from{opacity:0; transform:translateY(12px)}}
+/* the catch plate's glass coin, a size up: this is the only thing on screen */
+#waters .ic{
+  position:relative; width:clamp(3.6rem,15vw,4.9rem); height:clamp(3.6rem,15vw,4.9rem);
+  border-radius:50%; display:grid; place-items:center; flex:0 0 auto;
+  border:1px solid; backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+  box-shadow:0 12px 26px -13px rgba(1,12,16,1);
+  transition:transform .16s cubic-bezier(.2,.9,.3,1.4), background .18s, border-color .18s, color .18s;
+}
+#waters .ic svg{
+  width:clamp(1.6rem,6.8vw,2.2rem); height:clamp(1.6rem,6.8vw,2.2rem); display:block;
+  transition:transform .24s cubic-bezier(.2,.9,.3,1.4);
+}
+#waters .ic kbd{
+  position:absolute; right:-.35rem; top:-.25rem; min-width:1.5em; text-align:center;
+  font:.6rem/1 var(--f-mono); padding:.2rem .3rem .16rem; color:#F2FAFB;
+  border:1px solid rgba(232,247,249,.5); border-bottom-width:2px; border-radius:.25rem;
+  background:rgba(5,29,39,.92);
+}
+#waters .vb{
+  font-size:clamp(.98rem,3.3vw,1.3rem); line-height:1.16; letter-spacing:-.01em;
+  color:rgba(240,251,253,.95); text-shadow:0 2px 12px rgba(4,30,40,.85);
+}
+#waters .cost{
+  font-family:var(--f-mono); font-size:clamp(.47rem,1.75vw,.56rem); letter-spacing:.15em;
+  text-transform:uppercase; line-height:1.5; color:rgba(228,244,246,.74);
+  text-shadow:0 1px 9px rgba(4,30,40,.96); transition:color .18s;
+  margin-top:-.3rem; max-width:100%; text-wrap:balance;
+}
+/* a folder keeps its own name, in its own case */
+#waters .cost i{
+  display:block; font-style:normal; text-transform:none; letter-spacing:.04em; font-size:1.25em;
+  color:#FFD9A8; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+/* my files: the one that is yours, so it is the solid one. The demo is the
+   page's own make-believe, and everything the page makes up is warm. */
+#water-mine .ic{background:rgba(233,247,250,.93); border-color:rgba(243,253,255,.95); color:#0B1E24;}
+#water-demo .ic{background:rgba(255,196,154,.14); border-color:rgba(255,196,154,.62); color:#FFD9A8;}
+#water-demo .vb{color:rgba(255,224,196,.96);}
+#water-demo .cost{color:rgba(255,201,154,.76);}
+#waters .act:hover .ic{transform:translateY(-3px);}
+#water-mine:hover .ic,#water-mine.chosen .ic{background:#fff; border-color:#fff;}
+#water-demo:hover .ic,#water-demo.chosen .ic{background:#FFC49A; border-color:#FFC49A; color:#0B1E24;}
+#waters .act:hover .cost{color:rgba(255,255,255,.9);}
+#water-demo:hover .cost{color:#FFD9A8;}
+#water-mine:hover svg{transform:translateY(-1.5px) scale(1.05);}
+#water-demo:hover svg{transform:translateX(2.5px);}
+#waters .act:active .ic{transform:translateY(1px) scale(.94);}
+#waters .act:focus-visible{outline:none;}
+#waters .act:focus-visible .ic{outline:2px solid #FFD9A8; outline-offset:4px;}
+/* the choice lands the way a catch's does: the one you took flares, the other falls away */
+#waters .act.chosen{pointer-events:none;}
+#waters .act.chosen .ic{animation:actpick .38s cubic-bezier(.2,.9,.3,1.4);}
+#waters .act.spent{opacity:0; transform:translateY(6px) scale(.92); pointer-events:none;}
+/* the folder picker is the browser's; while it is up, nothing here answers */
+#waters.busy .act:not(.chosen),#waters.busy #water-other{opacity:.4; pointer-events:none;}
+
+#waters .note{
+  min-height:1.2em; margin:1.2rem 0 0; font-family:var(--f-mono); font-size:.62rem;
+  letter-spacing:.14em; text-transform:uppercase; color:#FFC49A; text-shadow:0 1px 9px rgba(4,30,40,.96);
+}
+#waters .more{display:flex; flex-wrap:wrap; gap:.6rem; justify-content:center; margin-top:.9rem;}
+#waters .more button{
+  display:flex; align-items:center; gap:.5rem; min-height:2rem; padding:.35rem .6rem;
+  font-family:var(--f-mono); font-size:.58rem; letter-spacing:.14em; text-transform:uppercase;
+  color:rgba(226,242,244,.62); border:1px solid rgba(190,230,236,.24);
+  transition:color .15s, border-color .15s, background .15s;
+}
+#waters .more button:hover{color:#fff; border-color:rgba(255,217,168,.72); background:rgba(6,26,33,.78);}
+#waters .more kbd{
+  font:inherit; font-size:.9em; line-height:1; letter-spacing:0; padding:.16rem .28rem .12rem;
+  border:1px solid rgba(232,247,249,.4); border-bottom-width:2px; border-radius:.2rem;
+}
+/* sounding: the count is the headline, the path under it is where the lead is now */
+#waters .bar{width:min(100%,22rem); margin-top:.2rem;}
+#waters .now{
+  width:100%; min-height:1.3em; margin:.8rem 0 0; font-family:var(--f-mono); font-size:.62rem;
+  letter-spacing:.06em; color:rgba(238,250,252,.78); text-shadow:0 1px 10px rgba(4,30,40,.9);
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+#waters .fine{
+  margin:1.1rem 0 0; font-family:var(--f-mono); font-size:.5rem; letter-spacing:.18em;
+  text-transform:uppercase; color:rgba(242,250,251,.55);
+}
+@media (pointer:coarse){
+  #waters kbd{display:none;}
+  #waters .more button{min-height:2.75rem; padding:.5rem .9rem;}
+}
+@media (max-height:440px){
+  #waters h2{font-size:1.6rem; margin:.3rem 0 .5rem;}
+  #waters .acts{margin-top:.8rem;}
+  #waters .note{margin-top:.5rem;}
+}
 @media (prefers-reduced-motion:reduce){
   *{transition-duration:.001ms !important; animation:none !important;}
   /* a stagger with no duration is just three late arrivals */
@@ -1094,6 +1243,48 @@ body.hint-send #fish{opacity:.62; transform:translateX(14px);}
 
 <div id="drop"><span>let go</span></div>
 <input type="file" id="file" multiple hidden>
+
+<!-- which water: asked at the edge of the dock, before every dive -->
+<div id="waters" role="dialog" aria-modal="true" aria-labelledby="waters-t" tabindex="-1" hidden>
+  <div class="pane" id="waters-pick">
+    <small>before you dive</small>
+    <h2 id="waters-t">what's in the water?</h2>
+    <div class="rule">every fish is a file</div>
+    <div class="acts" role="group" aria-label="choose what fills the ocean">
+      <button id="water-mine" class="act" type="button">
+        <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+          stroke-linejoin="round" stroke-linecap="round" aria-hidden="true">
+          <path d="M3 7.2c0-1 .8-1.8 1.8-1.8h4.3l2 2.2h8.1c1 0 1.8.8 1.8 1.8v8.2c0 1-.8 1.8-1.8 1.8H4.8c-1 0-1.8-.8-1.8-1.8z"/>
+          <path d="M6.6 14.4c1.2-.9 2.4-.9 3.6 0s2.4.9 3.6 0 2.4-.9 3.6 0"/>
+        </svg><kbd>1</kbd></span>
+        <span class="vb">my files</span>
+        <span class="cost" id="water-mine-cost">pick a folder<br>nothing is uploaded</span>
+      </button>
+      <button id="water-demo" class="act" type="button">
+        <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+          stroke-linejoin="round" stroke-linecap="round" aria-hidden="true">
+          <path d="M6 12l5.25-4.5H18l3 4.5-3 4.5h-6.75z"/>
+          <path d="M6 12 3 8.25v7.5z"/>
+          <circle cx="17.1" cy="11.3" r=".6" fill="currentColor"/>
+        </svg><kbd>2</kbd></span>
+        <span class="vb">demo world</span>
+        <span class="cost">a made-up drive<br>nothing of yours</span>
+      </button>
+    </div>
+    <p class="note" id="waters-note" role="status"></p>
+    <div class="more">
+      <button id="water-other" type="button" hidden>open a different folder</button>
+      <button id="water-stay" type="button">stay on the dock <kbd>Esc</kbd></button>
+    </div>
+  </div>
+  <div class="pane" id="waters-scan" role="status" hidden>
+    <small>sounding the bottom</small>
+    <h2><b id="waters-n">0</b> files</h2>
+    <div class="bar"><i id="waters-fill"></i></div>
+    <p class="now" id="waters-now"></p>
+    <p class="fine">this happens entirely on your machine</p>
+  </div>
+</div>
 
 <div id="dex" hidden>
   <div id="dex-panel" role="dialog" aria-modal="true" aria-label="Collection">

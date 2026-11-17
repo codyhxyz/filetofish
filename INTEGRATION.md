@@ -18,6 +18,9 @@ The separate `/ocean/` page remains the folder viewer.
 | Import a file | File, or drop files | File |
 
 Walking cannot take the player off the dock. Only an explicit dive enters the water.
+Every dive first asks which water: **my files** (pick a folder) or **demo world**.
+Nothing is in the sea until one is chosen; Esc stays on the dock. `1` and `2` answer from the keyboard.
+A folder already loaded is offered back by name, so diving again does not rescan it.
 The dive selects third person. The view button works on the dock and underwater.
 Camera changes preserve the player position and heading.
 Underwater, forward movement follows the gaze. The camera does not roll.
@@ -62,14 +65,15 @@ The existing water-light changes remain intact.
 
 ## Deliberate limits
 
-- Underwater animals are synthetic scenery from the ocean demo, not the player's saved collection.
+- Underwater animals are the chosen folder's files, or the demo drive. They are not the player's saved collection.
+- Catching a fish from a real folder reads that file like a dropped one, so it is the same fish. A demo fish stands in with its path and size.
 - Fish creates a sample catch. It does not capture the animal under the cursor.
 - The Dex still stores one best record per species, not every historical catch.
-- Folder selection, netting, and permanent file deletion remain exclusive to `/ocean/`.
+- The dive opens a folder read-only. Netting and permanent file deletion remain exclusive to `/ocean/`.
 - The wave slider changes surface shading, not physical waves or dock motion.
 
 These limits keep collectible actions separate from filesystem actions.
-No permission prompt or file deletion occurs when the player dives.
+The only permission the dive ever asks for is read access to the folder the player picks. It cannot delete.
 
 ## Automated checks
 

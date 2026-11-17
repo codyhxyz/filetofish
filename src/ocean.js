@@ -299,7 +299,9 @@ function scanFileList(list) {
     const rel = f.webkitRelativePath || f.name;
     const parts = rel.split("/");
     const name = parts.pop();
-    files.push(makeRecord(name, parts.join("/"), f.size, f.lastModified, null));
+    const rec = makeRecord(name, parts.join("/"), f.size, f.lastModified, null);
+    rec.file = f;                // no handle here, but the file itself can still be read
+    files.push(rec);
     if (files.length >= MAX_FILES) break;
   }
   return files;
@@ -2398,6 +2400,13 @@ function hitKelp(e) {
   return kelpRay.intersectObject(guide.kelp, true).length > 0;
 }
 function beginJump() {
+  if (phase !== "dock" || isBlocked()) return false;
+  /* embedded, the edge is where you say which water. Nothing is loaded until
+     the shell has asked, and it answers through loadDemo / loadFolder + dive */
+  if (embedded) { clearInput(); options.onDive?.(); return false; }
+  return dive();
+}
+function dive() {
   if (phase !== "dock" || !world || isBlocked()) return false;
   audio();
   closeTalk();
@@ -3132,7 +3141,11 @@ $("#catch-it").addEventListener("click", e => {
   e.stopPropagation();
   const f = talkFish;
   closeTalk();
-  if (f && !f.dead) options.onCatch?.({ name: f.name, size: f.size, path: f.path });
+  /* a fish from a real folder still has its file behind it, so the catch can
+     be the fish that file always is; a demo fish has only its name and size */
+  const read = f?.dir ? () => f.dir.getFileHandle(f.name).then(h => h.getFile())
+    : f?.file ? () => Promise.resolve(f.file) : null;
+  if (f && !f.dead) options.onCatch?.({ name: f.name, size: f.size, path: f.path, read });
 });
 $("#let-be").addEventListener("click", e => { e.stopPropagation(); closeTalk(); });
 
@@ -3759,13 +3772,66 @@ if (!embedded) window.ocean = {
   ARCH, net, syncNet, pick, guide, openIntro, advance, get line() { return line; },
 };
 
+/* ============================================================ which water
+   Embedded, the sea under the dock is empty until the player says what goes
+   in it: their own folder, or the demo drive. The shell asks (options.onDive),
+   loads one of these, then calls dive(). A folder is opened read-only -- the
+   game has no net, so it never asks for the right to delete anything. */
+let drive = null;                 // what the built world is: { kind, label, count }
+function loadDemo() {
+  if (drive?.kind !== "demo") {
+    const built = buildWorld(buildDemo(), "demo drive");
+    drive = { kind: "demo", label: "demo drive", count: built.files.length };
+  }
+  return drive;
+}
+let folderInput = null, folderPicked = null;
+function pickFileList() {
+  if (!folderInput) {
+    folderInput = document.createElement("input");
+    folderInput.type = "file"; folderInput.hidden = true;
+    folderInput.webkitdirectory = true; folderInput.multiple = true;
+    root.appendChild(folderInput);
+    folderInput.addEventListener("change", () => folderPicked?.([...folderInput.files]));
+    folderInput.addEventListener("cancel", () => folderPicked?.([]));
+  }
+  return new Promise(resolve => {
+    folderPicked = list => { folderPicked = null; folderInput.value = ""; resolve(list); };
+    folderInput.click();
+  });
+}
+/* resolves null when the picker is cancelled, a drive with count 0 when the
+   folder had nothing in it (and the old water is left alone), or the new drive */
+async function loadFolder(onScan) {
+  let files, label, prefix = "";
+  if (canPick) {
+    let dir;
+    try { dir = await showDirectoryPicker({ mode: "read" }); }
+    catch (e) { if (e.name === "AbortError") return null; throw e; }
+    label = dir.name; prefix = dir.name + "/";
+    onScan(0, label);
+    files = await scanHandle(dir, onScan);
+  } else {
+    const list = await pickFileList();
+    if (!list.length) return null;
+    label = (list[0].webkitRelativePath || "").split("/")[0] || "your files";
+    onScan(list.length, label);
+    await new Promise(r => setTimeout(r, 30));     // let the count paint before the layout
+    files = scanFileList(list);
+  }
+  if (!files.length) return { kind: "folder", label, count: 0 };
+  canDelete = false;
+  buildWorld(files, label, prefix);
+  return drive = { kind: "folder", label, count: files.length };
+}
+
 if (AUTO_DEMO) buildWorld(buildDemo(), "demo drive");
 else stageDock();
-if (embedded) buildWorld(buildDemo(), "ambient demo");
 requestAnimationFrame(frame);
 return {
   cam, camera, player, guide,
   get phase() { return phase; }, get perspective() { return perspective; },
+  get drive() { return drive; }, loadDemo, loadFolder, dive,
   beginJump, returnToDock, clearInput, setMove, setVertical, greetKelp,
   get sprinting() { return sprint || keys.has("shift"); },
 };
