@@ -381,6 +381,29 @@ doc.hidden = false;
   // A whole crossfade takes at least ~170 ms of game time, even on the budget edge.
   assert(worst < 0.3, `no fish changes tier by more than 0.3 in one 50 ms frame (worst ${worst.toFixed(3)})`);
 }
+// Sprint is the old top speed at once, then builds while it is held: 2.5x by
+// five seconds, 5x at ten, and no more after. Letting go starts it over.
+{
+  const T = win.ocean.TUNE, top = T.swimSpeed * T.boost;
+  const speed = () => standalone.cam.vel.length() / top;
+  standalone.clearInput();
+  standalone.setMove(0, 1, true);
+  tick(20);                                  // 1 s: the body has caught up
+  assert(speed() > 0.95 && speed() < 1.3, `sprint opens at the old top speed (${speed().toFixed(2)}x)`);
+  tick(80);                                  // 5 s
+  assert(speed() > 2.3 && speed() <= 2.5, `2.5x by five seconds (${speed().toFixed(2)}x)`);
+  tick(100);                                 // 10 s
+  assert(speed() > 4.7 && speed() <= 5, `5x at ten seconds (${speed().toFixed(2)}x)`);
+  tick(100);                                 // 15 s
+  assert(Math.abs(speed() - 5) < 0.01, `and it holds there (${speed().toFixed(2)}x)`);
+  standalone.setMove(0, 1, false);
+  tick(40);
+  assert(Math.abs(speed() - 1 / T.boost) < 0.01, "letting go drops back to a swim");
+  standalone.setMove(0, 1, true);
+  tick(20);
+  assert(speed() < 1.3, `the build starts over (${speed().toFixed(2)}x)`);
+  standalone.clearInput();
+}
 assert(standalone.guide.root.position.y < 0, "standalone retains its underwater guide berth");
 doc.querySelector("#haul").hidden = false;
 key("Escape", { composedPath: () => [{ tagName: "BUTTON" }, doc] });

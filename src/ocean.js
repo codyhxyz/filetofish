@@ -62,6 +62,10 @@ const TUNE = {
   /* --- feel -------------------------------------------------------------- */
   swimSpeed: embedded ? 10 : 52,
   boost: embedded ? 2.6 : 3.4,
+  /* Sprint starts at boost and keeps building while it is held: this many
+     times boost after surgeTime seconds, half of that at the halfway mark. */
+  surge: 5,
+  surgeTime: 10,
   /* In the water the diver is drawn at this multiple of his dock size. At 1x
      he is two units long -- smaller than a 1 MB fish -- and reads as a toy
      among the files. Scaled, he outsizes the everyday small files and is still
@@ -2208,6 +2212,7 @@ const cam = {
 const keys = new Set();
 const down = new Set(); // physical key edges survive clearInput until keyup
 let moveX = 0, moveZ = 0, vertical = 0, sprint = false, fling = 0;
+let sprintHeld = 0;     // seconds of unbroken sprinting in the water
 function isBlocked() {
   return !!talkMode || !!options.isBlocked?.() || !$("#haul").hidden ||
     !$("#confirm").hidden || !$("#scan").hidden;
@@ -3266,7 +3271,6 @@ function frame(nowMs) {
   cam.yaw += (cam.yawT - cam.yaw) * kl;
   cam.pitch += (cam.pitchT - cam.pitch) * kl;
 
-  const boost = keys.has("shift") || sprint ? TUNE.boost : 1;
   let fx = 0, fz = 0, fy = 0;
   if (!blocked && phase !== "jump") {
     fx = moveX; fz = moveZ; fy = phase === "ocean" ? vertical : 0;
@@ -3279,6 +3283,13 @@ function frame(nowMs) {
     if (phase === "ocean" && keys.has("arrowup")) fy += 1;
     if (phase === "ocean" && keys.has("arrowdown")) fy -= 1;
   }
+  /* Sprint is the old top speed at once, then it builds for as long as it is
+     held: 1x, 2.5x, 5x of boost at 0, half and all of surgeTime. Letting go,
+     stopping, or leaving the water starts it over; the dock is too short. */
+  const sprinting = keys.has("shift") || sprint;
+  sprintHeld = sprinting && phase === "ocean" && (fx || fz || fy) ? sprintHeld + dt : 0;
+  const ramp = Math.min(1, sprintHeld / TUNE.surgeTime);
+  const boost = sprinting ? TUNE.boost * (1 + (TUNE.surge - 1) * ramp * (1 + ramp) / 2) : 1;
 
   const sinY = Math.sin(cam.yaw), cosY = Math.cos(cam.yaw);
   const cp = phase === "dock" ? 1 : Math.cos(cam.pitch);
