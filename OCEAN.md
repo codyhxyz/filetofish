@@ -201,8 +201,16 @@ to cachalot. Family nudges the body plan inside whichever pool a file lands in
 — video as long torpedoes and sharks, images as flat discs and rays, archives
 as armoured blocks — while colour keeps carrying family as the channel you can
 read across the whole reef. A zero-byte file is the Ghost Minnow, half-there.
-The hash only breaks ties, so two photos of the same size in the same folder
-are still two animals.
+
+The roll inside a pool is the **cohort's**, not the file's: `cohortOf` mixes the
+file's family (its extension) with its weight to the nearest doubling, and the
+noun comes from the same two facts. The weights are untouched, so a drive draws
+the same mix of forms it always did, but every file of one kind and one size is
+now one species. Weight to a doubling is also the schooling key, which makes a
+school one species per extension in it. The hash is left with the individual,
+so two photos of the same size in the same folder are still two animals. The
+ranks are shared with the dock and live in `src/taxonomy.mjs`; DESIGN.md has
+the whole ladder.
 
 Because size finally means something, behaviour follows it: a whale beats
 slowly, turns on an arc dozens of body-lengths wide, barely bobs, stays solid

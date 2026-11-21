@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import vm from "node:vm";
 import * as THREE from "three";
+import * as taxonomy from "../src/taxonomy.mjs";
 
 // Run the real runtime, geometry and controller in Node; only DOM, audio and
 // GPU calls are stubbed. No browser, WebGL context or folder permission needed.
@@ -42,7 +43,7 @@ class Renderer {
   render(scene) { this.scenes.push(scene); }
   scenes = [];
 }
-const context = vm.createContext({ ...THREE, WebGLRenderer: Renderer,
+const context = vm.createContext({ ...THREE, ...taxonomy, WebGLRenderer: Renderer,
   document: doc, window: win, location: { search: "?demo" },
   innerWidth: 800, innerHeight: 600, devicePixelRatio: 1,
   performance: { now: () => clock },

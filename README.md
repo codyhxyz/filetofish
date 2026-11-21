@@ -65,6 +65,12 @@ ranges for the profile exponents, depth, girth, stretch and tail type, plus opti
 features: swordfish bill, puffer spikes, angler lure, barbels, second dorsal.
 Continuous jitter alone only ever reads as one fish.
 
+Which archetype and which name a file gets is classified, not rolled. The file is
+read down a ladder of ranks (domain, kingdom, phylum, class, order, family, genus,
+species), each one a fact about it: what medium it is picks the colour, medium and
+weight pick the body plan, extension and weight pick the noun. The hash only makes
+the individual. `src/taxonomy.mjs` holds the tree; DESIGN.md has the table.
+
 Patterns live in the fragment shader, keyed off object-space position quantised to a
 coarse grid so they block up with the facets. No textures.
 

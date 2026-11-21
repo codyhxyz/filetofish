@@ -279,8 +279,42 @@ icon capture so dex sprites show the fish alone.
 ## The dex
 
 The hash makes infinite individuals, so the collectible unit is the **species**:
-archetype x noun, 38 of them, plus the zero-byte Ghost Minnow. That is the finite
+order x noun, 38 of them, plus the zero-byte Ghost Minnow. That is the finite
 set you can actually finish.
+
+### A fish is classified, not dealt
+
+The hash used to pick the body plan and the noun, so two photos taken a second
+apart could come back as a shark and a sole. Now the species is read off the
+file one rank at a time (`src/taxonomy.mjs`), broadest first, each rank one true
+thing about the file:
+
+| rank | what it reads | what it decides |
+| --- | --- | --- |
+| domain | how the file came to exist: written, captured, sealed, or empty | zero bytes is the Ghost Minnow and nothing below it applies |
+| kingdom | the medium: image, video, audio, code, document, archive, font, unknown | colour |
+| phylum | the lineage of the format: raster, lossless, markup, disk image | nothing yet; it is a grouping |
+| class | weight: small fry, middleweight, heavyweight, leviathan (32 KB, 32 MB, 2 GB) | with the kingdom, the order |
+| order | the body plan (`ORDER` in `app.js`) | the mesh |
+| family | the extension | with the genus, the species |
+| genus | weight to the nearest doubling | with the family, the species |
+| species | the noun | the dex slot |
+
+A picture is flat, a clip is a torpedo and a feature film is a shark, a waveform
+or a source file is an eel, heavy code and anything unrecognised is an angler,
+an archive is a puffer, a document or a font is a perch. The hash is left with
+the individual: the adjective, the coat, the proportions and the rarity. Two
+files of one kind and one size are the same species and still two animals.
+
+The noun steps through its order's list one place per doubling of size. That is
+what keeps the set finishable: one kind of file at eight sizes is eight species,
+so a drive with nothing exotic on it can still fill the dex, and the six kinds
+the demo ocean carries reach all 38 (`test/taxonomy.mjs` checks it).
+
+The catch plate prints the whole ladder under the name, and a kept fish stores
+it, so the dex can say why each entry is what it is. Each dex group is headed
+with the files that swim there, because a species you can only reach with the
+right kind of file has to say which kind.
 
 Entries are pre-rendered icons, which is how OSRS does item sprites anyway: when a
 catch is kept the fish is built off-screen, rendered at a canonical 3/4 angle through
@@ -291,8 +325,9 @@ save path drops icons rather than failing if quota is ever hit.
 
 Dropping more than one file switches to **haul mode**: no cast animation, every
 file is hashed straight into the dex, the rarest becomes the on-screen specimen,
-and the dex opens on its own showing what is new. Drop a folder; a few hundred
-files is roughly a full set (coupon-collector over unequal archetype weights).
+and the dex opens on its own showing what is new. What a folder is worth depends
+on what is in it: a camera roll is a handful of flatfish, Downloads is most of
+the dex.
 
 Only a better rarity overwrites an existing entry, so the dex keeps your best of
 each species.

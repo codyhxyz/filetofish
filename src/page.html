@@ -313,6 +313,21 @@ body.has-catch #plate{opacity:1; transform:translate(-50%,0);}
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
 }
 
+/* the classification: every rank the file came down to be this fish */
+#plate .tax{
+  display:flex; flex-wrap:wrap; justify-content:center; gap:.4rem .95rem; margin-top:.7rem;
+  font-family:var(--f-mono); text-shadow:0 1px 10px rgba(4,30,40,.9);
+}
+#plate .tax span{display:flex; flex-direction:column; align-items:center; gap:.14rem; min-width:0;}
+#plate .tax i{
+  font-style:normal; font-size:.46rem; letter-spacing:.2em; text-transform:uppercase;
+  color:rgba(238,250,252,.48);
+}
+#plate .tax b{
+  font-weight:400; font-size:.64rem; letter-spacing:.05em; color:rgba(238,250,252,.9);
+  max-width:9rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+
 /* The three ends a fish can come to. They are deliberately the same size and the
    same material: ranking them primary / secondary / ghost would be the interface
    answering a question that belongs to the player. They differ in character
@@ -686,6 +701,8 @@ body.hint-send #fish{opacity:.62; transform:translateX(14px);}
   #plate .acts .narrow{display:inline;}
   #plate .nm{font-size:clamp(1.7rem,7vw,2.4rem);}
   #plate .sub{font-size:.62rem;}
+  #plate .tax{gap:.35rem .7rem; margin-top:.55rem;}
+  #plate .tax b{font-size:.58rem;}
   body.exploring.exploration-blocked #tools{bottom:1rem;}
   /* a narrow desktop window: the legend steps up over the row of tools */
   #travel{bottom:4.6rem; max-width:calc(100vw - 10.5rem);}
@@ -741,6 +758,7 @@ body.hint-send #fish{opacity:.62; transform:translateX(14px);}
   margin:0 0 .45rem; font-family:var(--f-mono); font-size:.6rem; letter-spacing:.2em;
   text-transform:uppercase; color:rgba(226,242,244,.42); font-weight:400;
 }
+.grp h3 em{font-style:normal; letter-spacing:.08em; text-transform:none; color:rgba(226,242,244,.3); margin-left:.5rem;}
 .slots{display:grid; grid-template-columns:repeat(auto-fill,minmax(72px,1fr)); gap:6px;}
 .slot{
   position:relative; aspect-ratio:4/3; border:1px solid rgba(190,230,236,.13);
@@ -770,6 +788,7 @@ body.hint-send #fish{opacity:.62; transform:translateX(14px);}
 }
 #dex-detail .nm{font-family:var(--f-display); font-size:1.05rem; letter-spacing:0; color:#fff; margin-bottom:.2rem;}
 #dex-detail .nm em{font-style:normal; font-size:.6rem; font-family:var(--f-mono); letter-spacing:.2em; text-transform:uppercase; color:#FFC49A; margin-left:.6rem;}
+#dex-detail .tx{margin-top:.3rem; font-size:.6rem; color:rgba(226,242,244,.42);}
 #dex-detail .empty{color:rgba(226,242,244,.3);}
 #dex-detail .done{color:#FFC49A;}
 @media (max-width:560px){
@@ -1111,6 +1130,7 @@ body.hint-send #fish{opacity:.62; transform:translateX(14px);}
   <div class="rar" id="p-rar"></div>
   <div class="nm" id="p-nm"></div>
   <div class="sub" id="p-sub"></div>
+  <div class="tax" id="p-tax" aria-label="classification"></div>
   <div class="acts" role="group" aria-label="what happens to this fish">
     <button id="release" class="act" type="button">
       <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"

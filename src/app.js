@@ -6,6 +6,7 @@ import {
 import { Sea, WEATHERS, fxFromSearch } from "./sea.js";
 import { mountExploration } from "./explore.js";
 import { setUnderwaterDepth } from "./underwater-audio.mjs";
+import { kinOf, classOf, stepOf, genusOf, ranksOf } from "./taxonomy.mjs";
 import {
   Scene, PerspectiveCamera, OrthographicCamera, WebGLRenderer, Mesh, Group,
   BufferGeometry, BufferAttribute, ShaderMaterial, SphereGeometry, ConeGeometry, PlaneGeometry,
@@ -57,18 +58,12 @@ function fmtBytes(n) {
   while (v >= 1024 && i < 3) { v /= 1024; i++; }
   return (v < 10 ? v.toFixed(1) : Math.round(v)) + " " + u[i];
 }
+const esc = s => String(s).replace(/[&<>"]/g, c => "&#" + c.charCodeAt(0) + ";");
 const hex32 = n => "0x" + n.toString(16).toUpperCase().padStart(8, "0");
 
 /* ============================================================ genome */
-const FAMILIES = [
-  { mime: /^image\//, ext: /^(heic|heif|jpe?g|png|gif|webp|svg|tiff?|avif|bmp|dng)$/i, hue: 18 },
-  { mime: /^video\//, ext: /^(mov|mp4|m4v|mkv|avi|webm|prores|mpe?g)$/i, hue: 254 },
-  { mime: /^audio\//, ext: /^(mp3|wav|m4a|flac|aiff?|ogg|opus|aac)$/i, hue: 312 },
-  { mime: /^text\/|json|javascript|typescript|\+xml/, ext: /^(tsx?|jsx?|py|rs|go|c|h|cpp|css|html?|md|txt|json|xml|ya?ml|sh)$/i, hue: 132 },
-  { mime: /pdf|msword|wordprocessing|presentation|spreadsheet|opendocument/, ext: /^(pdf|docx?|xlsx?|pptx?|pages|key|numbers|epub|rtf)$/i, hue: 40 },
-  { mime: /zip|compress|x-tar|gzip|rar|7z|diskimage/, ext: /^(zip|tar|gz|bz2|rar|7z|dmg|iso|pkg)$/i, hue: 202 },
-  { mime: /^font\//, ext: /^(woff2?|ttf|otf|eot)$/i, hue: 336 },
-];
+/* what a file is is read in taxonomy.mjs; down here a kingdom is a colour */
+const HUE = { image: 18, video: 254, audio: 312, code: 132, doc: 40, archive: 202, font: 336, other: 196 };
 const PRE = ["Brass", "Dappled", "Salt", "Moon", "Bramble", "Pocket", "Rusted", "Velvet", "Paper", "Hollow",
   "Lantern", "Speckled", "Drowsy", "Copper", "Cobble", "Midnight", "Sunday", "Wobbly", "Glass", "Thimble",
   "Marbled", "Quiet", "Tin", "Wandering", "Bitter", "Harbour", "Fenwick", "Ashen", "Gilded", "Sallow"];
@@ -82,21 +77,39 @@ const NOUN = {
   angler: ["Angler", "Monkfish", "Toadfish", "Sculpin", "Grouper"],
 };
 
-/* archetypes give categorical variety -- jittering one shape only ever reads as one fish */
+/* archetypes give categorical variety -- jittering one shape only ever reads as one fish.
+   `order` is what the ladder calls the body plan, `water` is which files come
+   back as it: the dex prints that over each group, because a species you can
+   only reach with the right kind of file needs to say which kind. */
 const ARCH = [
-  { key: "perch", w: 20, pF: [.50, .74], pB: [.74, 1.02], dep: [.36, .52], gir: [.17, .26], tails: ["fan", "spade", "round"], dor: [.16, .28], stretch: [1, 1.08] },
-  { key: "torpedo", w: 15, pF: [.55, .78], pB: [.95, 1.35], dep: [.24, .34], gir: [.16, .23], tails: ["fork"], dor: [.10, .17], stretch: [1.14, 1.3], bill: .6, dor2: 1 },
-  { key: "flat", w: 14, pF: [.62, .88], pB: [.66, .90], dep: [.62, .86], gir: [.09, .14], tails: ["fan", "round"], dor: [.22, .34], stretch: [.82, .94] },
-  { key: "eel", w: 11, pF: [.34, .50], pB: [.36, .56], dep: [.12, .18], gir: [.10, .15], tails: ["round"], dor: [.05, .09], stretch: [1.5, 1.8], barbel: .7 },
-  { key: "puffer", w: 11, pF: [.88, 1.15], pB: [.88, 1.15], dep: [.54, .70], gir: [.42, .58], tails: ["fan"], dor: [.07, .12], stretch: [.72, .84], spikes: 1 },
-  { key: "shark", w: 12, pF: [.56, .78], pB: [1.02, 1.42], dep: [.26, .37], gir: [.17, .25], tails: ["fork"], dor: [.32, .46], stretch: [1.2, 1.4], dor2: 1 },
-  { key: "angler", w: 12, pF: [.28, .44], pB: [.98, 1.42], dep: [.44, .60], gir: [.25, .36], tails: ["round", "spade"], dor: [.10, .18], stretch: [.90, 1.0], lure: .8, barbel: .35 },
+  { key: "perch", order: "perches", water: "documents and fonts", pF: [.50, .74], pB: [.74, 1.02], dep: [.36, .52], gir: [.17, .26], tails: ["fan", "spade", "round"], dor: [.16, .28], stretch: [1, 1.08] },
+  { key: "torpedo", order: "torpedoes", water: "video under 32 MB", pF: [.55, .78], pB: [.95, 1.35], dep: [.24, .34], gir: [.16, .23], tails: ["fork"], dor: [.10, .17], stretch: [1.14, 1.3], bill: .6, dor2: 1 },
+  { key: "flat", order: "flatfish", water: "images", pF: [.62, .88], pB: [.66, .90], dep: [.62, .86], gir: [.09, .14], tails: ["fan", "round"], dor: [.22, .34], stretch: [.82, .94] },
+  { key: "eel", order: "eels", water: "audio, and code under 32 KB", pF: [.34, .50], pB: [.36, .56], dep: [.12, .18], gir: [.10, .15], tails: ["round"], dor: [.05, .09], stretch: [1.5, 1.8], barbel: .7 },
+  { key: "puffer", order: "puffers", water: "archives", pF: [.88, 1.15], pB: [.88, 1.15], dep: [.54, .70], gir: [.42, .58], tails: ["fan"], dor: [.07, .12], stretch: [.72, .84], spikes: 1 },
+  { key: "shark", order: "sharks", water: "video over 32 MB", pF: [.56, .78], pB: [1.02, 1.42], dep: [.26, .37], gir: [.17, .25], tails: ["fork"], dor: [.32, .46], stretch: [1.2, 1.4], dor2: 1 },
+  { key: "angler", order: "anglers", water: "heavy code, and anything unrecognised", pF: [.28, .44], pB: [.98, 1.42], dep: [.44, .60], gir: [.25, .36], tails: ["round", "spade"], dor: [.10, .18], stretch: [.90, 1.0], lure: .8, barbel: .35 },
 ];
-const ARCH_TOTAL = ARCH.reduce((a, b) => a + b.w, 0);
+/* kingdom -> body plan, by class where the weight changes the animal: a clip
+   is a tuna and a feature film is a shark; a source file is an eel and the
+   bundle it was built into is the thing with the lamp. A picture is flat, a
+   waveform is an eel, an archive is inflated, and what nothing recognises came
+   up from the dark. */
+const ORDER = {
+  image: ["flat", "flat", "flat", "flat"],
+  video: ["torpedo", "torpedo", "shark", "shark"],
+  audio: ["eel", "eel", "eel", "eel"],
+  code: ["eel", "angler", "angler", "angler"],
+  doc: ["perch", "perch", "perch", "perch"],
+  archive: ["puffer", "puffer", "puffer", "puffer"],
+  font: ["perch", "perch", "perch", "perch"],
+  other: ["angler", "angler", "angler", "angler"],
+};
+const ARCH_BY_KEY = Object.fromEntries(ARCH.map(a => [a.key, a]));
 const PATTERNS = ["plain", "bands", "spots", "stripe"];
 
 /* the hash makes infinite individuals, so the finite thing to complete is the
-   species table: archetype x noun, plus the zero-byte ghost. */
+   species table: order x noun, plus the zero-byte ghost. */
 const SPECIES = [];
 for (const a of ARCH)
   NOUN[a.key].forEach((noun, i) => SPECIES.push({ key: a.key + "/" + i, arch: a.key, noun }));
@@ -113,16 +126,17 @@ const RARE_LOOK = {
 };
 
 function makeFish(meta, forcedHash) {
-  const ext = (meta.name.split(".").pop() || "").toLowerCase();
   const mime = meta.type || "";
-  const fam = (mime && FAMILIES.find(f => f.mime.test(mime))) || FAMILIES.find(f => f.ext.test(ext)) || { hue: 196 };
+  const kin = kinOf(meta.name, mime);
   const h1 = fnv1a(strBytes(meta.name + "|" + meta.size + "|" + mime));
   const h2 = forcedHash != null ? (forcedHash >>> 0) : fnv1a(meta.bytes || [], h1);
   const r = mulberry32(h2 ^ 0x9E3779B9);
   const R = ([a, b]) => a + r() * (b - a);
 
-  let pick = (h2 >>> 9) % ARCH_TOTAL, A = ARCH[0];
-  for (const a of ARCH) { if (pick < a.w) { A = a; break; } pick -= a.w; }
+  /* the species is classified, not dealt: kingdom and class pick the body
+     plan, family and weight pick the noun. The hash gets what is left. */
+  const step = stepOf(meta.size);
+  const A = ARCH_BY_KEY[ORDER[kin.kingdom][classOf(step)]];
 
   const lz = Math.clz32(h2);
   const f = {
@@ -139,7 +153,7 @@ function makeFish(meta, forcedHash) {
     bill: A.bill && r() < A.bill, spikes: !!A.spikes,
     lure: A.lure && r() < A.lure, barbel: A.barbel && r() < A.barbel, dor2: !!A.dor2,
     pattern: PATTERNS[(h2 >>> 6) % 4], patFreq: 6 + r() * 12,
-    hue: (fam.hue + (r() * 44 - 22) + 360) % 360,
+    hue: (HUE[kin.kingdom] + (r() * 44 - 22) + 360) % 360,
     sat: 16 + r() * 22,          // muted: OSRS never goes saturated
     lig: 34 + r() * 20,
     wobble: r(),
@@ -150,11 +164,12 @@ function makeFish(meta, forcedHash) {
   f.scale01 = 0.50 + 0.50 * st;
   f.icon01 = 0.72 + 0.28 * st;
   const nouns = NOUN[A.key];
-  const ni = (h2 >>> 19) % nouns.length;
+  const ni = genusOf(kin, step, nouns.length);
   f.noun = nouns[ni];
   f.speciesKey = f.ghost ? "special/ghost" : A.key + "/" + ni;
   f.name = f.ghost ? "Ghost Minnow" : PRE[(h2 >>> 13) % PRE.length] + " " + f.noun;
   if (f.ghost) { f.rarity = "Mythic"; f.sat = 6; f.lig = 68; f.noun = "Ghost Minnow"; }
+  f.ranks = ranksOf(kin, meta.size, A.order, f.noun);
   return f;
 }
 
@@ -1030,6 +1045,8 @@ function enter(s, now) {
     $("#p-rar").style.color = (RARE_LOOK[fish.rarity] || RARE_LOOK.Common).css;
     $("#p-nm").textContent = fish.name;
     $("#p-sub").textContent = `${fish.cm.toFixed(0)} cm · ${fish.file.name} · ${fmtBytes(fish.file.size)}`;
+    /* why it is this fish: the ladder it came down, broadest rank first */
+    $("#p-tax").innerHTML = fish.ranks.map(([k, v]) => `<span><i>${k}</i><b>${esc(v)}</b></span>`).join("");
     for (const id of ["#release", "#keep", "#send"]) {
       const b = $(id); b.disabled = false; b.classList.remove("chosen", "spent");
     }
@@ -1106,7 +1123,7 @@ function record(f) {
   const better = !prev || (RANK[f.rarity] || 0) > (RANK[prev.r] || 0);
   if (better) {
     const img = stage.snapshot(f) || (prev && prev.img) || null;
-    DEX[k] = { n: f.name, fn: f.file.name, sz: f.file.size, cm: f.cm, r: f.rarity, t: Date.now(), img };
+    DEX[k] = { n: f.name, fn: f.file.name, sz: f.file.size, cm: f.cm, r: f.rarity, t: Date.now(), img, tx: f.ranks };
   }
   saveDex();
   syncDexButton();
@@ -1188,7 +1205,9 @@ function renderDex() {
     const rows = SPECIES.filter(s => s.arch === g);
     if (!rows.length) return "";
     const got = rows.filter(s => DEX[s.key]).length;
-    return `<div class="grp"><h3>${g} &#183; ${got}/${rows.length}</h3><div class="slots">` +
+    /* the heading says which files swim here, or a locked slot is a guess */
+    const a = ARCH_BY_KEY[g], head = a ? `${a.order} <em>${a.water}</em>` : `ghosts <em>empty files</em>`;
+    return `<div class="grp"><h3>${head} &#183; ${got}/${rows.length}</h3><div class="slots">` +
       rows.map(s => {
         const e = DEX[s.key];
         if (!e) return `<div class="slot locked" title="not yet caught"></div>`;
@@ -1212,8 +1231,10 @@ groupsEl.addEventListener("click", e => {
   const d = new Date(en.t);
   detailEl.innerHTML =
     `<div class="nm">${en.n}<em>${en.r}</em></div>` +
-    `${en.cm.toFixed(0)} cm &#183; ${en.fn} &#183; ${fmtBytes(en.sz)} &#183; ` +
-    `${d.toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
+    `${en.cm.toFixed(0)} cm &#183; ${esc(en.fn)} &#183; ${fmtBytes(en.sz)} &#183; ` +
+    `${d.toLocaleDateString(undefined, { month: "short", day: "numeric" })}` +
+    /* entries logged before fish were classified have no ladder to show */
+    (en.tx ? `<div class="tx">${en.tx.map(r => esc(r[1])).join(" &#8250; ")}</div>` : "");
 });
 
 function openDex() { sfx("tick"); renderDex(); dexEl.hidden = false; $("#dex-close").focus(); }

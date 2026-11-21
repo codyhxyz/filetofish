@@ -15,6 +15,7 @@ import {
   Vector3, Vector4, Object3D, PlaneGeometry, DoubleSide, AdditiveBlending, Vector2, Raycaster,
 } from "three";
 import { P as SND, speak, beats, isOn, setOn, audio, sfx } from "./sfx.js";
+import { kinOf, classOf, genusOf, cohortOf } from "./taxonomy.mjs";
 
 export function initOcean(root, options = {}) {
 const embedded = options.embedded === true;
@@ -125,26 +126,6 @@ const FAMILIES = [
   { key: "archive", label: "archives", hue: 194, sat: 52, lig: 54 },
   { key: "other", label: "everything else", hue: 210, sat: 8, lig: 52 },
 ];
-const EXT_FAM = {};
-{
-  const put = (fam, list) => list.split(" ").forEach(e => (EXT_FAM[e] = fam));
-  put("image", "jpg jpeg png gif heic heif webp tif tiff bmp svg avif raw dng cr2 nef arw orf psd ai eps ico icns");
-  put("video", "mov mp4 m4v mkv avi webm mpg mpeg wmv flv prores mts m2ts 3gp");
-  put("audio", "mp3 wav m4a flac aac ogg opus aiff aif wma mid midi caf alac");
-  put("code", "js mjs cjs ts tsx jsx json json5 py rb rs go c h cpp hpp cc cs java kt swift " +
-    "php sh bash zsh fish pl lua r sql html htm css scss sass less vue svelte astro " +
-    "md mdx yml yaml toml ini cfg conf lock map d.ts gradle make cmake dockerfile gitignore " +
-    "xml plist env graphql proto tf hcl");
-  put("doc", "pdf doc docx xls xlsx ppt pptx pages numbers key odt ods odp rtf txt epub mobi " +
-    "csv tsv log tex bib djvu");
-  put("archive", "zip tar gz bz2 xz 7z rar dmg iso pkg deb rpm jar war apk ipa cab sit sitx zst");
-}
-const familyOf = name => {
-  const dot = name.lastIndexOf(".");
-  if (dot <= 0) return "other";
-  return EXT_FAM[name.slice(dot + 1).toLowerCase()] || "other";
-};
-
 const famColor = {}, hazeColor = {};
 for (const F of FAMILIES) {
   famColor[F.key] = new Color().setHSL(F.hue / 360, F.sat / 100, F.lig / 100);
@@ -156,10 +137,14 @@ $("#legend").innerHTML = FAMILIES.map(F =>
 
 /* ============================================================ records */
 function makeRecord(name, path, size, mtime, dir) {
+  const kin = kinOf(name);
   return {
     name, path, size,
     ageDays: Math.max(0, (Date.now() - mtime) / DAY),
-    fam: familyOf(name),
+    /* where the file sits in the tree of files (taxonomy.mjs). The reef has
+       no colour of its own for type, so a font swims with everything else */
+    kin,
+    fam: kin.kingdom === "font" ? "other" : kin.kingdom,
     /* the fish is a pure function of where the file is, what it is called and
        how big it is -- touching a file does not change its fish */
     hash: fnv1a(path + "/" + name + "|" + size),
@@ -496,11 +481,9 @@ const SIZE_LADDER = [
   [35, 21.0],   // 32 GB
   [38, 30.0],   // 256 GB
 ];
-/* the class breaks, in log2(bytes): fry | fish | big fish | leviathan */
-const CLASS_BREAK = [15, 25, 31];              // 32 KB, 32 MB, 2 GB
+/* the pool each class draws from: fry | fish | big fish | leviathan. The
+   breaks themselves (32 KB, 32 MB, 2 GB) are taxonomy.mjs's `classOf` */
 const CLASS_KEY = ["fry", "mid", "big", "lev"];
-const classOf = lb => lb < CLASS_BREAK[0] ? 0 : lb < CLASS_BREAK[1] ? 1
-  : lb < CLASS_BREAK[2] ? 2 : 3;
 
 function sizeToScale(b) {
   const lb = clamp(Math.log2(b + 1), 0, 38);
@@ -618,7 +601,8 @@ function layout(places) {
    FAMILY nudges the body plan inside whichever pool a file lands in (video as
    long torpedoes, images as flat discs and rays, archives as armoured blocks)
    while colour keeps carrying family as the primary channel.
-   The HASH only breaks ties, so two files of a kind are still two animals.
+   The COHORT -- family and weight to a doubling -- makes the roll, so files
+   of one kind and one size are one species. The hash is the individual.
 
    Every archetype is one geometry instanced up to meshBudget times, so the
    whole table costs fifteen draw calls -- per-file geometry is the one thing
@@ -723,9 +707,12 @@ function pickArch(pool, fam, h) {
   }
   return list[0];
 }
+/* the roll is the cohort's, not the file's: every file of one family and one
+   weight lands on the same form, so a school is one species the way OCEAN.md
+   always said it was. The hash is left with the individual. */
 function archOf(f, deep) {
   if (f.size === 0) return GHOST_I;
-  const h = f.hash >>> 9;
+  const h = cohortOf(f.kin, f.lb | 0);
   if (f.cls === 3) return pickArch(deep ? "levdeep" : "lev", f.fam, h);
   if (deep) return pickArch("deep", f.fam, h);
   return pickArch(CLASS_KEY[f.cls], f.fam, h);
@@ -2789,8 +2776,7 @@ function openHaul() {
      "two Bonito and a Marlin" is a haul; "three torpedoes" is a histogram */
   const sp = new Map();
   for (const f of list) {
-    const a = ARCH[f.arch];
-    const name = a.key === "ghost" ? "Ghost Minnow" : a.nouns[(f.hash >>> 19) % a.nouns.length];
+    const name = nounOf(f);
     let e = sp.get(name);
     if (!e) sp.set(name, e = { n: 0, b: 0, fam: f.fam });
     e.n++; e.b += f.size;
@@ -2916,12 +2902,15 @@ function buildGauge() {
 
 const PRE = ["Brass", "Dappled", "Salt", "Moon", "Bramble", "Pocket", "Rusted", "Velvet", "Paper",
   "Hollow", "Lantern", "Speckled", "Drowsy", "Copper", "Cobble", "Midnight", "Sunday", "Wobbly"];
-/* the noun is the species, which the file chose; the adjective is the hash,
-   which is the individual */
+/* the noun is the species, which the file's family and weight chose; the
+   adjective is the hash, which is the individual */
+const nounOf = f => {
+  const n = ARCH[f.arch].nouns;
+  return n[genusOf(f.kin, f.lb | 0, n.length)];
+};
 function fishName(f) {
-  const a = ARCH[f.arch];
-  if (a.key === "ghost") return "Ghost Minnow";
-  return PRE[(f.hash >>> 13) % PRE.length] + " " + a.nouns[(f.hash >>> 19) % a.nouns.length];
+  if (f.arch === GHOST_I) return "Ghost Minnow";
+  return PRE[(f.hash >>> 13) % PRE.length] + " " + nounOf(f);
 }
 
 const ago = (n, w) => n + " " + w + (n === 1 ? "" : "s") + " ago";
